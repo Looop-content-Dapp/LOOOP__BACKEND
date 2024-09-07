@@ -39,7 +39,7 @@ const getFaveArtist = async (req, res) => {
 
     return res.status(200).json({
       message: "successfully gotten user fave artist",
-      data: preference[0],
+      data: faveArtist[0],
     });
   } catch (error) {
     console.log(error);
@@ -57,9 +57,9 @@ const getAllFaveArtistForUser = async (req, res) => {
         $match: {
           $expr: {
             $eq: [
-              "$_id",
+              "$userId",
               {
-                $toObjectId: req.params.id,
+                $toObjectId: req.params.userid,
               },
             ],
           },
@@ -68,14 +68,15 @@ const getAllFaveArtistForUser = async (req, res) => {
     ]);
 
     return res.status(200).json({
-      message: "successfully gotten user fave artist",
+      message: "successfully gotten user favorite artist",
       data: faveArtistForUser,
     });
   } catch (error) {
     console.log(error);
-    return res
-      .status(500)
-      .json({ message: "Error fetching fave artist", error: error.message });
+    return res.status(500).json({
+      message: "Error fetching user favorite artist",
+      error: error.message,
+    });
   }
 };
 

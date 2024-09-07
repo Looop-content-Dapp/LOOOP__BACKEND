@@ -32,6 +32,14 @@ const getArtist = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "_id",
+          foreignField: "artistId",
+          as: "releases",
+        },
+      },
     ]);
 
     if (!artist) {

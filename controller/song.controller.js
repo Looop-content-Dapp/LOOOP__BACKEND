@@ -74,7 +74,7 @@ const getAllReleases = async (req, res) => {
 
 const getSong = async (req, res) => {
   try {
-    const Song = await Song.aggregate([
+    const song = await Song.aggregate([
       {
         $match: {
           $expr: {
@@ -97,12 +97,12 @@ const getSong = async (req, res) => {
       //   },
     ]);
 
-    if (!Song) {
+    if (!song) {
       return res.status(404).json({ message: "Song not found" });
     }
     return res.status(200).json({
       message: "successfully gotten a Song",
-      data: Song[0],
+      data: song[0],
     });
   } catch (error) {
     console.log(error);

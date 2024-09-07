@@ -4,6 +4,7 @@ const artistrouter = require("./routes/artist.route");
 const preferenceRouter = require("./routes/preferences.route");
 const faveArtistRouter = require("./routes/faveartist.mode");
 const songRouter = require("./routes/songs.route");
+const communityRouter = require("./routes/community.route");
 
 require("dotenv").config();
 const express = require("express"),
@@ -30,6 +31,7 @@ app.use("/api/artist", artistrouter);
 app.use("/api/preference", preferenceRouter);
 app.use("/api/faveartist", faveArtistRouter);
 app.use("/api/song", songRouter);
+app.use("/api/community", communityRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 
@@ -38,7 +40,7 @@ mongoose.connect(
 );
 
 mongoose.connection.on("open", () => {
-  app.listen(port, () => {
+  app.listen(port, "0.0.0.0", () => {
     console.log("Loop backend running on:", port);
   });
 });
