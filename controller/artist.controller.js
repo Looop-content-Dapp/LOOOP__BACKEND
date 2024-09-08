@@ -1,4 +1,4 @@
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const Artist = require("../models/artist.model");
 const Social = require("../models/socials.model");
 

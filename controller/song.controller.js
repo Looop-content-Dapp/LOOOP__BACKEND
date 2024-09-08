@@ -1,4 +1,3 @@
-const bcrypt = require("bcrypt");
 const Song = require("../models/song.model");
 const Release = require("../models/releases.model");
 const Track = require("../models/track.model");
