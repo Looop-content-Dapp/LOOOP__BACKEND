@@ -2,7 +2,11 @@ const mongoose = require("mongoose");
 
 const PreferenceSchema = new mongoose.Schema(
   {
-    peference: { type: String },
+    genreId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "Genre",
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,

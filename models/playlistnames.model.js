@@ -2,9 +2,14 @@ const mongoose = require("mongoose");
 
 const playListNameSchema = new mongoose.Schema(
   {
-    title: { type: String },
-    user_id: { type: String },
-    created_date: { type: Date },
+    title: { type: String, required: true },
+    description: { type: String, required: true },
+    userId: { type: String, required: true },
+    image: { type: String },
+    coverImage: { type: String },
+    genreId: { type: mongoose.Types.ObjectId, required: true },
+    createdDate: { type: Date, default: Date.now() },
+    isPublic: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

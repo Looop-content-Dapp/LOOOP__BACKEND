@@ -5,6 +5,8 @@ const preferenceRouter = require("./routes/preferences.route");
 const faveArtistRouter = require("./routes/faveartist.mode");
 const songRouter = require("./routes/songs.route");
 const communityRouter = require("./routes/community.route");
+const genreRoute = require("./routes/genres.route");
+const playlistRouter = require("./routes/playlist.route");
 
 require("dotenv").config();
 const express = require("express"),
@@ -32,6 +34,8 @@ app.use("/api/preference", preferenceRouter);
 app.use("/api/faveartist", faveArtistRouter);
 app.use("/api/song", songRouter);
 app.use("/api/community", communityRouter);
+app.use("/api/genre", genreRoute);
+app.use("/api/playlist", playlistRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 

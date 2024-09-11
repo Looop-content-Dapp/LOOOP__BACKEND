@@ -2,6 +2,8 @@ const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
 const Preferences = require("../models/Preferences");
 const FaveArtist = require("../models/faveArtist");
+const Genre = require("../models/genre.model");
+const Artist = require("../models/artist.model");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -49,6 +51,34 @@ const getUser = async (req, res) => {
           as: "faveArtists",
         },
       },
+      {
+        $unwind: {
+          path: "$faveArtists",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "faveArtists.artistId",
+          foreignField: "_id",
+          as: "faveArtists.artist",
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          faveArtist: { $push: "$faveArtists" },
+          otherFields: { $first: "$$ROOT" },
+        },
+      },
+      {
+        $replaceRoot: {
+          newRoot: {
+            $mergeObjects: ["$otherFields", { faveArtists: "$faveArtist" }],
+          },
+        },
+      },
     ]);
 
     if (!user) {
@@ -68,11 +98,7 @@ const getUser = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { email, password, preferences, faveArtist } = req.body;
-
-    console.log(email, password, preferences, faveArtist);
-    const parsePeferences = JSON.parse(JSON.stringify(preferences));
-    const parseFaveArtist = JSON.parse(JSON.stringify(faveArtist));
+    const { email, password } = req.body;
 
     if (password == "" || email == "") {
       return res
@@ -88,25 +114,6 @@ const createUser = async (req, res) => {
       password: hashedPassword,
     });
 
-    for (let i = 0; i < parsePeferences.length; i++) {
-      const element = parsePeferences[i];
-      const peference = new Preferences({
-        peference: element,
-        userId: user._id,
-      });
-      await peference.save();
-    }
-
-    for (let i = 0; i < parseFaveArtist.length; i++) {
-      const element = parseFaveArtist[i];
-      console.log(element);
-      const faveArtist = new FaveArtist({
-        artistId: element,
-        userId: user._id,
-      });
-      await faveArtist.save();
-    }
-
     await user.save();
 
     return res.status(200).json({
@@ -121,8 +128,134 @@ const createUser = async (req, res) => {
   }
 };
 
+const createGenresForUser = async (req, res) => {
+  try {
+    const { userId, preferences } = req.body;
+
+    const parsePeferences = JSON.parse(JSON.stringify(preferences));
+
+    for (let i = 0; i < parsePeferences.length; i++) {
+      const element = parsePeferences[i];
+      const peference = new Preferences({
+        genreId: element,
+        userId: userId,
+      });
+      await peference.save();
+    }
+
+    return res.status(200).json({
+      message: "successfully saved all genres for user",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error creating all genres for user",
+      error: error.message,
+    });
+  }
+};
+
+const getArtistBasedOnUserGenre = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const userGenres = await Preferences.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$userId",
+              {
+                $toObjectId: userId,
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "genres",
+          localField: "genreId",
+          foreignField: "_id",
+          as: "genre",
+        },
+      },
+      {
+        $unwind: "$genre",
+      },
+    ]);
+
+    let newArr = [];
+
+    userGenres.forEach((genre) => {
+      newArr.push(genre.genre.name);
+    });
+
+    const userData = await Artist.aggregate([
+      {
+        $match: {
+          genre: {
+            $in: [...newArr],
+          },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "successfully gotten a artist based on genres",
+      data: userData,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error fetching artist based on genre",
+      error: error.message,
+    });
+  }
+};
+
+const createUserFaveArtistBasedOnGenres = async (req, res) => {
+  try {
+    const { userId, faveArtist } = req.body;
+
+    const parseFaveArtist = JSON.parse(JSON.stringify(faveArtist));
+
+    for (let i = 0; i < parseFaveArtist.length; i++) {
+      const element = parseFaveArtist[i];
+      console.log(element);
+      const faveArtist = new FaveArtist({
+        artistId: element,
+        userId: userId,
+      });
+      await faveArtist.save();
+    }
+
+    return res.status(200).json({
+      message: "successfully saved all users fave artist based on genre",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error saving user fave artist based on genre",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUser,
   createUser,
+  createGenresForUser,
+  getArtistBasedOnUserGenre,
+  createUserFaveArtistBasedOnGenres,
 };
+
+// "preferences": ["rock", "pop", "classical"],
+// "faveArtist": ["66d98b422581893979ed2ae5", "66d98c18abb0baa9d564204b"]

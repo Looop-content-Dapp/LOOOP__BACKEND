@@ -63,6 +63,7 @@ const createArtist = async (req, res) => {
     const {
       name,
       email,
+      profileImage,
       password,
       bio,
       genre,
@@ -84,12 +85,12 @@ const createArtist = async (req, res) => {
     const artist = new Artist({
       name,
       email,
-      password,
+      profileImage,
+      password: hashedPassword,
       bio,
       genre,
       addinationalInfo,
       addinationalInfo: addinationalInfo ? addinationalInfo : "",
-      password: hashedPassword,
     });
 
     const socials = await Social({
