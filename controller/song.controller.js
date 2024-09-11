@@ -1,6 +1,8 @@
 const Song = require("../models/song.model");
 const Release = require("../models/releases.model");
 const Track = require("../models/track.model");
+const Genre = require("../models/genre.model");
+const Preferences = require("../models/Preferences");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -131,6 +133,66 @@ const getRelease = async (req, res) => {
 
     if (!Song) {
       return res.status(404).json({ message: "Song not found" });
+    }
+    return res.status(200).json({
+      message: "successfully gotten a Song",
+      data: Song[0],
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching Song", error: error.message });
+  }
+};
+
+const getReleaseBasedOnGenres = async (req, res) => {
+  try {
+    const userGenres = await Preferences.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$userId",
+              {
+                $toObjectId: req.params.userId,
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "genres",
+          localField: "genreId",
+          foreignField: "_id",
+          as: "genre",
+        },
+      },
+      {
+        $unwind: "$genre",
+      },
+    ]);
+
+    let newArr = [];
+
+    userGenres.forEach((genre) => {
+      newArr.push(genre.genre.name);
+    });
+
+    console.log(userGenres);
+
+    const Song = await Release.aggregate([
+      ...releaseObject,
+      {
+        $match: {
+          genre: { $in: newArr },
+        },
+      },
+    ]);
+
+    if (!Song) {
+      return res.status(404).json({ message: "No Song found on user genre" });
     }
     return res.status(200).json({
       message: "successfully gotten a Song",
@@ -288,4 +350,5 @@ module.exports = {
   deleteASongFromARelease,
   getAllReleases,
   getRelease,
+  getReleaseBasedOnGenres,
 };

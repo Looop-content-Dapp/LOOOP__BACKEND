@@ -36,6 +36,16 @@ const createAGenre = async (req, res) => {
   try {
     const { name, description, image } = req.body;
 
+    const genreExist = await Genre.find({ name: name });
+
+    if (name == "" || description == "" || image == "") {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (genreExist.length > 0) {
+      return res.status(409).json({ message: "Genre already exists" });
+    }
+
     const genre = new Genre({
       name,
       description,

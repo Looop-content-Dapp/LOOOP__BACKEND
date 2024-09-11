@@ -8,14 +8,16 @@ const {
   getAllReleases,
   getRelease,
   deleteASongFromARelease,
+  getReleaseBasedOnGenres,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
 
 songRouter.get("/getallreleases", getAllReleases);
-songRouter.get("/getrelease/:releaseId", getRelease);
 songRouter.get("/", getAllSongs);
 songRouter.get("/:songId", getSong);
+songRouter.get("/getrelease/:releaseId", getRelease);
+songRouter.get("/getreleasebasedongenres/:userId", getReleaseBasedOnGenres);
 
 songRouter.post("/createsong", createRelease);
 songRouter.post("/addRelease", addRelease);
