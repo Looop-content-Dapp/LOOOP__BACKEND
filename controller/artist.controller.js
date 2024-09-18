@@ -1,6 +1,7 @@
 const bcrypt = require("bcryptjs");
 const Artist = require("../models/artist.model");
 const Social = require("../models/socials.model");
+const Subscriber = require("../models/subcriber.model");
 
 const getAllArtists = async (req, res) => {
   try {
@@ -114,8 +115,30 @@ const createArtist = async (req, res) => {
   }
 };
 
+const getArtistSubcribers = async (req, res) => {
+  try {
+    const { artistId } = req.params;
+
+    const subcribers = await Subscriber.find({
+      artistId: artistId,
+    });
+
+    return res.status(200).json({
+      message: `successfully gotten data`,
+      subcribers,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllArtists,
   getArtist,
   createArtist,
+  getArtistSubcribers,
 };

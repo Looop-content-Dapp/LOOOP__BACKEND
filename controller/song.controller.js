@@ -212,7 +212,6 @@ const createRelease = async (req, res) => {
       title,
       release_date,
       cover_image,
-      number_of_streams,
       genre,
       label,
       type,
@@ -225,7 +224,6 @@ const createRelease = async (req, res) => {
       title,
       release_date,
       cover_image,
-      number_of_streams,
       genre,
       label,
       type,
@@ -273,16 +271,44 @@ const addRelease = async (req, res) => {
   try {
     const { title, artistId, releaseId, file, duration } = req.body;
 
-    const release = await Release.findById(releaseId);
+    const release = await Release.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$_id",
+              {
+                $toObjectId: releaseId,
+              },
+            ],
+          },
+        },
+      },
+      ...releaseObject,
+    ]);
+
+    console.log(release);
 
     if (!release) {
       return res.status(401).json({ message: "Release not found" });
     }
 
-    if (release.type == "single" && release.tracklists.lengh == 1) {
+    if (release[0].type == "single" && release[0].tracklists.length == 1) {
       return res
         .status(401)
         .json({ message: "A single can only contain one song" });
+    }
+
+    if (release[0].type == "album" && release[0].tracklists.length == 15) {
+      return res
+        .status(401)
+        .json({ message: "An album can only contain 10 - 15 songs" });
+    }
+
+    if (release[0].type == "ep" && release[0].tracklists.length == 10) {
+      return res
+        .status(401)
+        .json({ message: "An EP can only contain 10 songs" });
     }
 
     const currentTrack = await Track.find({ releaseId: releaseId });
@@ -292,7 +318,7 @@ const addRelease = async (req, res) => {
     });
 
     const track = new Track({
-      releaseId: release._id,
+      releaseId: releaseId,
       title: title,
       duration: duration,
       track_number: currentTrack.length + 1,

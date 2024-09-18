@@ -8,6 +8,7 @@ const {
   deletePlayList,
   addSongToPlaylist,
 } = require("../controller/playlistsong.controller");
+const isPremiumUser = require("../middlewares/ispremiumuser.middleware");
 
 const playlistRouter = express.Router();
 
@@ -15,8 +16,8 @@ playlistRouter.get("/", getAllPlayList);
 playlistRouter.get("/getallplaylistforuser/:userId", getAllPlayListForUser);
 playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
 
-playlistRouter.post("/createplaylist", createPlaylist);
-playlistRouter.post("/addsongtoplaylist", addSongToPlaylist);
-playlistRouter.delete("/deleteplaylist", deletePlayList);
+playlistRouter.post("/createplaylist", isPremiumUser, createPlaylist);
+playlistRouter.post("/addsongtoplaylist", isPremiumUser, addSongToPlaylist);
+playlistRouter.delete("/deleteplaylist", isPremiumUser, deletePlayList);
 
 module.exports = playlistRouter;

@@ -4,6 +4,7 @@ const Preferences = require("../models/Preferences");
 const FaveArtist = require("../models/faveArtist");
 const Genre = require("../models/genre.model");
 const Artist = require("../models/artist.model");
+const Subscriber = require("../models/subcriber.model");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -224,16 +225,10 @@ const createUserFaveArtistBasedOnGenres = async (req, res) => {
   try {
     const { userId, faveArtist } = req.body;
 
-    const parseFaveArtist = JSON.parse(JSON.stringify(faveArtist));
+    const user = await User.findById(userId);
 
-    for (let i = 0; i < parseFaveArtist.length; i++) {
-      const element = parseFaveArtist[i];
-      console.log(element);
-      const faveArtist = new FaveArtist({
-        artistId: element,
-        userId: userId,
-      });
-      await faveArtist.save();
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
     }
 
     return res.status(200).json({
@@ -248,13 +243,108 @@ const createUserFaveArtistBasedOnGenres = async (req, res) => {
   }
 };
 
+const subcribeToPremium = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await User.findOneAndUpdate(
+      {
+        _id: userId,
+      },
+      {
+        $set: {
+          isPremium: user.isPremium == true ? false : true,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: `successfully ${
+        user.isPremium == true ? "unsubcribe from" : "subcribe to"
+      } premium`,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error subcribing to premium",
+      error: error.message,
+    });
+  }
+};
+
+const subcribeToArtist = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const alreadySubcribed = await Subscriber.findOne({
+      userId: userId,
+      artistId: artistId,
+    });
+
+    if (alreadySubcribed) {
+      await Subscriber.deleteOne({
+        userId: userId,
+        artistId: artistId,
+      });
+    } else {
+      const subcriber = await Subscriber({
+        userId,
+        artistId,
+      });
+      await subcriber.save();
+    }
+
+    return res.status(200).json({
+      message: `successfully ${
+        alreadySubcribed ? "unsubcribed" : "subcribed"
+      } to artist`,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error subcribing to artist",
+      error: error.message,
+    });
+  }
+};
+
+const getArtistUserSubcribeTo = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const data = await Subscriber.find({
+      userId: userId,
+    });
+
+    return res.status(200).json({
+      message: `successfully gotten data`,
+      data,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUser,
+  getArtistUserSubcribeTo,
   createUser,
   createGenresForUser,
   getArtistBasedOnUserGenre,
   createUserFaveArtistBasedOnGenres,
+  subcribeToPremium,
+  subcribeToArtist,
 };
 
 // "preferences": ["rock", "pop", "classical"],

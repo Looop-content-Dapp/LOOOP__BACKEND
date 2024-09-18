@@ -14,6 +14,7 @@ const releaseSchema = new mongoose.Schema({
   },
   number_of_streams: {
     type: Number,
+    default: 0,
   },
   genre: {
     type: String,
