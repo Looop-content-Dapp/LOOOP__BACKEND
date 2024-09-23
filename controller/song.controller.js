@@ -368,6 +368,18 @@ const deleteASongFromARelease = async (req, res) => {
   }
 };
 
+const streamSong = async (req, res) => {
+  try {
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
 module.exports = {
   getAllSongs,
   getSong,
@@ -377,4 +389,5 @@ module.exports = {
   getAllReleases,
   getRelease,
   getReleaseBasedOnGenres,
+  streamSong,
 };

@@ -5,6 +5,18 @@ const songSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  streams: {
+    type: Number,
+    default: 0,
+  },
+  playlistAdditions: {
+    type: Number,
+    default: 0,
+  },
+  shares: {
+    type: Number,
+    default: 0,
+  },
 });
 
 const Song = mongoose.model("songs", songSchema);

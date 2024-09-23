@@ -14,10 +14,6 @@ const trackSchema = new mongoose.Schema({
     type: String, // You can also use a more precise time format if desired
     required: true,
   },
-  streams: {
-    type: Number,
-    default: 0,
-  },
   track_number: {
     type: Number,
     required: true,
