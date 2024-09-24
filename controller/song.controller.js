@@ -3,6 +3,7 @@ const Release = require("../models/releases.model");
 const Track = require("../models/track.model");
 const Genre = require("../models/genre.model");
 const Preferences = require("../models/Preferences");
+const { matchUser } = require("../utils/helpers/searchquery");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -388,76 +389,237 @@ const streamSong = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating streams:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
-const getTop100Songs = async () => {
+const getTop100Songs = async (req, res) => {
   try {
-    const { songId } = req.params;
-
-    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+    const songs = await Song.aggregate([
+      {
+        $addFields: {
+          rating: {
+            $add: ["$streams", "$playlistAdditions", "$shares"],
+          },
+        },
+      },
+      {
+        $sort: {
+          rating: -1,
+        },
+      },
+    ]);
 
     return res.status(200).json({
       message: "successfully streamed a Song",
+      data: songs,
     });
   } catch (error) {
-    console.error("Error updating streams:", error);
+    console.error("Error occured:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
-const getTopSongsForArtist = async () => {
+const getTopSongsForArtist = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { artistId } = req.params;
+    const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+    const songs = await Track.aggregate([
+      {
+        $lookup: {
+          from: "songs",
+          localField: "songId",
+          foreignField: "_id",
+          as: "song",
+        },
+      },
+      {
+        $unwind: {
+          path: "$song",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        ...matchUserObj,
+      },
+      {
+        $addFields: {
+          rating: {
+            $add: ["$song.streams", "$song.playlistAdditions", "$song.shares"],
+          },
+        },
+      },
+      {
+        $sort: {
+          rating: -1,
+        },
+      },
+    ]);
 
     return res.status(200).json({
       message: "successfully streamed a Song",
+      data: songs,
     });
   } catch (error) {
     console.error("Error updating streams:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
-const getAlbumsAndEpByArtist = async () => {
+const getAlbumsAndEpByArtist = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { artistId } = req.params;
+    const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+    const songs = await Track.aggregate([
+      {
+        ...matchUserObj,
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+      {
+        $unwind: {
+          path: "$release",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          type: "$release.type",
+        },
+      },
+      {
+        $match: {
+          type: {
+            $in: ["album", "ep"],
+          },
+        },
+      },
+    ]);
 
     return res.status(200).json({
-      message: "successfully streamed a Song",
+      message: "success",
+      data: songs,
     });
   } catch (error) {
     console.error("Error updating streams:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
-const getSingles = async () => {
+const getSingles = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { artistId } = req.params;
+    const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+    const songs = await Track.aggregate([
+      {
+        ...matchUserObj,
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+      {
+        $unwind: {
+          path: "$release",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          type: "$release.type",
+        },
+      },
+      {
+        $match: {
+          $expr: {
+            $eq: ["$type", "single"],
+          },
+        },
+      },
+    ]);
 
     return res.status(200).json({
-      message: "successfully streamed a Song",
+      message: "success",
+      data: songs,
     });
   } catch (error) {
     console.error("Error updating streams:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
-const getSongArtistFeaturedOn = async () => {
+const getSongArtistFeaturedOn = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { artistId } = req.params;
+    const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+    const songs = await Track.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$ft",
+              {
+                $toObjectId: artistId,
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "songId",
+          foreignField: "_id",
+          as: "song",
+        },
+      },
+      {
+        $unwind: {
+          path: "$song",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ]);
 
     return res.status(200).json({
-      message: "successfully streamed a Song",
+      message: "success",
+      data: songs,
     });
   } catch (error) {
     console.error("Error updating streams:", error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 

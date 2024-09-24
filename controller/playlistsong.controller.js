@@ -1,6 +1,7 @@
 const PlayListName = require("../models/playlistnames.model");
 const PlayListSongs = require("../models/playlistsongs.model");
 const Release = require("../models/releases.model");
+const Song = require("../models/song.model");
 const Track = require("../models/track.model");
 
 const getAllPlayList = async (req, res) => {
@@ -131,10 +132,23 @@ const addSongToPlaylist = async (req, res) => {
       return res.status(401).json({ message: "track not found" });
     }
 
+    const songAlreadyExists = await PlayListSongs.find({
+      userId: playlist.userId,
+      trackId,
+    });
+
+    if (songAlreadyExists.length > 0) {
+      return res.status(401).json({ message: "song already in this playlist" });
+    }
+
     const newSongToPlaylist = new PlayListSongs({
       trackId,
       userId: playlist.userId,
       playlistId,
+    });
+
+    await Song.findByIdAndUpdate(song.songId, {
+      $inc: { playlistAdditions: 1 },
     });
 
     await newSongToPlaylist.save();
