@@ -247,6 +247,7 @@ const createRelease = async (req, res) => {
         track_number: i + 1,
         artistId,
         songId: song._id,
+        genre,
       });
       tracksToSave.push(track);
     }

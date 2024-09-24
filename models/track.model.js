@@ -24,6 +24,10 @@ const trackSchema = new mongoose.Schema({
     ref: "Artist",
   },
   songId: { type: mongoose.Schema.Types.ObjectId, ref: "Song", required: true },
+  genre: {
+    type: String,
+    required: true,
+  },
 });
 
 const Track = mongoose.model("tracks", trackSchema);
