@@ -1,10 +1,11 @@
 const User = require("../models/user.model");
 
 async function isPremiumUser(req, res, next) {
-  const user = req.params.userId;
+  const { userId } = req.body;
 
-  const isPremium = await User.findOne({ userId: user }, "isPremium");
+  const isPremium = await User.findById(userId, "isPremium");
 
+  console.log(isPremium);
   if (!isPremium) {
     return res.status(404).json({ message: "User not found" });
   }

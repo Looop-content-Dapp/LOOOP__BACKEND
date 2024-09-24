@@ -1,6 +1,7 @@
 const PlayListName = require("../models/playlistnames.model");
 const PlayListSongs = require("../models/playlistsongs.model");
 const Release = require("../models/releases.model");
+const Track = require("../models/track.model");
 
 const getAllPlayList = async (req, res) => {
   try {
@@ -117,21 +118,21 @@ const createPlaylist = async (req, res) => {
 
 const addSongToPlaylist = async (req, res) => {
   try {
-    const { releaseId, playlistId } = req.body;
+    const { trackId, playlistId } = req.body;
 
     const playlist = await PlayListName.findById(playlistId);
-    const song = await Release.findById(releaseId);
+    const song = await Track.findById(trackId);
 
     if (!playlist) {
       return res.status(401).json({ message: "Playlist not found" });
     }
 
     if (!song) {
-      return res.status(401).json({ message: "release not found" });
+      return res.status(401).json({ message: "track not found" });
     }
 
     const newSongToPlaylist = new PlayListSongs({
-      releaseId,
+      trackId,
       userId: playlist.userId,
       playlistId,
     });
@@ -151,34 +152,21 @@ const addSongToPlaylist = async (req, res) => {
 
 const deletePlayList = async (req, res) => {
   try {
-    const preference = await PlayListSongs.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$_id",
-              {
-                $toObjectId: req.params.id,
-              },
-            ],
-          },
-        },
-      },
+    const { playlistId } = req.body;
+
+    await Promise.all([
+      PlayListName.findByIdAndDelete(playlistId),
+      PlayListSongs.deleteMany({ playlistId: playlistId }),
     ]);
 
-    if (!preference) {
-      return res.status(404).json({ message: "Preference not found" });
-    }
-
     return res.status(200).json({
-      message: "successfully gotten user preference",
-      data: preference[0],
+      message: "successfully deleted playlist",
     });
   } catch (error) {
     console.log(error);
     return res
       .status(500)
-      .json({ message: "Error fetching preference", error: error.message });
+      .json({ message: "Error deleting playlist", error: error.message });
   }
 };
 

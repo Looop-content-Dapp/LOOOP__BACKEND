@@ -254,6 +254,7 @@ const createRelease = async (req, res) => {
         artistId,
         songId: song._id,
         genre,
+        ft: element.ft,
       });
       tracksToSave.push(track);
     }
@@ -276,7 +277,7 @@ const createRelease = async (req, res) => {
 
 const addRelease = async (req, res) => {
   try {
-    const { title, artistId, releaseId, file, duration } = req.body;
+    const { title, artistId, releaseId, file, duration, ft } = req.body;
 
     const release = await Release.aggregate([
       {
@@ -331,6 +332,7 @@ const addRelease = async (req, res) => {
       track_number: currentTrack.length + 1,
       artistId,
       songId: song._id,
+      ft,
     });
 
     await Promise.all([song.save(), track.save()]);
@@ -445,7 +447,7 @@ const getSingles = async () => {
   }
 };
 
-const geSongArtistFeaturedOn = async () => {
+const getSongArtistFeaturedOn = async () => {
   try {
     const { songId } = req.params;
 
@@ -469,4 +471,9 @@ module.exports = {
   getRelease,
   getReleaseBasedOnGenres,
   streamSong,
+  getTop100Songs,
+  getTopSongsForArtist,
+  getAlbumsAndEpByArtist,
+  getSingles,
+  getSongArtistFeaturedOn,
 };

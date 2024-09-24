@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const playListSongSchema = new mongoose.Schema(
   {
-    releaseId: { type: mongoose.Types.ObjectId, required: true, ref: "Song" },
+    trackId: { type: mongoose.Types.ObjectId, required: true, ref: "Track" },
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     playlistId: { type: mongoose.Schema.Types.ObjectId, ref: "PlayListName" },
   },

@@ -12,10 +12,6 @@ const releaseSchema = new mongoose.Schema({
   cover_image: {
     type: String,
   },
-  number_of_streams: {
-    type: Number,
-    default: 0,
-  },
   genre: {
     type: String,
     required: true,

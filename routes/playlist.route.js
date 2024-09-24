@@ -18,6 +18,7 @@ playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
 
 playlistRouter.post("/createplaylist", isPremiumUser, createPlaylist);
 playlistRouter.post("/addsongtoplaylist", isPremiumUser, addSongToPlaylist);
+
 playlistRouter.delete("/deleteplaylist", isPremiumUser, deletePlayList);
 
 module.exports = playlistRouter;
