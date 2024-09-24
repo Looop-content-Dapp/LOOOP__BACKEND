@@ -28,6 +28,7 @@ const trackSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  ft: { type: mongoose.Schema.Types.ObjectId, ref: "Artist" },
 });
 
 const Track = mongoose.model("tracks", trackSchema);

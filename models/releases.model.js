@@ -25,7 +25,7 @@ const releaseSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ["song", "album", "ep"],
+    enum: ["single", "album", "ep"],
     required: true,
   },
   artistId: {

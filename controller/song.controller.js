@@ -220,6 +220,12 @@ const createRelease = async (req, res) => {
     } = req.body;
     const parseSongs = JSON.parse(JSON.stringify(songs));
 
+    if (type == "single" && parseSongs.length != 1) {
+      return res
+        .status(401)
+        .json({ message: "A single can only contain one song" });
+    }
+
     const release = new Release({
       title,
       release_date,
@@ -371,6 +377,78 @@ const deleteASongFromARelease = async (req, res) => {
 
 const streamSong = async (req, res) => {
   try {
+    const { songId } = req.params;
+
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
+const getTop100Songs = async () => {
+  try {
+    const { songId } = req.params;
+
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
+const getTopSongsForArtist = async () => {
+  try {
+    const { songId } = req.params;
+
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
+const getAlbumsAndEpByArtist = async () => {
+  try {
+    const { songId } = req.params;
+
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
+const getSingles = async () => {
+  try {
+    const { songId } = req.params;
+
+    await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    return res.status(200).json({
+      message: "successfully streamed a Song",
+    });
+  } catch (error) {
+    console.error("Error updating streams:", error);
+  }
+};
+
+const geSongArtistFeaturedOn = async () => {
+  try {
+    const { songId } = req.params;
+
     await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
 
     return res.status(200).json({
