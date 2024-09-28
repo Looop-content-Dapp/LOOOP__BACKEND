@@ -33,7 +33,7 @@ const connectToExistingContract = () => {
         "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/fSzC1H313SjuY9C8lIKb3VGugN_tH6bt",
     });
     // initialize existing pre-deployed account 0 of Devnet
-    const privateKey = "0x71d7bb07b9a64f6f78ac4c816aff4da9";
+    const privateKey = "";
     const accountAddress =
       "0x029f6ce2729927e73725cf1c207b12e9171284abb3e7e5945460c6a9a05b998f";
 
