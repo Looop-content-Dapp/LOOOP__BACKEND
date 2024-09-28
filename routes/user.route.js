@@ -13,7 +13,7 @@ const {
 const userrouter = express.Router();
 
 userrouter.get("/", getAllUsers);
-userrouter.get("/getartistbasedonusergenre", getArtistBasedOnUserGenre);
+userrouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
 userrouter.get("/:id", getUser);
 userrouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
 

@@ -158,7 +158,7 @@ const createGenresForUser = async (req, res) => {
 
 const getArtistBasedOnUserGenre = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId } = req.params;
 
     const user = await User.findById(userId);
 

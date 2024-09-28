@@ -24,13 +24,13 @@ const getAllLikes = async (req, res) => {
     const posts = await Like.find({}, "-password");
 
     return res.status(200).json({
-      message: "successfully get all posts",
+      message: "successfully get all like",
       data: posts,
     });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error fetching posts", error: error.message });
+      .json({ message: "Error fetching likes", error: error.message });
   }
 };
 
@@ -39,13 +39,13 @@ const getAllComments = async (req, res) => {
     const posts = await Comment.find({}, "-password");
 
     return res.status(200).json({
-      message: "successfully get all posts",
+      message: "successfully get all comments",
       data: posts,
     });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error fetching posts", error: error.message });
+      .json({ message: "Error fetching comments", error: error.message });
   }
 };
 
@@ -77,13 +77,13 @@ const getReplyForAComment = async (req, res) => {
     const posts = await Comment.find({}, "-password");
 
     return res.status(200).json({
-      message: "successfully get all posts",
+      message: "successfully get all replies",
       data: posts,
     });
   } catch (error) {
     res
       .status(500)
-      .json({ message: "Error fetching posts", error: error.message });
+      .json({ message: "Error fetching replies", error: error.message });
   }
 };
 
@@ -117,14 +117,14 @@ const getPost = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: "successfully get Post",
+      message: "successfully gotten a Post",
       data: post[0],
     });
   } catch (error) {
     console.log(error);
     return res
       .status(500)
-      .json({ message: "Error fetching Post", error: error.message });
+      .json({ message: "Error fetching a Post", error: error.message });
   }
 };
 
