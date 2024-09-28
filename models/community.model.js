@@ -7,6 +7,8 @@ const communitySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
+communitySchema.index({ name: "text" });
+
 const Community = mongoose.model("community", communitySchema);
 
 module.exports = Community;

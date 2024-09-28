@@ -15,10 +15,12 @@ const {
   getSongArtistFeaturedOn,
   getTopSongsForArtist,
   streamSong,
+  searchSong,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
 
+songRouter.get("/search", searchSong);
 songRouter.get("/gettopp100songs", getTop100Songs);
 songRouter.get("/gettopsongforartist/:artistId", getTopSongsForArtist);
 songRouter.get("/getalbumsandepbyartist/:artistId", getAlbumsAndEpByArtist);

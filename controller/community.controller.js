@@ -152,9 +152,30 @@ const joinCommunity = async (req, res) => {
   }
 };
 
+const searchCommunity = async (req, res) => {
+  try {
+    // //
+    // const results = await MyModel.find(
+    //   {
+    //     $text: { $search: searchQuery },
+    //   },
+    //   {
+    //     score: { $meta: "textScore" }, // Optional: get relevance score
+    //   }
+    // ).sort({
+    //   score: { $meta: "textScore" }, // Optional: sort by relevance score
+    // });
+    // return results;
+  } catch (error) {
+    console.error("Error searching text:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   getAllCommunity,
   getCommunity,
   createCommunity,
   joinCommunity,
+  searchCommunity,
 };

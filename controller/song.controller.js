@@ -623,6 +623,25 @@ const getSongArtistFeaturedOn = async (req, res) => {
   }
 };
 
+const searchSong = async (req, res) => {
+  try {
+    // const { query } = req.query;
+    // console.log("query");
+    // // Perform the text search
+    // Song.createIndexes({ title: "text" });
+    // const songs = await Song.aggregate([
+    //   { $match: { $text: { $search: query } } },
+    // ]);
+    // return res.status(200).json({
+    //   message: "success",
+    //   data: songs,
+    // });
+  } catch (error) {
+    console.error("Error searching text:", error);
+    throw error;
+  }
+};
+
 module.exports = {
   getAllSongs,
   getSong,
@@ -638,4 +657,5 @@ module.exports = {
   getAlbumsAndEpByArtist,
   getSingles,
   getSongArtistFeaturedOn,
+  searchSong,
 };
