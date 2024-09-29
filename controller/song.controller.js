@@ -4,6 +4,7 @@ const Track = require("../models/track.model");
 const Genre = require("../models/genre.model");
 const Preferences = require("../models/Preferences");
 const { matchUser } = require("../utils/helpers/searchquery");
+const Artist = require("../models/artist.model");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -625,20 +626,47 @@ const getSongArtistFeaturedOn = async (req, res) => {
 
 const searchSong = async (req, res) => {
   try {
-    // const { query } = req.query;
-    // console.log("query");
-    // // Perform the text search
-    // Song.createIndexes({ title: "text" });
-    // const songs = await Song.aggregate([
-    //   { $match: { $text: { $search: query } } },
-    // ]);
-    // return res.status(200).json({
-    //   message: "success",
-    //   data: songs,
-    // });
+    const { query } = req.query;
+
+    const releases = await Release.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    const artist = await Artist.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    const songs = await Track.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    console.log(query);
+    return res.status(200).json({
+      message: "success",
+      artists: artist,
+      songs: songs,
+      releases: releases,
+    });
   } catch (error) {
-    console.error("Error searching text:", error);
-    throw error;
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 

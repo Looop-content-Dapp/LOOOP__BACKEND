@@ -29,6 +29,8 @@ const releaseSchema = new mongoose.Schema({
   },
 });
 
+releaseSchema.index({ title: "text" });
+
 const Release = mongoose.model("releases", releaseSchema);
 
 module.exports = Release;

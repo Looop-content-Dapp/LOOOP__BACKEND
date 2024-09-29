@@ -198,8 +198,6 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       newArr.push(genre.genre.name);
     });
 
-    console.log(newArr);
-
     const artists = await Artist.find({
       $text: { $search: newArr.join(",") },
     });
