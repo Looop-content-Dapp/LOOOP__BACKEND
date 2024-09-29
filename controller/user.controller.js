@@ -160,7 +160,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById(userId);
+    const user = await User.findById("66f986757aa20c4c3629ab69");
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -173,7 +173,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
             $eq: [
               "$userId",
               {
-                $toObjectId: userId,
+                $toObjectId: "66f986757aa20c4c3629ab69",
               },
             ],
           },
@@ -198,24 +198,20 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       newArr.push(genre.genre.name);
     });
 
-    const userData = await Artist.aggregate([
-      {
-        $match: {
-          genre: {
-            $in: [...newArr],
-          },
-        },
-      },
-    ]);
+    console.log(newArr);
+
+    const artists = await Artist.find({
+      $text: { $search: newArr.join(",") },
+    });
 
     return res.status(200).json({
-      message: "successfully gotten a artist based on genres",
-      data: userData,
+      message: "successfully gotten a artist based on genres of user",
+      data: artists,
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
-      message: "Error fetching artist based on genre",
+      message: "Error fetching artist based on genre of user",
       error: error.message,
     });
   }
