@@ -2,6 +2,7 @@ const bcrypt = require("bcryptjs");
 const Artist = require("../models/artist.model");
 const Social = require("../models/socials.model");
 const Subscriber = require("../models/subcriber.model");
+const Follow = require("../models/followers.model");
 
 const getAllArtists = async (req, res) => {
   try {
@@ -136,9 +137,122 @@ const getArtistSubcribers = async (req, res) => {
   }
 };
 
+const followArtist = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const alreadySubcribed = await Follow.findOne({
+      following: artistId, // get total followers for artist
+      follower: userId,
+    });
+
+    console.log(alreadySubcribed);
+
+    if (alreadySubcribed) {
+      await Subscriber.deleteOne({
+        following: artistId, // get total followers for artist
+        follower: userId,
+      });
+    } else {
+      const follower = await Follow({
+        following: artistId, // get total followers for artist
+        follower: userId,
+      });
+      await follower.save();
+    }
+
+    return res.status(200).json({
+      message: `successfully ${
+        alreadySubcribed ? "unfollowed" : "followed"
+      } artist`,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error occured",
+      error: error.message,
+    });
+  }
+};
+
+const getFollow = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const isArtist = await Artist.findOne({ _id: id });
+
+    console.log(isArtist);
+    let follow;
+    if (isArtist) {
+      follow = await Follow.aggregate([
+        {
+          $match: {
+            $expr: {
+              $eq: ["$following", { $toObjectId: id }],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "follower",
+            foreignField: "_id",
+            as: "follower",
+          },
+        },
+        {
+          $unwind: {
+            path: "$follower",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]);
+    } else {
+      follow = await Follow.aggregate([
+        {
+          $match: {
+            $expr: {
+              $eq: ["$follower", { $toObjectId: id }],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "following",
+            foreignField: "_id",
+            as: "artist",
+          },
+        },
+        {
+          $unwind: {
+            path: "$artist",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]);
+    }
+
+    return res.status(200).json({
+      message: `successfully ${
+        isArtist ? "gotten artist followers" : "gotten user following"
+      } `,
+      data: follow,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error occured",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllArtists,
   getArtist,
   createArtist,
   getArtistSubcribers,
+  followArtist,
+  getFollow,
 };
