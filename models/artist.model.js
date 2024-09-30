@@ -14,7 +14,7 @@ const artistSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-artistSchema.index({ name: "text", genre: "text" });
+artistSchema.index({ name: 1, genre: -1 });
 
 const Artist = mongoose.model("artist", artistSchema);
 

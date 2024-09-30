@@ -62,7 +62,7 @@ const getArtist = async (req, res) => {
 const createArtist = async (req, res) => {
   try {
     const {
-      name,
+      artistname,
       email,
       profileImage,
       password,
@@ -84,7 +84,7 @@ const createArtist = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, salt);
 
     const artist = new Artist({
-      name,
+      artistname,
       email,
       profileImage,
       password: hashedPassword,
