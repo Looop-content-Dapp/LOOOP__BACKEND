@@ -161,7 +161,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const user = await User.findById("66f986757aa20c4c3629ab69");
+    const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -174,7 +174,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
             $eq: [
               "$userId",
               {
-                $toObjectId: "66f986757aa20c4c3629ab69",
+                $toObjectId: userId,
               },
             ],
           },

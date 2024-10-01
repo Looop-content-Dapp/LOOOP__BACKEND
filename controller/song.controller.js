@@ -670,6 +670,34 @@ const searchSong = async (req, res) => {
   }
 };
 
+const getSongOfArtistTheyFollow = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const songs = await Track.aggregate([
+      {
+        $lookup: {
+          from: "follows",
+          localField: "userId",
+          foreignField: "followerId",
+          as: "follows",
+        },
+      },
+    ]).sort({ score: 1 });
+
+    console.log(query);
+    return res.status(200).json({
+      message: "success",
+      songs: songs,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
 module.exports = {
   getAllSongs,
   getSong,
@@ -686,4 +714,5 @@ module.exports = {
   getSingles,
   getSongArtistFeaturedOn,
   searchSong,
+  getSongOfArtistTheyFollow,
 };

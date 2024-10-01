@@ -39,7 +39,8 @@ const getUserGenres = async (req, res) => {
       {
         $project: {
           _id: 0,
-          // genreName: "$genre.name",
+          genreId: 0,
+          userId: 0,
           // genreDescription: "$genre.description",
           // genreImage: "$genre.image",
         },
