@@ -12,6 +12,7 @@ const {
   isArtistFave,
   isUserFollowing,
   addToFavorite,
+  deleteUser,
 } = require("../controller/user.controller");
 const userrouter = express.Router();
 
@@ -34,6 +35,6 @@ userrouter.post("/addfave/:userId/:artistId", addToFavorite);
 
 userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
-// userrouter.delete("/:id", deleteUsergetAllUsers);
+userrouter.delete("/:userId", deleteUser);
 
 module.exports = userrouter;
