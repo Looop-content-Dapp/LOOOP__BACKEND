@@ -184,6 +184,7 @@ const getFollow = async (req, res) => {
     console.log(isArtist);
     let follow;
     if (isArtist) {
+      // get artist followers
       follow = await Follow.aggregate([
         {
           $match: {
@@ -206,8 +207,14 @@ const getFollow = async (req, res) => {
             preserveNullAndEmptyArrays: true,
           },
         },
+        {
+          $project: {
+            following: 0,
+          },
+        },
       ]);
     } else {
+      // get artist following
       follow = await Follow.aggregate([
         {
           $match: {
@@ -228,6 +235,11 @@ const getFollow = async (req, res) => {
           $unwind: {
             path: "$artist",
             preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $project: {
+            follower: 0,
           },
         },
       ]);

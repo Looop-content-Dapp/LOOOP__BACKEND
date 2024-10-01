@@ -9,8 +9,14 @@ const {
   subcribeToArtist,
   subcribeToPremium,
   getArtistUserSubcribeTo,
+  isArtistFave,
+  isUserFollowing,
+  addToFavorite,
 } = require("../controller/user.controller");
 const userrouter = express.Router();
+
+userrouter.get("/isfave/:userId/:artistId", isArtistFave);
+userrouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
 
 userrouter.get("/", getAllUsers);
 userrouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
@@ -24,6 +30,7 @@ userrouter.post(
   createUserFaveArtistBasedOnGenres
 );
 userrouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
+userrouter.post("/addfave/:userId/:artistId", addToFavorite);
 
 userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
 

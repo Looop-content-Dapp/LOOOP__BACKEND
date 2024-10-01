@@ -5,6 +5,7 @@ const FaveArtist = require("../models/faveArtist");
 const Genre = require("../models/genre.model");
 const Artist = require("../models/artist.model");
 const Subscriber = require("../models/subcriber.model");
+const Follow = require("../models/followers.model");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -218,11 +219,21 @@ const getArtistBasedOnUserGenre = async (req, res) => {
 const createUserFaveArtistBasedOnGenres = async (req, res) => {
   try {
     const { userId, faveArtist } = req.body;
+    const parseFaveArtist = JSON.parse(JSON.stringify(faveArtist));
 
     const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    for (let i = 0; i < parseFaveArtist.length; i++) {
+      const element = parseFaveArtist[i];
+      const faveArtist = new FaveArtist({
+        artistId: element,
+        userId: userId,
+      });
+      await faveArtist.save();
     }
 
     return res.status(200).json({
@@ -329,6 +340,68 @@ const getArtistUserSubcribeTo = async (req, res) => {
   }
 };
 
+const addToFavorite = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = await FaveArtist.find({
+      userId: userId,
+      artistId: artistId,
+    });
+
+    return res.status(200).json({
+      bool: data ? true : false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
+const isArtistFave = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = await FaveArtist.find({
+      userId: userId,
+      artistId: artistId,
+    });
+
+    return res.status(200).json({
+      bool: data.length > 0 ? true : false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
+const isUserFollowing = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = await Follow.find({
+      follower: userId,
+      following: artistId,
+    });
+
+    return res.status(200).json({
+      bool: data.length > 0 ? true : false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUser,
@@ -339,6 +412,9 @@ module.exports = {
   createUserFaveArtistBasedOnGenres,
   subcribeToPremium,
   subcribeToArtist,
+  isArtistFave,
+  isUserFollowing,
+  addToFavorite,
 };
 
 // "preferences": ["rock", "pop", "classical"],
