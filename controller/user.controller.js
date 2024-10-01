@@ -344,13 +344,15 @@ const addToFavorite = async (req, res) => {
   try {
     const { userId, artistId } = req.params;
 
-    const data = await FaveArtist.find({
+    const data = new FaveArtist({
       userId: userId,
       artistId: artistId,
     });
 
+    await data.save();
+
     return res.status(200).json({
-      bool: data ? true : false,
+      message: "success",
     });
   } catch (error) {
     console.log(error);
