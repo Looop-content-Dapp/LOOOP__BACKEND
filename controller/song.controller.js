@@ -379,6 +379,43 @@ const deleteASongFromARelease = async (req, res) => {
   }
 };
 
+const deleteRlease = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+
+    const release = await Release.find({ _id: releaseId });
+
+    if (release.length == 0) {
+      return res.status(404).json({ message: "Release not found" });
+    }
+
+    const songs = await Track.find({ releaseId: releaseId });
+
+    const songFuncs = [];
+    for (let i = 0; i < songs.length; i++) {
+      const element = songs[i];
+      songFuncs.push(Song.findByIdAndDelete(element.songId));
+    }
+
+    await Promise.all([
+      ...songFuncs,
+      Track.deleteMany({
+        releaseId: releaseId,
+      }),
+      Release.findByIdAndDelete(releaseId),
+    ]);
+
+    return res.status(200).json({
+      message: "successfully deleted",
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error Occured", error: error.message });
+  }
+};
+
 const streamSong = async (req, res) => {
   try {
     const { songId } = req.params;
@@ -675,14 +712,16 @@ const getSongOfArtistTheyFollow = async (req, res) => {
     const { userId } = req.params;
 
     const songs = await Track.aggregate([
-      {
-        $lookup: {
-          from: "follows",
-          localField: "userId",
-          foreignField: "followerId",
-          as: "follows",
-        },
-      },
+      {},
+
+      // {
+      //   $lookup: {
+      //     from: "follows",
+      //     localField: "userId",
+      //     foreignField: "followerId",
+      //     as: "follows",
+      //   },
+      // },
     ]).sort({ score: 1 });
 
     console.log(query);
@@ -715,4 +754,5 @@ module.exports = {
   getSongArtistFeaturedOn,
   searchSong,
   getSongOfArtistTheyFollow,
+  deleteRlease,
 };

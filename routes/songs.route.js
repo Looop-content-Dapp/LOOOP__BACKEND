@@ -17,9 +17,12 @@ const {
   streamSong,
   searchSong,
   getSongOfArtistTheyFollow,
+  deleteRlease,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
+
+songRouter.delete("/release/:releaseId", deleteRlease);
 
 songRouter.get("/search", searchSong);
 songRouter.get("/artisttheyfollow/:userId", getSongOfArtistTheyFollow);
@@ -43,6 +46,7 @@ songRouter.delete(
   "/deleteasongfromarelease/:songId/:trackId",
   deleteASongFromARelease
 );
+
 // songRouter.delete("/:id", deleteUsergetAllUsers);
 
 module.exports = songRouter;
