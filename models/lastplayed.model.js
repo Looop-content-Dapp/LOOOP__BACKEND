@@ -1,14 +1,13 @@
 const mongoose = require("mongoose");
 
-const LastPlayyedSchema = new mongoose.Schema(
+const LastPlayedSchema = new mongoose.Schema(
   {
     trackId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Track",
       required: true,
     },
-  },
-  {
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -18,6 +17,6 @@ const LastPlayyedSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const LastPlayyed = mongoose.model("lastPlayyed", LastPlayyedSchema);
+const LastPlayed = mongoose.model("lastPlayyed", LastPlayedSchema);
 
-module.exports = LastPlayyed;
+module.exports = LastPlayed;

@@ -18,6 +18,7 @@ const {
   searchSong,
   getSongOfArtistTheyFollow,
   deleteRlease,
+  getSongLastPlayed,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
@@ -26,6 +27,7 @@ songRouter.delete("/release/:releaseId", deleteRlease);
 
 songRouter.get("/search", searchSong);
 songRouter.get("/artisttheyfollow/:userId", getSongOfArtistTheyFollow);
+songRouter.get("/lastplayed/:userId", getSongLastPlayed);
 songRouter.get("/gettopp100songs", getTop100Songs);
 songRouter.get("/gettopsongforartist/:artistId", getTopSongsForArtist);
 songRouter.get("/getalbumsandepbyartist/:artistId", getAlbumsAndEpByArtist);
@@ -40,7 +42,7 @@ songRouter.get("/getreleasebasedongenres/:userId", getReleaseBasedOnGenres);
 
 songRouter.post("/createsong", createRelease);
 songRouter.post("/addRelease", addRelease);
-songRouter.post("/streamsong/:songId", streamSong);
+songRouter.post("/streamsong/:songId/:userId", streamSong);
 
 songRouter.delete(
   "/deleteasongfromarelease/:songId/:trackId",

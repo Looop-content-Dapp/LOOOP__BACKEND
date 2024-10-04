@@ -5,6 +5,8 @@ const Genre = require("../models/genre.model");
 const Preferences = require("../models/Preferences");
 const { matchUser } = require("../utils/helpers/searchquery");
 const Artist = require("../models/artist.model");
+const Follow = require("../models/followers.model");
+const LastPlayed = require("../models/lastplayed.model");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -62,6 +64,9 @@ const getAllReleases = async (req, res) => {
     const Releases = await Release.aggregate([
       // First $lookup to populate the tracklists array with tracks
       ...releaseObject,
+      {
+        $sort: { _id: -1 },
+      },
     ]);
 
     return res.status(200).json({
@@ -418,9 +423,22 @@ const deleteRlease = async (req, res) => {
 
 const streamSong = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { songId, userId } = req.params;
 
     await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    const track = await Track.findOne({ songId: songId });
+
+    if (!track) {
+      return res.status(404).json({ message: "Song not found" });
+    }
+
+    const lastPlayedSong = new LastPlayed({
+      userId: userId,
+      trackId: track._id,
+    });
+
+    await lastPlayedSong.save();
 
     return res.status(200).json({
       message: "successfully streamed a Song",
@@ -711,23 +729,192 @@ const getSongOfArtistTheyFollow = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    const songs = await Track.aggregate([
-      {},
+    const songs = await Follow.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$follower",
+              {
+                $toObjectId: userId,
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "following",
+          foreignField: "artistId",
+          as: "tracks",
+        },
+      },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "tracks.songId",
+          foreignField: "_id",
+          as: "songs",
+        },
+      },
+      {
+        $addFields: {
+          artistId: "$following",
+          tracks: {
+            $map: {
+              input: "$tracks",
+              as: "track",
+              in: {
+                $mergeObjects: [
+                  "$$track",
+                  {
+                    songDetails: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$songs",
+                            as: "song",
+                            cond: { $eq: ["$$song._id", "$$track.songId"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          songs: 0,
+          _id: 0,
+          follower: 0,
+          following: 0,
+        },
+      },
+    ]);
 
-      // {
-      //   $lookup: {
-      //     from: "follows",
-      //     localField: "userId",
-      //     foreignField: "followerId",
-      //     as: "follows",
-      //   },
-      // },
-    ]).sort({ score: 1 });
+    console.log(songs);
 
-    console.log(query);
     return res.status(200).json({
       message: "success",
       songs: songs,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getSongLastPlayed = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const lastplayedSong = await LastPlayed.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$userId",
+              {
+                $toObjectId: userId,
+              },
+            ],
+          },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track",
+        },
+      },
+      {
+        $unwind: {
+          path: "$track",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "track.songId",
+          foreignField: "_id",
+          as: "song",
+        },
+      },
+      {
+        $unwind: {
+          path: "$song",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          "track.songDetails": "$song",
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          createdAt: 0,
+          updatedAt: 0,
+          song: 0,
+        },
+      },
+    ]);
+
+    let stringArr = [];
+    let objArr = [];
+    for (let i = 0; i < lastplayedSong.length; i++) {
+      const element = lastplayedSong[i];
+
+      if (!stringArr.includes(JSON.stringify(element))) {
+        stringArr.push(JSON.stringify(element));
+        objArr.push(element);
+      }
+    }
+
+    return res.status(200).json({
+      message: "success",
+      lastplayed: objArr,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getArtistBasedOnUserGenreExcludingWhoTheyFollow = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const artists = await Artist.aggregate([
+      {
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "follower",
+          as: "follows",
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "success",
+      data: artists,
     });
   } catch (error) {
     return res.status(500).json({
@@ -755,4 +942,6 @@ module.exports = {
   searchSong,
   getSongOfArtistTheyFollow,
   deleteRlease,
+  getSongLastPlayed,
+  getArtistBasedOnUserGenreExcludingWhoTheyFollow,
 };
