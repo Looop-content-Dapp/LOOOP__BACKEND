@@ -1,3 +1,4 @@
+require('dotenv').config();
 const bcrypt = require("bcryptjs");
 const User = require("../models/user.model");
 const Preferences = require("../models/Preferences");
@@ -5,6 +6,8 @@ const FaveArtist = require("../models/faveArtist");
 const Genre = require("../models/genre.model");
 const Artist = require("../models/artist.model");
 const Subscriber = require("../models/subcriber.model");
+const { Account, RpcProvider, Contract, transaction } =  require('starknet');
+const looopAbi = require('../Abis/looopAbi.json');
 
 const getAllUsers = async (req, res) => {
   try {
@@ -101,11 +104,21 @@ const createUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
+    const provider = new RpcProvider({ nodeUrl: process.env.PROVIDER });
+
+    const account = new Account(provider, process.env.ACCT_ADDRESS, process.env.PRIVATE_KEY);
+
+    const looopContract = new Contract(looopAbi, process.env.LOOOP_CONTRACT, account);
+
     if (password == "" || email == "") {
       return res
         .status(401)
         .json({ message: "Password and Email is required" });
     }
+
+    let tx = await looopContract.register_account(process.env.NFT_CONTRACT_ADDRESS, process.env.NFT_TOKEN_ID, process.env.IMPLEMENTATION_HASH, email, password)
+
+    let reciept = await provider.waitForTransaction(tx.transaction_hash)
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -119,7 +132,7 @@ const createUser = async (req, res) => {
 
     return res.status(200).json({
       message: "successfully created a user",
-      data: user,
+      data: {user: user, transaction: tx, reciept: reciept},
     });
   } catch (error) {
     console.log(error);

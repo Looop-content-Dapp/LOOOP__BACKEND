@@ -9,10 +9,14 @@ const {
   subcribeToArtist,
   subcribeToPremium,
   getArtistUserSubcribeTo,
+  createUserAcct
 } = require("../controller/user.controller");
 const userrouter = express.Router();
 
 userrouter.get("/", getAllUsers);
+
+// userrouter.post('/onchain', createUserAcct);
+
 userrouter.get("/getartistbasedonusergenre", getArtistBasedOnUserGenre);
 userrouter.get("/:id", getUser);
 userrouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
