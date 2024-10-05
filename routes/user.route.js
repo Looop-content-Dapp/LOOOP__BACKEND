@@ -9,15 +9,18 @@ const {
   subcribeToArtist,
   subcribeToPremium,
   getArtistUserSubcribeTo,
-  createUserAcct
+  isArtistFave,
+  isUserFollowing,
+  addToFavorite,
+  deleteUser,
 } = require("../controller/user.controller");
 const userrouter = express.Router();
 
+userrouter.get("/isfave/:userId/:artistId", isArtistFave);
+userrouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
+
 userrouter.get("/", getAllUsers);
-
-// userrouter.post('/onchain', createUserAcct);
-
-userrouter.get("/getartistbasedonusergenre", getArtistBasedOnUserGenre);
+userrouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
 userrouter.get("/:id", getUser);
 userrouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
 
@@ -28,9 +31,10 @@ userrouter.post(
   createUserFaveArtistBasedOnGenres
 );
 userrouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
+userrouter.post("/addfave/:userId/:artistId", addToFavorite);
 
 userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
-// userrouter.delete("/:id", deleteUsergetAllUsers);
+userrouter.delete("/:userId", deleteUser);
 
 module.exports = userrouter;

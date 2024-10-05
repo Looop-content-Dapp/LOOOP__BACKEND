@@ -1,4 +1,6 @@
 const Genre = require("../models/genre.model");
+const Preferences = require("../models/Preferences");
+const { matchUser } = require("../utils/helpers/searchquery");
 
 const getGenres = async (req, res) => {
   try {
@@ -13,6 +15,47 @@ const getGenres = async (req, res) => {
     return res
       .status(500)
       .json({ message: "Error fetching genres", error: error.message });
+  }
+};
+
+const getUserGenres = async (req, res) => {
+  try {
+    const match = matchUser({ id: req.params.userId, name: "userId" });
+
+    console.log(match);
+    const genres = await Preferences.aggregate([
+      { ...match },
+      {
+        $lookup: {
+          from: "genres",
+          localField: "genreId",
+          foreignField: "_id",
+          as: "genre",
+        },
+      },
+      {
+        $unwind: "$genre",
+      },
+      {
+        $project: {
+          _id: 0,
+          genreId: 0,
+          userId: 0,
+          // genreDescription: "$genre.description",
+          // genreImage: "$genre.image",
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "success",
+      data: genres,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error occured", error: error.message });
   }
 };
 
@@ -67,6 +110,7 @@ const createAGenre = async (req, res) => {
 
 module.exports = {
   getGenres,
+  getUserGenres,
   deleteGenre,
   createAGenre,
 };

@@ -4,6 +4,9 @@ const Track = require("../models/track.model");
 const Genre = require("../models/genre.model");
 const Preferences = require("../models/Preferences");
 const { matchUser } = require("../utils/helpers/searchquery");
+const Artist = require("../models/artist.model");
+const Follow = require("../models/followers.model");
+const LastPlayed = require("../models/lastplayed.model");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -41,6 +44,12 @@ let releaseObject = [
     },
   },
   {
+    $unwind: {
+      path: "$tracklists.song",
+      preserveNullAndEmptyArrays: true,
+    },
+  },
+  {
     $group: {
       _id: "$_id",
       tracklists: { $push: "$tracklists" },
@@ -61,6 +70,9 @@ const getAllReleases = async (req, res) => {
     const Releases = await Release.aggregate([
       // First $lookup to populate the tracklists array with tracks
       ...releaseObject,
+      {
+        $sort: { _id: -1 },
+      },
     ]);
 
     return res.status(200).json({
@@ -378,11 +390,61 @@ const deleteASongFromARelease = async (req, res) => {
   }
 };
 
+const deleteRlease = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+
+    const release = await Release.find({ _id: releaseId });
+
+    if (release.length == 0) {
+      return res.status(404).json({ message: "Release not found" });
+    }
+
+    const songs = await Track.find({ releaseId: releaseId });
+
+    const songFuncs = [];
+    for (let i = 0; i < songs.length; i++) {
+      const element = songs[i];
+      songFuncs.push(Song.findByIdAndDelete(element.songId));
+    }
+
+    await Promise.all([
+      ...songFuncs,
+      Track.deleteMany({
+        releaseId: releaseId,
+      }),
+      Release.findByIdAndDelete(releaseId),
+    ]);
+
+    return res.status(200).json({
+      message: "successfully deleted",
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error Occured", error: error.message });
+  }
+};
+
 const streamSong = async (req, res) => {
   try {
-    const { songId } = req.params;
+    const { songId, userId } = req.params;
 
     await Song.findByIdAndUpdate(songId, { $inc: { streams: 1 } });
+
+    const track = await Track.findOne({ songId: songId });
+
+    if (!track) {
+      return res.status(404).json({ message: "Song not found" });
+    }
+
+    const lastPlayedSong = new LastPlayed({
+      userId: userId,
+      trackId: track._id,
+    });
+
+    await lastPlayedSong.save();
 
     return res.status(200).json({
       message: "successfully streamed a Song",
@@ -625,20 +687,246 @@ const getSongArtistFeaturedOn = async (req, res) => {
 
 const searchSong = async (req, res) => {
   try {
-    // const { query } = req.query;
-    // console.log("query");
-    // // Perform the text search
-    // Song.createIndexes({ title: "text" });
-    // const songs = await Song.aggregate([
-    //   { $match: { $text: { $search: query } } },
-    // ]);
-    // return res.status(200).json({
-    //   message: "success",
-    //   data: songs,
-    // });
+    const { query } = req.query;
+
+    const releases = await Release.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    const artist = await Artist.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    const songs = await Track.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" },
+      }
+    ).sort({ score: 1 });
+
+    console.log(query);
+    return res.status(200).json({
+      message: "success",
+      artists: artist,
+      songs: songs,
+      releases: releases,
+    });
   } catch (error) {
-    console.error("Error searching text:", error);
-    throw error;
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getSongOfArtistTheyFollow = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const songs = await Follow.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$follower",
+              {
+                $toObjectId: userId,
+              },
+            ],
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "following",
+          foreignField: "artistId",
+          as: "tracks",
+        },
+      },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "tracks.songId",
+          foreignField: "_id",
+          as: "songs",
+        },
+      },
+      {
+        $addFields: {
+          artistId: "$following",
+          tracks: {
+            $map: {
+              input: "$tracks",
+              as: "track",
+              in: {
+                $mergeObjects: [
+                  "$$track",
+                  {
+                    songDetails: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$songs",
+                            as: "song",
+                            cond: { $eq: ["$$song._id", "$$track.songId"] },
+                          },
+                        },
+                        0,
+                      ],
+                    },
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          songs: 0,
+          _id: 0,
+          follower: 0,
+          following: 0,
+        },
+      },
+    ]);
+
+    console.log(songs);
+
+    return res.status(200).json({
+      message: "success",
+      songs: songs,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getSongLastPlayed = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const lastplayedSong = await LastPlayed.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$userId",
+              {
+                $toObjectId: userId,
+              },
+            ],
+          },
+        },
+      },
+
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track",
+        },
+      },
+      {
+        $unwind: {
+          path: "$track",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "track.songId",
+          foreignField: "_id",
+          as: "song",
+        },
+      },
+      {
+        $unwind: {
+          path: "$song",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          "track.songDetails": "$song",
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          createdAt: 0,
+          updatedAt: 0,
+          song: 0,
+        },
+      },
+    ]);
+
+    let stringArr = [];
+    let objArr = [];
+    for (let i = 0; i < lastplayedSong.length; i++) {
+      const element = lastplayedSong[i];
+
+      if (!stringArr.includes(JSON.stringify(element))) {
+        stringArr.push(JSON.stringify(element));
+        objArr.push(element);
+      }
+    }
+
+    return res.status(200).json({
+      message: "success",
+      lastplayed: objArr,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getArtistBasedOnUserGenreExcludingWhoTheyFollow = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const artists = await Artist.aggregate([
+      {
+        $lookup: {
+          from: "follows",
+          localField: "follower",
+          foreignField: "follower",
+          as: "follows",
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "success",
+      data: artists,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
   }
 };
 
@@ -658,4 +946,8 @@ module.exports = {
   getSingles,
   getSongArtistFeaturedOn,
   searchSong,
+  getSongOfArtistTheyFollow,
+  deleteRlease,
+  getSongLastPlayed,
+  getArtistBasedOnUserGenreExcludingWhoTheyFollow,
 };

@@ -154,21 +154,26 @@ const joinCommunity = async (req, res) => {
 
 const searchCommunity = async (req, res) => {
   try {
-    // //
-    // const results = await MyModel.find(
-    //   {
-    //     $text: { $search: searchQuery },
-    //   },
-    //   {
-    //     score: { $meta: "textScore" }, // Optional: get relevance score
-    //   }
-    // ).sort({
-    //   score: { $meta: "textScore" }, // Optional: sort by relevance score
-    // });
-    // return results;
+    const { query } = req.query;
+
+    const results = await Community.find(
+      {
+        $text: { $search: query },
+      },
+      {
+        score: { $meta: "textScore" }, // Optional: get relevance score
+      }
+    ).sort({ score: 1 });
+
+    return res.status(200).json({
+      message: "success",
+      searchResults: results,
+    });
   } catch (error) {
-    console.error("Error searching text:", error);
-    throw error;
+    console.error("Error searching:", error);
+    return res
+      .status(500)
+      .json({ message: "Error searching", error: error.message });
   }
 };
 

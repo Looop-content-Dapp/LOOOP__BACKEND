@@ -8,6 +8,7 @@ const Artist = require("../models/artist.model");
 const Subscriber = require("../models/subcriber.model");
 const { Account, RpcProvider, Contract, transaction } =  require('starknet');
 const looopAbi = require('../Abis/looopAbi.json');
+const Follow = require("../models/followers.model");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -171,7 +172,7 @@ const createGenresForUser = async (req, res) => {
 
 const getArtistBasedOnUserGenre = async (req, res) => {
   try {
-    const { userId } = req.body;
+    const { userId } = req.params;
 
     const user = await User.findById(userId);
 
@@ -211,24 +212,18 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       newArr.push(genre.genre.name);
     });
 
-    const userData = await Artist.aggregate([
-      {
-        $match: {
-          genre: {
-            $in: [...newArr],
-          },
-        },
-      },
-    ]);
+    const artists = await Artist.find({
+      $text: { $search: newArr.join(",") },
+    });
 
     return res.status(200).json({
-      message: "successfully gotten a artist based on genres",
-      data: userData,
+      message: "successfully gotten a artist based on genres of user",
+      data: artists,
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
-      message: "Error fetching artist based on genre",
+      message: "Error fetching artist based on genre of user",
       error: error.message,
     });
   }
@@ -237,11 +232,21 @@ const getArtistBasedOnUserGenre = async (req, res) => {
 const createUserFaveArtistBasedOnGenres = async (req, res) => {
   try {
     const { userId, faveArtist } = req.body;
+    const parseFaveArtist = JSON.parse(JSON.stringify(faveArtist));
 
     const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    for (let i = 0; i < parseFaveArtist.length; i++) {
+      const element = parseFaveArtist[i];
+      const faveArtist = new FaveArtist({
+        artistId: element,
+        userId: userId,
+      });
+      await faveArtist.save();
     }
 
     return res.status(200).json({
@@ -348,6 +353,89 @@ const getArtistUserSubcribeTo = async (req, res) => {
   }
 };
 
+const addToFavorite = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = new FaveArtist({
+      userId: userId,
+      artistId: artistId,
+    });
+
+    await data.save();
+
+    return res.status(200).json({
+      message: "success",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
+const isArtistFave = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = await FaveArtist.find({
+      userId: userId,
+      artistId: artistId,
+    });
+
+    return res.status(200).json({
+      bool: data.length > 0 ? true : false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "could not get data",
+      error: error.message,
+    });
+  }
+};
+
+const isUserFollowing = async (req, res) => {
+  try {
+    const { userId, artistId } = req.params;
+
+    const data = await Follow.find({
+      follower: userId,
+      following: artistId,
+    });
+
+    return res.status(200).json({
+      bool: data.length > 0 ? true : false,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    await User.deleteOne({
+      _id: userId,
+    });
+
+    return res.status(200).json({
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUser,
@@ -358,6 +446,10 @@ module.exports = {
   createUserFaveArtistBasedOnGenres,
   subcribeToPremium,
   subcribeToArtist,
+  isArtistFave,
+  isUserFollowing,
+  addToFavorite,
+  deleteUser,
 };
 
 // "preferences": ["rock", "pop", "classical"],

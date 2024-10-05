@@ -31,6 +31,8 @@ const trackSchema = new mongoose.Schema({
   ft: { type: String, ref: "Artist" },
 });
 
+trackSchema.index({ title: "text" });
+
 const Track = mongoose.model("tracks", trackSchema);
 
 module.exports = Track;
