@@ -44,6 +44,12 @@ let releaseObject = [
     },
   },
   {
+    $unwind: {
+      path: "$tracklists.song",
+      preserveNullAndEmptyArrays: true,
+    },
+  },
+  {
     $group: {
       _id: "$_id",
       tracklists: { $push: "$tracklists" },
@@ -905,7 +911,7 @@ const getArtistBasedOnUserGenreExcludingWhoTheyFollow = async (req, res) => {
       {
         $lookup: {
           from: "follows",
-          localField: "_id",
+          localField: "follower",
           foreignField: "follower",
           as: "follows",
         },
