@@ -7,6 +7,7 @@ const {
   createPlaylist,
   deletePlayList,
   addSongToPlaylist,
+  pinnPlaylist,
 } = require("../controller/playlistsong.controller");
 const isPremiumUser = require("../middlewares/ispremiumuser.middleware");
 
@@ -18,6 +19,8 @@ playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
 
 playlistRouter.post("/createplaylist", isPremiumUser, createPlaylist);
 playlistRouter.post("/addsongtoplaylist", isPremiumUser, addSongToPlaylist);
+
+playlistRouter.put("/pin/:playlistId", pinnPlaylist);
 
 playlistRouter.delete("/deleteplaylist", isPremiumUser, deletePlayList);
 

@@ -146,15 +146,14 @@ const followArtist = async (req, res) => {
       follower: userId,
     });
 
-    console.log(alreadySubcribed);
-
+    console.log("follow");
     if (alreadySubcribed) {
-      await Subscriber.deleteOne({
+      await Follow.deleteOne({
         following: artistId, // get total followers for artist
         follower: userId,
       });
     } else {
-      const follower = await Follow({
+      const follower = new Follow({
         following: artistId, // get total followers for artist
         follower: userId,
       });

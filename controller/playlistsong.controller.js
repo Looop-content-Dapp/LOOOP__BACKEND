@@ -67,6 +67,14 @@ const getPlayListSong = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "playlistsongs",
+          localField: "_id",
+          foreignField: "playlistId",
+          as: "playlistsongs",
+        },
+      },
     ]);
 
     if (!playlist) {
@@ -184,6 +192,35 @@ const deletePlayList = async (req, res) => {
   }
 };
 
+const pinnPlaylist = async (req, res) => {
+  try {
+    const { playlistId } = req.params;
+
+    const noOfPlaylists = await PlayListName.find({
+      _id: playlistId,
+      isPinned: true,
+    });
+
+    if (noOfPlaylists.length == 5) {
+      return res.status(400).json({ message: "Already reached max" });
+    }
+
+    const id = await PlayListName.findByIdAndUpdate(playlistId, {
+      $set: { isPinned: true },
+    });
+
+    console.log(id);
+    return res.status(200).json({
+      message: "successfully pinned playlist",
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error deleting playlist", error: error.message });
+  }
+};
+
 module.exports = {
   getAllPlayList,
   getAllPlayListForUser,
@@ -191,4 +228,5 @@ module.exports = {
   createPlaylist,
   deletePlayList,
   addSongToPlaylist,
+  pinnPlaylist,
 };

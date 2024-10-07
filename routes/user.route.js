@@ -13,18 +13,23 @@ const {
   isUserFollowing,
   addToFavorite,
   deleteUser,
+  addFriend,
+  getUserFriends,
 } = require("../controller/user.controller");
+const isUser = require("../middlewares/isvaliduser.middleware");
 const userrouter = express.Router();
 
 userrouter.get("/isfave/:userId/:artistId", isArtistFave);
 userrouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
 
 userrouter.get("/", getAllUsers);
+userrouter.get("/friend/:userId", isUser, getUserFriends);
 userrouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
 userrouter.get("/:id", getUser);
 userrouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
 
 userrouter.post("/createuser", createUser);
+userrouter.post("/friend/:userId/:friendId", isUser, addFriend);
 userrouter.post("/creategenresforuser", createGenresForUser);
 userrouter.post(
   "/createuserfaveartistbasedongenres",
