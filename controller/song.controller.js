@@ -930,6 +930,43 @@ const getArtistBasedOnUserGenreExcludingWhoTheyFollow = async (req, res) => {
   }
 };
 
+const getTracksFromRelease = async (req, res) => {
+  try {
+    const { releaseId } = req.params;
+    console.log("sksksksk");
+
+    const matchObj = matchUser({ name: "releaseId", id: releaseId });
+
+    const artists = await Track.aggregate([
+      { ...matchObj },
+      {
+        $lookup: {
+          from: "songs",
+          localField: "songId",
+          foreignField: "_id",
+          as: "song",
+        },
+      },
+      {
+        $unwind: {
+          path: "$song",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "success",
+      data: artists,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
 module.exports = {
   getAllSongs,
   getSong,
@@ -950,4 +987,5 @@ module.exports = {
   deleteRlease,
   getSongLastPlayed,
   getArtistBasedOnUserGenreExcludingWhoTheyFollow,
+  getTracksFromRelease,
 };

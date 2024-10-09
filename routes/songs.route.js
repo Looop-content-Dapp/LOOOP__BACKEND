@@ -19,12 +19,14 @@ const {
   getSongOfArtistTheyFollow,
   deleteRlease,
   getSongLastPlayed,
+  getTracksFromRelease,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
 
 songRouter.delete("/release/:releaseId", deleteRlease);
 
+songRouter.get("/tracks/:releaseId", getTracksFromRelease);
 songRouter.get("/search", searchSong);
 songRouter.get("/artisttheyfollow/:userId", getSongOfArtistTheyFollow);
 songRouter.get("/lastplayed/:userId", getSongLastPlayed);

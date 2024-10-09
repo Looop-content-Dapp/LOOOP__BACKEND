@@ -7,6 +7,7 @@ const userSchema = new mongoose.Schema(
     profileImage: { type: String, default: "" },
     bio: { type: String, default: "" },
     isPremium: { type: Boolean, default: false },
+    tel: { type: Number },
   },
   { timestamps: true }
 );
