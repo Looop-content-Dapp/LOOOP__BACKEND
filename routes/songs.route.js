@@ -20,6 +20,7 @@ const {
   deleteRlease,
   getSongLastPlayed,
   getTracksFromRelease,
+  editSongFile,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
@@ -45,6 +46,8 @@ songRouter.get("/getreleasebasedongenres/:userId", getReleaseBasedOnGenres);
 songRouter.post("/createsong", createRelease);
 songRouter.post("/addRelease", addRelease);
 songRouter.post("/streamsong/:songId/:userId", streamSong);
+
+songRouter.patch("/editsong", editSongFile);
 
 songRouter.delete(
   "/deleteasongfromarelease/:songId/:trackId",

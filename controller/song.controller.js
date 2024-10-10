@@ -937,7 +937,7 @@ const getTracksFromRelease = async (req, res) => {
 
     const matchObj = matchUser({ name: "releaseId", id: releaseId });
 
-    const artists = await Track.aggregate([
+    const tracks = await Track.aggregate([
       { ...matchObj },
       {
         $lookup: {
@@ -957,7 +957,31 @@ const getTracksFromRelease = async (req, res) => {
 
     return res.status(200).json({
       message: "success",
-      data: artists,
+      data: tracks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const editSongFile = async (req, res) => {
+  try {
+    const { songId, fileUrl } = req.body;
+
+    await Song.findOneAndUpdate(
+      { _id: songId },
+      {
+        $set: {
+          fileUrl: fileUrl,
+        },
+      }
+    );
+
+    return res.status(200).json({
+      message: "success",
     });
   } catch (error) {
     return res.status(500).json({
@@ -988,4 +1012,5 @@ module.exports = {
   getSongLastPlayed,
   getArtistBasedOnUserGenreExcludingWhoTheyFollow,
   getTracksFromRelease,
+  editSongFile,
 };
