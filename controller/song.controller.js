@@ -953,6 +953,30 @@ const getTracksFromRelease = async (req, res) => {
           preserveNullAndEmptyArrays: true,
         },
       },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+      {
+        $addFields: {
+          coverImage: "$release.cover_image",
+        },
+      },
+      {
+        $unwind: {
+          path: "$coverImage",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          release: 0,
+        },
+      },
     ]);
 
     return res.status(200).json({
@@ -971,7 +995,7 @@ const editSongFile = async (req, res) => {
   try {
     const { songId, fileUrl } = req.body;
 
-    await Song.findOneAndUpdate(
+    const song = await Song.findOneAndUpdate(
       { _id: songId },
       {
         $set: {
@@ -979,6 +1003,11 @@ const editSongFile = async (req, res) => {
         },
       }
     );
+    if (!song) {
+      return res.status(400).json({
+        message: "song not found",
+      });
+    }
 
     return res.status(200).json({
       message: "success",
