@@ -33,7 +33,7 @@ songRouter.get("/artisttheyfollow/:userId", getSongOfArtistTheyFollow);
 songRouter.get("/lastplayed/:userId", getSongLastPlayed);
 songRouter.get("/gettopp100songs", getTop100Songs);
 songRouter.get("/gettopsongforartist/:artistId", getTopSongsForArtist);
-songRouter.get("/getalbumsandepbyartist/:artistId", getAlbumsAndEpByArtist);
+songRouter.get("/albumsandep/:artistId", getAlbumsAndEpByArtist);
 songRouter.get("/getsingles/:artistId", getSingles);
 songRouter.get("/getsongartistfeaturedon/:artistId", getSongArtistFeaturedOn);
 

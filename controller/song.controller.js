@@ -473,8 +473,50 @@ const getTop100Songs = async (req, res) => {
           rating: -1,
         },
       },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "_id",
+          foreignField: "songId",
+          as: "track",
+          pipeline: [
+            {
+              $lookup: {
+                from: "releases",
+                localField: "releaseId",
+                foreignField: "_id",
+                as: "release",
+              },
+            },
+            {
+              $unwind: {
+                path: "$release",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+          ],
+        },
+      },
+      {
+        $unwind: {
+          path: "$track",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          coverImage: "$track.release.cover_image",
+        },
+      },
+      {
+        $project: {
+          track: 0,
+        },
+      },
+      {
+        $limit: 100,
+      },
     ]);
-
     return res.status(200).json({
       message: "successfully streamed a Song",
       data: songs,
@@ -503,6 +545,17 @@ const getTopSongsForArtist = async (req, res) => {
         },
       },
       {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+      {
+        $unwind: "$release",
+      },
+      {
         $unwind: {
           path: "$song",
           preserveNullAndEmptyArrays: true,
@@ -516,6 +569,7 @@ const getTopSongsForArtist = async (req, res) => {
           rating: {
             $add: ["$song.streams", "$song.playlistAdditions", "$song.shares"],
           },
+          coverImage: "$release.cover_image",
         },
       },
       {
@@ -523,14 +577,22 @@ const getTopSongsForArtist = async (req, res) => {
           rating: -1,
         },
       },
+      {
+        $project: {
+          release: 0,
+        },
+      },
+      {
+        $limit: 10,
+      },
     ]);
 
     return res.status(200).json({
-      message: "successfully streamed a Song",
+      message: "success",
       data: songs,
     });
   } catch (error) {
-    console.error("Error updating streams:", error);
+    console.error("an error occured:", error);
     return res.status(500).json({
       message: "an error occurred",
       error: error,
