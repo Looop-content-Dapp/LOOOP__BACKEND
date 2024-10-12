@@ -128,7 +128,7 @@ const getSong = async (req, res) => {
 
 const getRelease = async (req, res) => {
   try {
-    const Song = await Release.aggregate([
+    const song = await Release.aggregate([
       {
         $match: {
           $expr: {
@@ -144,18 +144,51 @@ const getRelease = async (req, res) => {
       ...releaseObject,
     ]);
 
-    if (!Song) {
+    if (!song) {
       return res.status(404).json({ message: "Song not found" });
     }
     return res.status(200).json({
       message: "successfully gotten a Song",
-      data: Song[0],
+      data: song[0],
     });
   } catch (error) {
     console.log(error);
     return res
       .status(500)
       .json({ message: "Error fetching Song", error: error.message });
+  }
+};
+
+const getReleaseByArtist = async (req, res) => {
+  try {
+    const releases = await Release.aggregate([
+      {
+        $match: {
+          $expr: {
+            $eq: [
+              "$artistId",
+              {
+                $toObjectId: req.params.artistId,
+              },
+            ],
+          },
+        },
+      },
+    ]);
+
+    if (!releases) {
+      return res.status(404).json({ message: "Release not found" });
+    }
+
+    return res.status(200).json({
+      message: "success",
+      data: releases,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error occured", error: error.message });
   }
 };
 
@@ -642,7 +675,7 @@ const getAlbumsAndEpByArtist = async (req, res) => {
       data: songs,
     });
   } catch (error) {
-    console.error("Error updating streams:", error);
+    console.error("an error occuured:", error);
     return res.status(500).json({
       message: "an error occurred",
       error: error,
@@ -897,7 +930,6 @@ const getSongLastPlayed = async (req, res) => {
           },
         },
       },
-
       {
         $lookup: {
           from: "tracks",
@@ -1090,6 +1122,7 @@ module.exports = {
   deleteASongFromARelease,
   getAllReleases,
   getRelease,
+  getReleaseByArtist,
   getReleaseBasedOnGenres,
   streamSong,
   getTop100Songs,

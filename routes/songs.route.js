@@ -21,6 +21,7 @@ const {
   getSongLastPlayed,
   getTracksFromRelease,
   editSongFile,
+  getReleaseByArtist,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
@@ -36,6 +37,7 @@ songRouter.get("/gettopsongforartist/:artistId", getTopSongsForArtist);
 songRouter.get("/albumsandep/:artistId", getAlbumsAndEpByArtist);
 songRouter.get("/getsingles/:artistId", getSingles);
 songRouter.get("/getsongartistfeaturedon/:artistId", getSongArtistFeaturedOn);
+songRouter.get("/releases/:artistId", getReleaseByArtist);
 
 songRouter.get("/getallreleases", getAllReleases);
 songRouter.get("/", getAllSongs);
