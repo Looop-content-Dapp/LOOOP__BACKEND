@@ -7,6 +7,8 @@ const { matchUser } = require("../utils/helpers/searchquery");
 const Artist = require("../models/artist.model");
 const Follow = require("../models/followers.model");
 const LastPlayed = require("../models/lastplayed.model");
+const FT = require("../models/ft.model");
+const { default: mongoose } = require("mongoose");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -284,6 +286,7 @@ const createRelease = async (req, res) => {
 
     const songsToSave = [];
     const tracksToSave = [];
+    const fts = [];
 
     for (let i = 0; i < parseSongs.length; i++) {
       const element = parseSongs[i];
@@ -300,24 +303,50 @@ const createRelease = async (req, res) => {
         artistId,
         songId: song._id,
         genre,
-        ft: element.ft,
+        ft: element.ft.trim(),
       });
       tracksToSave.push(track);
+
+      if (element.ft != "") {
+        const ftsArr = element.ft.split(",");
+
+        for (let i = 0; i < ftsArr.length; i++) {
+          console.log(ftsArr, i);
+          const ftelement = ftsArr[i];
+          const ft = new FT({
+            trackId: track._id,
+            artistId: ftelement.trim(),
+          });
+          fts.push(ft);
+        }
+      }
     }
 
-    await Song.insertMany(songsToSave);
-    await Track.insertMany(tracksToSave);
-    await release.save();
+    const session = await mongoose.startSession();
+    session.startTransaction();
+    try {
+      await Song.insertMany(songsToSave, { session });
+      await Track.insertMany(tracksToSave, { session });
+      await FT.insertMany(fts, { session });
+      await release.save({ session });
+
+      await session.commitTransaction();
+      session.endSession();
+    } catch (error) {
+      await session.abortTransaction();
+      session.endSession();
+      return res.status(500).json({ message: "Error occured", error: error });
+    }
 
     return res.status(200).json({
-      message: "successfully created a Song",
+      message: "success",
       data: release,
     });
   } catch (error) {
     console.log(error);
     return res
       .status(500)
-      .json({ message: "Error creating Song", error: error.message });
+      .json({ message: "Error occured", error: error.message });
   }
 };
 
@@ -700,31 +729,64 @@ const getSongArtistFeaturedOn = async (req, res) => {
     const { artistId } = req.params;
     const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    const songs = await Track.aggregate([
+    const songs = await FT.aggregate([
       {
-        $match: {
-          $expr: {
-            $eq: [
-              "$ft",
-              {
-                $toObjectId: artistId,
-              },
-            ],
-          },
+        ...matchUserObj,
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track",
+        },
+      },
+      {
+        $unwind: {
+          path: "$track",
+          preserveNullAndEmptyArrays: true,
         },
       },
       {
         $lookup: {
           from: "songs",
-          localField: "songId",
+          localField: "track.songId",
           foreignField: "_id",
-          as: "song",
+          as: "track.song",
         },
       },
       {
         $unwind: {
-          path: "$song",
+          path: "$track.song",
           preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "track.releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+      {
+        $unwind: {
+          path: "$release",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          coverImage: "$release.cover_image",
+        },
+      },
+      {
+        $project: {
+          release: 0,
+          createdAt: 0,
+          updatedAt: 0,
+          __v: 0,
+          _id: 0,
         },
       },
     ]);
