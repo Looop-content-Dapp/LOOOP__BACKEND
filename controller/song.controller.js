@@ -241,7 +241,7 @@ const getReleaseBasedOnGenres = async (req, res) => {
       return res.status(404).json({ message: "No Song found on user genre" });
     }
     return res.status(200).json({
-      message: "successfully gotten a Song",
+      message: "success",
       data: Song[0],
     });
   } catch (error) {
@@ -638,28 +638,9 @@ const getAlbumsAndEpByArtist = async (req, res) => {
     const { artistId } = req.params;
     const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    const songs = await Track.aggregate([
+    const songs = await Release.aggregate([
       {
         ...matchUserObj,
-      },
-      {
-        $lookup: {
-          from: "releases",
-          localField: "releaseId",
-          foreignField: "_id",
-          as: "release",
-        },
-      },
-      {
-        $unwind: {
-          path: "$release",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          type: "$release.type",
-        },
       },
       {
         $match: {
@@ -688,28 +669,9 @@ const getSingles = async (req, res) => {
     const { artistId } = req.params;
     const matchUserObj = matchUser({ id: artistId, name: "artistId" });
 
-    const songs = await Track.aggregate([
+    const songs = await Release.aggregate([
       {
         ...matchUserObj,
-      },
-      {
-        $lookup: {
-          from: "releases",
-          localField: "releaseId",
-          foreignField: "_id",
-          as: "release",
-        },
-      },
-      {
-        $unwind: {
-          path: "$release",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $addFields: {
-          type: "$release.type",
-        },
       },
       {
         $match: {
