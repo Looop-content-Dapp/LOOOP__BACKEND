@@ -1,7 +1,7 @@
 const User = require("../models/user.model");
 
 async function isUser(req, res, next) {
-  const user = req.params.userId;
+  const user = req.params.userId || req.body.userId;
 
   const isUser = await User.findById(user);
 

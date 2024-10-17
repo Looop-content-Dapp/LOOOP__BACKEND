@@ -3,6 +3,7 @@ const PlayListSongs = require("../models/playlistsongs.model");
 const Release = require("../models/releases.model");
 const Song = require("../models/song.model");
 const Track = require("../models/track.model");
+const User = require("../models/user.model");
 
 const getAllPlayList = async (req, res) => {
   try {
@@ -100,6 +101,15 @@ const createPlaylist = async (req, res) => {
 
     if (title == "" || description == "" || image == "" || coverImage == "") {
       return res.status(400).json({ message: "All fields are required" });
+    }
+
+    const [isUserPremium, userPlaylist] = await Promise.all([
+      User.findById(userId),
+      PlayListName.find({ userId: userId }),
+    ]);
+
+    if (userPlaylist.length == 2 && isUserPremium.isPremium == false) {
+      return res.status(403).json({ message: "can only have two playlist" });
     }
 
     const newPlaylist = new PlayListName({

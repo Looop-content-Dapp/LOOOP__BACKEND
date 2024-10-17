@@ -9,7 +9,7 @@ const {
   addSongToPlaylist,
   pinnPlaylist,
 } = require("../controller/playlistsong.controller");
-const isPremiumUser = require("../middlewares/ispremiumuser.middleware");
+const isvaliduser = require("../middlewares/isvaliduser.middleware");
 
 const playlistRouter = express.Router();
 
@@ -17,11 +17,11 @@ playlistRouter.get("/", getAllPlayList);
 playlistRouter.get("/getallplaylistforuser/:userId", getAllPlayListForUser);
 playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
 
-playlistRouter.post("/createplaylist", isPremiumUser, createPlaylist);
-playlistRouter.post("/addsongtoplaylist", isPremiumUser, addSongToPlaylist);
+playlistRouter.post("/createplaylist", isvaliduser, createPlaylist);
+playlistRouter.post("/addsongtoplaylist", addSongToPlaylist);
 
 playlistRouter.put("/pin/:playlistId", pinnPlaylist);
 
-playlistRouter.delete("/deleteplaylist", isPremiumUser, deletePlayList);
+playlistRouter.delete("/deleteplaylist", deletePlayList);
 
 module.exports = playlistRouter;

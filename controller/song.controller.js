@@ -678,6 +678,26 @@ const getAlbumsAndEpByArtist = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "_id",
+          foreignField: "releaseId",
+          as: "tracks",
+        },
+      },
+      {
+        $addFields: {
+          trackLength: {
+            $size: "$tracks",
+          },
+        },
+      },
+      {
+        $project: {
+          tracks: 0,
+        },
+      },
     ]);
 
     return res.status(200).json({
@@ -877,6 +897,14 @@ const getSongOfArtistTheyFollow = async (req, res) => {
       },
       {
         $lookup: {
+          from: "releases",
+          localField: "tracks.releaseId",
+          foreignField: "_id",
+          as: "releases",
+        },
+      },
+      {
+        $lookup: {
           from: "songs",
           localField: "tracks.songId",
           foreignField: "_id",
@@ -885,6 +913,7 @@ const getSongOfArtistTheyFollow = async (req, res) => {
       },
       {
         $addFields: {
+          coverImage: "$releases.cover_image",
           artistId: "$following",
           tracks: {
             $map: {
@@ -906,6 +935,20 @@ const getSongOfArtistTheyFollow = async (req, res) => {
                         0,
                       ],
                     },
+                    releaseDetail: {
+                      $arrayElemAt: [
+                        {
+                          $filter: {
+                            input: "$releases",
+                            as: "release",
+                            cond: {
+                              $eq: ["$$release._id", "$$track.releaseId"],
+                            },
+                          },
+                        },
+                        0,
+                      ],
+                    },
                   },
                 ],
               },
@@ -919,6 +962,7 @@ const getSongOfArtistTheyFollow = async (req, res) => {
           _id: 0,
           follower: 0,
           following: 0,
+          releases: 0,
         },
       },
     ]);
