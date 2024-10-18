@@ -99,7 +99,7 @@ const createPlaylist = async (req, res) => {
     const { title, description, userId, image, coverImage, genreId, isPublic } =
       req.body;
 
-    if (title == "" || description == "" || image == "" || coverImage == "") {
+    if (title == "") {
       return res.status(400).json({ message: "All fields are required" });
     }
 
