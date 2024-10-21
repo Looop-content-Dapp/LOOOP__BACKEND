@@ -22,6 +22,10 @@ const {
   getTracksFromRelease,
   editSongFile,
   getReleaseByArtist,
+  getLikedAlbum,
+  getLikeSong,
+  saveAlbum,
+  likeSong,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
@@ -38,6 +42,8 @@ songRouter.get("/albumsandep/:artistId", getAlbumsAndEpByArtist);
 songRouter.get("/getsingles/:artistId", getSingles);
 songRouter.get("/getsongartistfeaturedon/:artistId", getSongArtistFeaturedOn);
 songRouter.get("/releases/:artistId", getReleaseByArtist);
+songRouter.get("/album/:userId", getLikedAlbum);
+songRouter.get("/like/:userId", getLikeSong);
 
 songRouter.get("/getallreleases", getAllReleases);
 songRouter.get("/", getAllSongs);
@@ -48,6 +54,8 @@ songRouter.get("/getreleasebasedongenres/:userId", getReleaseBasedOnGenres);
 songRouter.post("/createsong", createRelease);
 songRouter.post("/addRelease", addRelease);
 songRouter.post("/streamsong/:songId/:userId", streamSong);
+songRouter.post("/album/:userId/:releaseId", saveAlbum);
+songRouter.post("/like/:userId/:trackId", likeSong);
 
 songRouter.patch("/editsong", editSongFile);
 

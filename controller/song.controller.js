@@ -9,6 +9,9 @@ const Follow = require("../models/followers.model");
 const LastPlayed = require("../models/lastplayed.model");
 const FT = require("../models/ft.model");
 const { default: mongoose } = require("mongoose");
+const SavedRelease = require("../models/savedalbums.model");
+const LikeTracksModel = require("../models/liketracks.model");
+const LikeTracks = require("../models/liketracks.model");
 
 const getAllSongs = async (req, res) => {
   try {
@@ -1182,6 +1185,178 @@ const editSongFile = async (req, res) => {
   }
 };
 
+const saveAlbum = async (req, res) => {
+  try {
+    const { userId, releaseId } = req.params;
+
+    const releaseExist = await Release.findById(releaseId);
+
+    if (!releaseExist) {
+      return res.status(404).json({
+        message: "release not found",
+      });
+    }
+
+    const alreadyLikedAlbum = await SavedRelease.find({ userId, releaseId });
+
+    console.log(alreadyLikedAlbum);
+    if (alreadyLikedAlbum.length > 0) {
+      await SavedRelease.deleteOne({ userId, releaseId });
+    } else {
+      const release = new SavedRelease({
+        userId: userId,
+        releaseId: releaseId,
+      });
+      release.save();
+    }
+
+    return res.status(200).json({
+      message: "success",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getLikedAlbum = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const matchObj = matchUser({ name: "userId", id: userId });
+
+    const savedReleases = await SavedRelease.aggregate([
+      {
+        ...matchObj,
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      message: "success",
+      data: savedReleases,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const likeSong = async (req, res) => {
+  try {
+    const { userId, trackId } = req.params;
+
+    const trackExist = await Track.findById(trackId);
+
+    if (!trackExist) {
+      return res.status(404).json({
+        message: "track not found",
+      });
+    }
+
+    const alreadyLikedSong = await LikeTracks.find({ userId, trackId });
+
+    if (alreadyLikedSong.length > 0) {
+      await LikeTracks.deleteOne({ userId, trackId });
+    } else {
+      const track = new LikeTracks({
+        userId: userId,
+        trackId: trackId,
+      });
+      track.save();
+    }
+
+    return res.status(200).json({
+      message: "success",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
+const getLikeSong = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const matchObj = matchUser({ name: "userId", id: userId });
+
+    const likesTracks = await LikeTracks.aggregate([
+      {
+        ...matchObj,
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track",
+          pipeline: [
+            {
+              $lookup: {
+                from: "songs",
+                localField: "songId",
+                foreignField: "_id",
+                as: "song",
+              },
+            },
+            {
+              $unwind: {
+                path: "$song",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $lookup: {
+                from: "releases",
+                localField: "releaseId",
+                foreignField: "_id",
+                as: "release",
+              },
+            },
+            {
+              $addFields: {
+                coverImage: "$release.cover_image",
+              },
+            },
+            {
+              $unwind: {
+                path: "$coverImage",
+                preserveNullAndEmptyArrays: true,
+              },
+            },
+            {
+              $project: {
+                release: 0,
+              },
+            },
+          ],
+        },
+      },
+    ]);
+    return res.status(200).json({
+      message: "success",
+      data: likesTracks,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "an error occurred",
+      error: error,
+    });
+  }
+};
+
 module.exports = {
   getAllSongs,
   getSong,
@@ -1205,4 +1380,8 @@ module.exports = {
   getArtistBasedOnUserGenreExcludingWhoTheyFollow,
   getTracksFromRelease,
   editSongFile,
+  saveAlbum,
+  getLikedAlbum,
+  likeSong,
+  getLikeSong,
 };
