@@ -6,6 +6,7 @@ const {
   getArtistSubcribers,
   followArtist,
   getFollow,
+  getArtistPost,
 } = require("../controller/artist.controller");
 const {
   getArtistBasedOnUserGenreExcludingWhoTheyFollow,
@@ -20,6 +21,7 @@ artistrouter.get(
   "/usergenres/:userId",
   getArtistBasedOnUserGenreExcludingWhoTheyFollow
 );
+artistrouter.get("/artistpost/:artistId", getArtistPost);
 
 artistrouter.post("/follow/:userId/:artistId", followArtist);
 artistrouter.post("/createartist", createArtist);

@@ -3,6 +3,7 @@ const Artist = require("../models/artist.model");
 const Social = require("../models/socials.model");
 const Subscriber = require("../models/subcriber.model");
 const Follow = require("../models/followers.model");
+const Post = require("../models/post.model");
 
 const getAllArtists = async (req, res) => {
   try {
@@ -259,6 +260,25 @@ const getFollow = async (req, res) => {
   }
 };
 
+const getArtistPost = async (req, res) => {
+  try {
+    const { artistId } = req.params;
+
+    const artistPost = await Post.find({ artistId: artistId });
+
+    return res.status(200).json({
+      message: `success`,
+      posts: artistPost,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({
+      message: "Error occured",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllArtists,
   getArtist,
@@ -266,4 +286,5 @@ module.exports = {
   getArtistSubcribers,
   followArtist,
   getFollow,
+  getArtistPost,
 };
