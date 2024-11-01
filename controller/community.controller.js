@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Artist = require("../models/artist.model");
 const Community = require("../models/community.model");
 const CommunityMember = require("../models/communitymembers.mode");
@@ -145,7 +146,7 @@ const createCommunity = async (req, res) => {
   const deleteCommunity = async (req, res) => {
     try {
       const { communityId } = req.params;
-      const { artistId } = req.body; // The artist attempting to delete
+      const { artistId } = req.body;
 
       // Validate the community exists
       const community = await Community.findById(communityId);
@@ -162,33 +163,11 @@ const createCommunity = async (req, res) => {
         });
       }
 
-      // Begin transaction to ensure all related data is cleaned up
-      const session = await mongoose.startSession();
-      session.startTransaction();
+      // Delete community members first
+      await CommunityMember.deleteMany({ communityId: communityId });
 
-      try {
-        // Delete all community members
-        await CommunityMember.deleteMany({
-          communityId: communityId
-        }, { session });
-
-        // Delete all community posts if you have them
-        if (Post) {
-          await Post.deleteMany({
-            communityId: communityId
-          }, { session });
-        }
-
-        // Delete the community itself
-        await Community.findByIdAndDelete(communityId, { session });
-
-        await session.commitTransaction();
-      } catch (error) {
-        await session.abortTransaction();
-        throw error;
-      } finally {
-        session.endSession();
-      }
+      // Delete the community
+      await Community.findByIdAndDelete(communityId);
 
       return res.status(200).json({
         message: "Community successfully deleted",
