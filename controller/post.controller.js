@@ -29,7 +29,11 @@ const getAllPosts = async (req, res) => {
           postId: post._id,
           itemType: "comment" // Only get parent comments, not replies
         })
-          .populate('userId', 'name profileImage') // Populate user details
+          .populate({
+            path: 'userId',
+            model: 'users',
+            select: 'email profileImage bio'
+          })
           .sort({ createdAt: -1 })
           .limit(3);
 
@@ -46,9 +50,13 @@ const getAllPosts = async (req, res) => {
             itemType: "reply",
             parentCommentId: comment._id
           })
-            .populate('userId', 'name profileImage')
+            .populate({
+              path: 'userId',
+              model: 'users',
+              select: 'email profileImage bio'
+            })
             .sort({ createdAt: -1 })
-            .limit(2);  // Get latest 2 replies per comment
+            .limit(2);
 
           return {
             ...comment.toObject(),
@@ -58,7 +66,11 @@ const getAllPosts = async (req, res) => {
 
         // Get likes
         const likes = await Like.find({ postId: post._id })
-          .populate('userId', 'name profileImage')
+          .populate({
+            path: 'userId',
+            model: 'users',
+            select: 'email profileImage bio'
+          })
           .limit(3);
 
         const likeCount = await Like.countDocuments({ postId: post._id });
