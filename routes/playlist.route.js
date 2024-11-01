@@ -1,27 +1,32 @@
 const express = require("express");
-const {} = require("../controller/genre.controller");
 const {
   getAllPlayList,
   getAllPlayListForUser,
-  getPlayListSong,
+  getPlayListSongs,
   createPlaylist,
+  updatePlaylist,
   deletePlayList,
   addSongToPlaylist,
-  pinnPlaylist,
+  togglePinPlaylist,
 } = require("../controller/playlistsong.controller");
 const isvaliduser = require("../middlewares/isvaliduser.middleware");
 
 const playlistRouter = express.Router();
 
+// Get routes
 playlistRouter.get("/", getAllPlayList);
-playlistRouter.get("/getallplaylistforuser/:userId", getAllPlayListForUser);
-playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
+playlistRouter.get("/user/:userId", getAllPlayListForUser);
+playlistRouter.get("/playlist/:playlistId", getPlayListSongs);
 
-playlistRouter.post("/createplaylist", createPlaylist);
-playlistRouter.post("/addsongtoplaylist", addSongToPlaylist);
+// Post routes
+playlistRouter.post("/create", isvaliduser, createPlaylist);
+playlistRouter.post("/songs/add", isvaliduser, addSongToPlaylist);
 
-playlistRouter.put("/pin/:playlistId", pinnPlaylist);
+// Put routes
+playlistRouter.put("/update/:playlistId", isvaliduser, updatePlaylist);
+playlistRouter.put("/pin/:playlistId", isvaliduser, togglePinPlaylist);
 
-playlistRouter.delete("/deleteplaylist", deletePlayList);
+// Delete routes
+playlistRouter.delete("/delete", isvaliduser, deletePlayList);
 
 module.exports = playlistRouter;
