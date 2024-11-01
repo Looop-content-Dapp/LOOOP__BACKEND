@@ -5,6 +5,7 @@ const {
   joinCommunity,
   createCommunity,
   searchCommunity,
+  deleteCommunity
 } = require("../controller/community.controller");
 const { createArtist } = require("../controller/artist.controller");
 
@@ -16,6 +17,7 @@ communityRouter.get("/:communityid", getCommunity);
 
 communityRouter.post("/createcommunity", createCommunity);
 communityRouter.post("/joincommunity", joinCommunity);
+communityRouter.delete("/:communityId", deleteCommunity);
 // router.delete("/:id", deleteUsergetAllUsers);
 
 module.exports = communityRouter;

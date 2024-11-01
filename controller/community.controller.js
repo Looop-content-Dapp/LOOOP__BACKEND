@@ -59,34 +59,153 @@ const getCommunity = async (req, res) => {
 };
 
 const createCommunity = async (req, res) => {
-  try {
-    const { name, description, artistId } = req.body;
+    try {
+      const {
+        // Basic Info
+        name,
+        description,
+        coverImage,
 
-    const artist = await Artist.findById(artistId);
+        // Tribe Pass Details
+        collectibleName,
+        collectibleDescription,
+        collectibleImage,
+        collectibleType,
 
-    if (!artist) {
-      return res.status(400).json({ message: "Artist doesnt exist" });
+        artistId
+      } = req.body;
+
+      // Validate required fields
+      if (!name || !description || !coverImage || !collectibleName || !collectibleImage || !artistId) {
+        return res.status(400).json({
+          message: "Missing required fields",
+          required: [
+            'name',
+            'description',
+            'coverImage',
+            'collectibleName',
+            'collectibleImage',
+            'artistId'
+          ]
+        });
+      }
+
+      // Validate image size and type for collectible
+      if (collectibleImage) {
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (collectibleImage.size > maxSize) {
+          return res.status(400).json({
+            message: "Collectible image must be less than 50MB"
+          });
+        }
+
+        if (!['PNG', 'GIF', 'WEBP'].includes(collectibleType)) {
+          return res.status(400).json({
+            message: "Invalid collectible type. Must be PNG, GIF, or WEBP"
+          });
+        }
+      }
+
+      const artist = await Artist.findById(artistId);
+      if (!artist) {
+        return res.status(404).json({ message: "Artist not found" });
+      }
+
+      const community = new Community({
+        name,
+        description,
+        coverImage,
+        tribePass: {
+          collectibleName,
+          collectibleDescription,
+          collectibleImage,
+          collectibleType
+        },
+        createdBy: artistId
+      });
+
+      await community.save();
+
+      // Populate creator details before sending response
+      await community.populate('createdBy', 'name email profileImage genre verified');
+
+      return res.status(201).json({
+        message: "Successfully created tribe",
+        data: community
+      });
+    } catch (error) {
+      console.error(error);
+      return res.status(500).json({
+        message: "Error creating tribe",
+        error: error.message
+      });
     }
+  };
 
-    const community = new Community({
-      name,
-      description,
-      createdBy: artistId,
-    });
+  const deleteCommunity = async (req, res) => {
+    try {
+      const { communityId } = req.params;
+      const { artistId } = req.body; // The artist attempting to delete
 
-    await community.save();
+      // Validate the community exists
+      const community = await Community.findById(communityId);
+      if (!community) {
+        return res.status(404).json({
+          message: "Community not found"
+        });
+      }
 
-    return res.status(200).json({
-      message: "successfully created a community",
-      data: community,
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ message: "Error fetching community", error: error.message });
-  }
-};
+      // Check if the requesting artist is the creator
+      if (community.createdBy.toString() !== artistId) {
+        return res.status(403).json({
+          message: "Only the community creator can delete the community"
+        });
+      }
+
+      // Begin transaction to ensure all related data is cleaned up
+      const session = await mongoose.startSession();
+      session.startTransaction();
+
+      try {
+        // Delete all community members
+        await CommunityMember.deleteMany({
+          communityId: communityId
+        }, { session });
+
+        // Delete all community posts if you have them
+        if (Post) {
+          await Post.deleteMany({
+            communityId: communityId
+          }, { session });
+        }
+
+        // Delete the community itself
+        await Community.findByIdAndDelete(communityId, { session });
+
+        await session.commitTransaction();
+      } catch (error) {
+        await session.abortTransaction();
+        throw error;
+      } finally {
+        session.endSession();
+      }
+
+      return res.status(200).json({
+        message: "Community successfully deleted",
+        data: {
+          communityId,
+          name: community.name
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in deleteCommunity:", error);
+      return res.status(500).json({
+        message: "Error deleting community",
+        error: error.message
+      });
+    }
+  };
 
 const joinCommunity = async (req, res) => {
   try {
@@ -183,4 +302,5 @@ module.exports = {
   createCommunity,
   joinCommunity,
   searchCommunity,
+  deleteCommunity
 };

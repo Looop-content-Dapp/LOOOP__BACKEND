@@ -1,10 +1,67 @@
 const mongoose = require("mongoose");
 
 const communitySchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  description: { type: String, required: true },
-  createdBy: { type: mongoose.Types.ObjectId, ref: "Artist" }, // the member who created the community
-  createdAt: { type: Date, default: Date.now },
+  // Basic Information
+  name: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true
+  },
+  description: {
+    type: String,
+    required: true,
+    maxlength: 150 // Based on UI character limit
+  },
+  coverImage: {
+    type: String,
+    required: true // Required based on UI
+  },
+
+  // Membership/Tribe Pass Details
+  tribePass: {
+    collectibleName: {
+      type: String,
+      required: true,
+      trim: true
+    },
+    collectibleDescription: {
+      type: String,
+      maxlength: 150,
+      trim: true
+    },
+    collectibleImage: {
+      type: String,
+      required: true
+    },
+    collectibleType: {
+      type: String,
+      enum: ['PNG', 'GIF', 'WEBP'],
+      required: true
+    }
+  },
+
+  // Community Status and Meta
+  createdBy: {
+    type: mongoose.Types.ObjectId,
+    ref: "artist",
+    required: true
+  },
+  status: {
+    type: String,
+    enum: ['draft', 'active', 'inactive'],
+    default: 'active'
+  },
+  memberCount: {
+    type: Number,
+    default: 0
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
 });
 
 communitySchema.index({ name: "text" });
