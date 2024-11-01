@@ -17,7 +17,7 @@ communityRouter.get("/:communityid", getCommunity);
 
 communityRouter.post("/createcommunity", createCommunity);
 communityRouter.post("/joincommunity", joinCommunity);
-communityRouter.delete("/:communityId", deleteCommunity);
+communityRouter.delete("/deletcommunity/:communityId", deleteCommunity);
 // router.delete("/:id", deleteUsergetAllUsers);
 
 module.exports = communityRouter;
