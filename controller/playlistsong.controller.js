@@ -109,11 +109,11 @@ const createPlaylist = async (req, res) => {
       ]);
 
       // Free users can only create 2 playlists
-      if (userPlaylist.length === 2 && !isUserPremium.isPremium) {
-        return res.status(403).json({
-          message: "Free users can only create two playlists. Upgrade to Premium for unlimited playlists."
-        });
-      }
+    //   if (userPlaylist.length === 2 && !isUserPremium.isPremium) {
+    //     return res.status(403).json({
+    //       message: "Free users can only create two playlists. Upgrade to Premium for unlimited playlists."
+    //     });
+    //   }
 
       // Create new playlist with minimal required info
       const newPlaylist = new PlayListName({
@@ -354,7 +354,6 @@ const addSongToPlaylist = async (req, res) => {
       });
     }
   }
-};
 
 const deletePlayList = async (req, res) => {
   try {
