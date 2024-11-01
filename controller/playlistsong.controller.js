@@ -103,11 +103,10 @@ const getPlayListSong = async (req, res) => {
         return res.status(400).json({ message: "Title is required" });
       }
 
-      // Create new playlist with minimal required info
       const newPlaylist = new PlayListName({
         title,
         userId,
-        coverImage: generateCoverImage(0), // Start with default empty playlist cover
+        image: generateCoverImage(0), // Start with default empty playlist cover
         lastModified: Date.now()
       });
 
