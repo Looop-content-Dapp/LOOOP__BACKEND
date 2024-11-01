@@ -5,19 +5,47 @@ const Comment = require("../models/comment.model");
 const Like = require("../models/likes.model");
 
 const getAllPosts = async (req, res) => {
-  try {
-    const posts = await Post.find({}, "-password");
+    try {
+      const { page = 1, limit = 10, category, artistId, status, genre } = req.query;
+      const query = {};
 
-    return res.status(200).json({
-      message: "successfully get all posts",
-      data: posts,
-    });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching posts", error: error.message });
-  }
-};
+      // Add filters if provided
+      if (category) query.category = category;
+      if (artistId) query.artistId = artistId;
+      if (status) query.status = status;
+      if (genre) query.genre = genre;
+
+      const posts = await Post.find(query)
+        .populate('artistId', 'name email profileImage genre verified')
+        .populate({
+          path: 'comments',
+          options: { limit: 3 },
+          populate: {
+            path: 'userId',
+            select: 'name profileImage'
+          }
+        })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .sort({ createdAt: -1 });
+
+      const total = await Post.countDocuments(query);
+
+      return res.status(200).json({
+        message: "Successfully retrieved posts",
+        data: {
+          posts,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalPosts: total
+        }
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Error fetching posts", error: error.message });
+    }
+  };
 
 const getAllLikes = async (req, res) => {
   try {
@@ -190,39 +218,86 @@ const getAllPostByArtist = async (req, res) => {
 };
 
 const createPost = async (req, res) => {
-  try {
-    const { title, description, image, artistId } = req.body;
+    try {
+      const {
+        title,
+        description,
+        media,
+        artistId,
+        tags,
+        category,
+        visibility,
+        status,
+        type,
+        genre
+      } = req.body;
 
-    if (title == "" || description == "" || image == "" || artistId == "") {
-      return res.status(401).json({ message: "All fields are required" });
+      // Validation
+      if (!title || !media || !artistId || !category) {
+        return res.status(400).json({
+          message: "Required fields missing",
+          required: ['title', 'media', 'artistId', 'category']
+        });
+      }
+
+      // Validate media array
+      if (!Array.isArray(media) || media.length === 0) {
+        return res.status(400).json({
+          message: "Media must be an array with at least one item"
+        });
+      }
+
+      // Validate each media item
+      for (const item of media) {
+        if (!item.type || !item.url) {
+          return res.status(400).json({
+            message: "Each media item must have type and url",
+            mediaFormat: {
+              type: "Required - image/video/audio/gif",
+              url: "Required - media URL",
+              thumbnailUrl: "Optional - for videos",
+              duration: "Optional - for audio/video",
+              mimeType: "Optional",
+              size: "Optional",
+              width: "Optional",
+              height: "Optional"
+            }
+          });
+        }
+      }
+
+      const artist = await Artist.findById(artistId);
+      if (!artist) {
+        return res.status(404).json({ message: "Artist not found" });
+      }
+
+      const post = new Post({
+        title,
+        description,
+        media,
+        artistId,
+        tags: tags || [],
+        category,
+        visibility: visibility || 'public',
+        status: status || 'published',
+        type: type || (media.length > 1 ? 'multiple' : 'single'),
+        genre: genre || artist.genre // Use artist's genre if not provided
+      });
+
+      await post.save();
+      await post.populate('artistId', 'name email profileImage genre verified');
+
+      return res.status(201).json({
+        message: "Successfully created post",
+        data: post
+      });
+    } catch (error) {
+      console.error(error);
+      return res
+        .status(500)
+        .json({ message: "Error creating post", error: error.message });
     }
-
-    const artist = await Artist.findById(artistId);
-
-    if (!artist) {
-      return res.status(400).json({ message: "Artist not found" });
-    }
-
-    const post = new Post({
-      title,
-      description,
-      image,
-      artistId,
-    });
-
-    await post.save();
-
-    return res.status(200).json({
-      message: "successfully created a Post",
-      data: post,
-    });
-  } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ message: "Error creating Post", error: error.message });
-  }
-};
+  };
 
 const commentOnPost = async (req, res) => {
   try {
