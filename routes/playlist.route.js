@@ -17,7 +17,7 @@ playlistRouter.get("/", getAllPlayList);
 playlistRouter.get("/getallplaylistforuser/:userId", getAllPlayListForUser);
 playlistRouter.get("/getplaylistsong/:playlistId", getPlayListSong);
 
-playlistRouter.post("/createplaylist", isvaliduser, createPlaylist);
+playlistRouter.post("/createplaylist", createPlaylist);
 playlistRouter.post("/addsongtoplaylist", addSongToPlaylist);
 
 playlistRouter.put("/pin/:playlistId", pinnPlaylist);
