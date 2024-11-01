@@ -138,22 +138,18 @@ const createPlaylist = async (req, res) => {
     }
   }
 
-const addSongToPlaylist = async(req, res) => {
+const addSongToPlaylist = async (req, res) => {
     try {
-      const { trackId, playlistId, userId } = req.body;
+      const { tracks, playlistId, userId } = req.body;
 
-      const [playlist, track, existingSongs] = await Promise.all([
-        PlayListName.findById(playlistId),
-        Track.findById(trackId).populate('genreId'),
-        PlayListSongs.find({ playlistId }).sort({ order: -1 })
-      ]);
+      // Convert single track to array for consistent processing
+      const trackIds = Array.isArray(tracks) ? tracks : [tracks];
+
+      const playlist = await PlayListName.findById(playlistId);
 
       // Validation checks
       if (!playlist) {
         return res.status(404).json({ message: "Playlist not found" });
-      }
-      if (!track) {
-        return res.status(404).json({ message: "Track not found" });
       }
 
       // Check permissions
@@ -161,32 +157,71 @@ const addSongToPlaylist = async(req, res) => {
         return res.status(403).json({ message: "Not authorized to modify this playlist" });
       }
 
-      // Check if song already exists in playlist
-      const songExists = await PlayListSongs.findOne({
+      // Get existing songs and their count for ordering
+      const existingSongs = await PlayListSongs.find({ playlistId }).sort({ order: -1 });
+      let nextOrder = existingSongs.length > 0 ? existingSongs[0].order + 1 : 1;
+
+      // Get current genre distribution
+      let genreDistribution = new Map(playlist.genreDistribution);
+
+      // Process all tracks
+      const addedTracks = [];
+      const skippedTracks = [];
+      let totalDurationAdded = 0;
+
+      // Fetch all tracks info at once
+      const tracksInfo = await Track.find({
+        '_id': { $in: trackIds }
+      }).populate('genreId');
+
+      // Check which tracks already exist in playlist
+      const existingTrackIds = await PlayListSongs.distinct('trackId', {
         playlistId,
-        trackId,
+        trackId: { $in: trackIds },
         isHidden: false
       });
 
-      if (songExists) {
-        return res.status(400).json({ message: "Song already exists in this playlist" });
+      const existingTrackSet = new Set(existingTrackIds.map(id => id.toString()));
+
+      // Prepare bulk operations
+      const songsBulkOps = [];
+      const trackUpdateOps = [];
+
+      for (const track of tracksInfo) {
+        if (!existingTrackSet.has(track._id.toString())) {
+          // Prepare new playlist song entry
+          songsBulkOps.push({
+            insertOne: {
+              document: {
+                trackId: track._id,
+                userId: playlist.userId,
+                playlistId,
+                addedBy: userId,
+                order: nextOrder++,
+                addedAt: new Date()
+              }
+            }
+          });
+
+          // Update genre distribution
+          const currentCount = genreDistribution.get(track.genreId.toString()) || 0;
+          genreDistribution.set(track.genreId.toString(), currentCount + 1);
+
+          // Track successful additions
+          addedTracks.push(track._id);
+          totalDurationAdded += track.duration;
+
+          // Prepare track update for playlistAdditions increment
+          trackUpdateOps.push({
+            updateOne: {
+              filter: { _id: track.songId },
+              update: { $inc: { playlistAdditions: 1 } }
+            }
+          });
+        } else {
+          skippedTracks.push(track._id);
+        }
       }
-
-      // Calculate next order number
-      const nextOrder = existingSongs.length > 0 ? existingSongs[0].order + 1 : 1;
-
-      const newSongToPlaylist = new PlayListSongs({
-        trackId,
-        userId: playlist.userId,
-        playlistId,
-        addedBy: userId,
-        order: nextOrder
-      });
-
-      // Update genre distribution
-      let genreDistribution = new Map(playlist.genreDistribution);
-      const currentCount = genreDistribution.get(track.genreId.toString()) || 0;
-      genreDistribution.set(track.genreId.toString(), currentCount + 1);
 
       // Find dominant genre
       let dominantGenre = null;
@@ -198,41 +233,63 @@ const addSongToPlaylist = async(req, res) => {
         }
       }
 
-      // Generate new cover image based on total songs
-      const newCoverImage = generateCoverImage(existingSongs.length + 1);
+      // Generate new cover image based on updated total songs
+      const newCoverImage = generateCoverImage(existingSongs.length + addedTracks.length);
 
-      // Update playlist metadata
+      // Perform all database operations in parallel
       await Promise.all([
-        newSongToPlaylist.save(),
+        // Bulk insert new songs if any
+        songsBulkOps.length > 0 ?
+          PlayListSongs.bulkWrite(songsBulkOps) :
+          Promise.resolve(),
+
+        // Update tracks' playlistAdditions if any
+        trackUpdateOps.length > 0 ?
+          Song.bulkWrite(trackUpdateOps) :
+          Promise.resolve(),
+
+        // Update playlist metadata
         PlayListName.findByIdAndUpdate(playlistId, {
-          $inc: { totalTracks: 1, totalDuration: track.duration },
+          $inc: {
+            totalTracks: addedTracks.length,
+            totalDuration: totalDurationAdded
+          },
           $set: {
             lastModified: Date.now(),
             coverImage: newCoverImage,
             dominantGenre: dominantGenre,
             genreDistribution: Object.fromEntries(genreDistribution)
           }
-        }),
-        Song.findByIdAndUpdate(track.songId, {
-          $inc: { playlistAdditions: 1 }
         })
       ]);
 
+      // Prepare response message based on results
+      let message = "";
+      if (addedTracks.length > 0 && skippedTracks.length > 0) {
+        message = `Added ${addedTracks.length} tracks. Skipped ${skippedTracks.length} duplicate tracks.`;
+      } else if (addedTracks.length > 0) {
+        message = `Successfully added ${addedTracks.length} tracks to playlist.`;
+      } else {
+        message = "No new tracks were added. All tracks already exist in playlist.";
+      }
+
       return res.status(200).json({
-        message: "Song added to playlist successfully",
+        message,
         data: {
-          song: newSongToPlaylist,
+          addedTracks,
+          skippedTracks,
           playlistUpdates: {
             coverImage: newCoverImage,
-            dominantGenre: dominantGenre,
-            totalTracks: existingSongs.length + 1
+            dominantGenre,
+            totalTracks: existingSongs.length + addedTracks.length,
+            totalDuration: totalDurationAdded
           }
         }
       });
     } catch (error) {
       console.error(error);
       return res.status(500).json({
-        message: "Error adding song to playlist",
+        message: "Error adding songs to playlist",
         error: error.message
       });
     }
