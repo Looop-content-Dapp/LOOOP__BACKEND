@@ -95,25 +95,13 @@ const getPlayListSong = async (req, res) => {
   }
 };
 
-const createPlaylist = async (req, res) => {
+  const createPlaylist = async (req, res) => {
     try {
       const { title, userId } = req.body;
 
       if (!title) {
         return res.status(400).json({ message: "Title is required" });
       }
-
-      const [isUserPremium, userPlaylist] = await Promise.all([
-        User.findById(userId),
-        PlayListName.find({ userId: userId })
-      ]);
-
-      // Free users can only create 2 playlists
-    //   if (userPlaylist.length === 2 && !isUserPremium.isPremium) {
-    //     return res.status(403).json({
-    //       message: "Free users can only create two playlists. Upgrade to Premium for unlimited playlists."
-    //     });
-    //   }
 
       // Create new playlist with minimal required info
       const newPlaylist = new PlayListName({
