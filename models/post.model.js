@@ -69,6 +69,19 @@ const PostSchema = new mongoose.Schema(
   }
 );
 
+// Virtual populate for comments and likes
+PostSchema.virtual('comments', {
+    ref: 'Comment',
+    localField: '_id',
+    foreignField: 'postId'
+  });
+
+  PostSchema.virtual('likes', {
+    ref: 'Like',
+    localField: '_id',
+    foreignField: 'postId'
+  });
+
 const Post = mongoose.model("posts", PostSchema);
 
 module.exports = Post;
