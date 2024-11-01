@@ -100,11 +100,11 @@ const createCommunity = async (req, res) => {
           });
         }
 
-        if (!['PNG', 'GIF', 'WEBP'].includes(collectibleType)) {
-          return res.status(400).json({
-            message: "Invalid collectible type. Must be PNG, GIF, or WEBP"
-          });
-        }
+        // if (!['PNG', 'GIF', 'WEBP'].includes(collectibleType)) {
+        //   return res.status(400).json({
+        //     message: "Invalid collectible type. Must be PNG, GIF, or WEBP"
+        //   });
+        // }
       }
 
       const artist = await Artist.findById(artistId);
