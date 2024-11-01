@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
 
+const mongoose = require("mongoose");
+
 const MediaSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -10,12 +12,12 @@ const MediaSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  thumbnailUrl: String, // For videos
-  duration: Number, // For audio/video
+  thumbnailUrl: String,
+  duration: Number,
   mimeType: String,
-  size: Number, // in bytes
-  width: Number, // for images/videos
-  height: Number, // for images/videos
+  size: Number,
+  width: Number,
+  height: Number,
 });
 
 const PostSchema = new mongoose.Schema(
@@ -39,7 +41,7 @@ const PostSchema = new mongoose.Schema(
     artistId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "Artist",
+      ref: "artist", // Changed to match your artist model name
     },
     tags: [{ type: String }],
     category: {
@@ -60,7 +62,7 @@ const PostSchema = new mongoose.Schema(
       enum: ['draft', 'published', 'archived'],
       default: 'published'
     },
-    createdAt: { type: Date, default: Date.now() },
+    genre: { type: String }, // Added to match artist model pattern
   },
   {
     timestamps: true,

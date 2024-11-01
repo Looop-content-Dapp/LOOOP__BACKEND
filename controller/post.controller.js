@@ -6,22 +6,23 @@ const Like = require("../models/likes.model");
 
 const getAllPosts = async (req, res) => {
     try {
-      const { page = 1, limit = 100, category, artistId, status } = req.query;
+      const { page = 1, limit = 10, category, artistId, status, genre } = req.query;
       const query = {};
 
       // Add filters if provided
       if (category) query.category = category;
       if (artistId) query.artistId = artistId;
       if (status) query.status = status;
+      if (genre) query.genre = genre;
 
       const posts = await Post.find(query)
-        .populate('artistId', 'username name profilePicture')
+        .populate('artistId', 'name email profileImage genre verified')
         .populate({
           path: 'comments',
           options: { limit: 3 },
           populate: {
             path: 'userId',
-            select: 'username name profilePicture'
+            select: 'name profileImage'
           }
         })
         .skip((page - 1) * limit)
@@ -227,7 +228,8 @@ const createPost = async (req, res) => {
         category,
         visibility,
         status,
-        type
+        type,
+        genre
       } = req.body;
 
       // Validation
@@ -278,13 +280,12 @@ const createPost = async (req, res) => {
         category,
         visibility: visibility || 'public',
         status: status || 'published',
-        type: type || (media.length > 1 ? 'multiple' : 'single')
+        type: type || (media.length > 1 ? 'multiple' : 'single'),
+        genre: genre || artist.genre // Use artist's genre if not provided
       });
 
       await post.save();
-
-      // Populate the response with artist details
-      await post.populate('artistId', 'username name profilePicture');
+      await post.populate('artistId', 'name email profileImage genre verified');
 
       return res.status(201).json({
         message: "Successfully created post",
