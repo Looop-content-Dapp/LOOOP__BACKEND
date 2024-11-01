@@ -37,7 +37,7 @@ const communitySchema = new mongoose.Schema({
     collectibleType: {
       type: String,
       enum: ['PNG', 'GIF', 'WEBP'],
-      required: true
+      required: false
     }
   },
 
