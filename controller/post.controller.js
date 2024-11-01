@@ -15,32 +15,78 @@ const getAllPosts = async (req, res) => {
       if (status) query.status = status;
       if (genre) query.genre = genre;
 
+      // First get the posts with artist details
       const posts = await Post.find(query)
         .populate('artistId', 'name email profileImage genre verified')
-        .populate({
-          path: 'comments',
-          options: { limit: 3 },
-          populate: {
-            path: 'userId',
-            select: 'name profileImage'
-          }
-        })
         .skip((page - 1) * limit)
         .limit(limit)
         .sort({ createdAt: -1 });
+
+      // Then get comments and likes for each post
+      const postsWithDetails = await Promise.all(posts.map(async (post) => {
+        // Get comments for this post
+        const comments = await Comment.find({
+          postId: post._id,
+          itemType: "comment" // Only get parent comments, not replies
+        })
+          .populate('userId', 'name profileImage') // Populate user details
+          .sort({ createdAt: -1 })
+          .limit(3);
+
+        // Get comment counts
+        const commentCount = await Comment.countDocuments({
+          postId: post._id,
+          itemType: "comment"
+        });
+
+        // Get replies for these comments
+        const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
+          const replies = await Comment.find({
+            postId: post._id,
+            itemType: "reply",
+            parentCommentId: comment._id
+          })
+            .populate('userId', 'name profileImage')
+            .sort({ createdAt: -1 })
+            .limit(2);  // Get latest 2 replies per comment
+
+          return {
+            ...comment.toObject(),
+            replies
+          };
+        }));
+
+        // Get likes
+        const likes = await Like.find({ postId: post._id })
+          .populate('userId', 'name profileImage')
+          .limit(3);
+
+        const likeCount = await Like.countDocuments({ postId: post._id });
+
+        const postObject = post.toObject();
+
+        return {
+          ...postObject,
+          comments: commentsWithReplies,
+          commentCount,
+          likes,
+          likeCount
+        };
+      }));
 
       const total = await Post.countDocuments(query);
 
       return res.status(200).json({
         message: "Successfully retrieved posts",
         data: {
-          posts,
+          posts: postsWithDetails,
           currentPage: parseInt(page),
           totalPages: Math.ceil(total / limit),
           totalPosts: total
         }
       });
     } catch (error) {
+      console.error("Error in getAllPosts:", error);
       res
         .status(500)
         .json({ message: "Error fetching posts", error: error.message });
