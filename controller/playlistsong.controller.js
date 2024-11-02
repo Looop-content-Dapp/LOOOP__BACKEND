@@ -346,6 +346,126 @@ const togglePinPlaylist = async (req, res) => {
   }
 };
 
+const addSongToPlaylist = async (req, res) => {
+    try {
+      const { playlistId, trackIds, userId } = req.body;
+
+      // Validation
+      if (!playlistId || !trackIds || !Array.isArray(trackIds) || !userId) {
+        return res.status(400).json({
+          message: "Playlist ID, array of track IDs, and user ID are required"
+        });
+      }
+
+      if (trackIds.length === 0) {
+        return res.status(400).json({
+          message: "At least one track ID is required"
+        });
+      }
+
+      // Find playlist and check permissions
+      const playlist = await PlayListName.findById(playlistId);
+
+      if (!playlist) {
+        return res.status(404).json({
+          message: "Playlist not found"
+        });
+      }
+
+      // Check if user owns the playlist or is a collaborator
+      if (playlist.userId !== userId && !playlist.collaborators.includes(userId)) {
+        return res.status(403).json({
+          message: "You don't have permission to modify this playlist"
+        });
+      }
+
+      // Get current highest order in playlist
+      const highestOrder = await PlayListSongs.findOne({ playlistId })
+        .sort({ order: -1 })
+        .select('order');
+
+      let nextOrder = (highestOrder?.order || 0) + 1;
+
+      // Verify all tracks exist first
+      const existingTracks = await Track.find({ _id: { $in: trackIds } });
+      const validTrackIds = existingTracks.map(track => track._id.toString());
+
+      // Filter out invalid track IDs
+      const invalidTrackIds = trackIds.filter(id => !validTrackIds.includes(id.toString()));
+      if (invalidTrackIds.length > 0) {
+        console.warn(`Invalid track IDs: ${invalidTrackIds.join(', ')}`);
+      }
+
+      // Check for existing tracks in the playlist
+      const existingPlaylistTracks = await PlayListSongs.find({
+        playlistId,
+        trackId: { $in: validTrackIds }
+      });
+
+      const existingTrackIds = existingPlaylistTracks.map(track => track.trackId.toString());
+      const newTrackIds = validTrackIds.filter(id => !existingTrackIds.includes(id));
+
+      // Create new playlist entries for non-duplicate tracks
+      const playlistSongs = newTrackIds.map(trackId => ({
+        playlistId,
+        trackId,
+        addedBy: userId,
+        addedAt: Date.now(),
+        order: nextOrder++
+      }));
+
+      // Bulk insert new tracks
+      const addedTracks = await PlayListSongs.insertMany(playlistSongs);
+
+      // Update playlist metadata if tracks were added
+      if (addedTracks.length > 0) {
+        const additionalDuration = existingTracks
+          .filter(track => newTrackIds.includes(track._id.toString()))
+          .reduce((sum, track) => sum + (track.duration || 0), 0);
+
+        // Update genre distribution
+        const genreUpdates = existingTracks
+          .filter(track => newTrackIds.includes(track._id.toString()))
+          .reduce((acc, track) => {
+            if (track.genreId) {
+              acc.set(
+                track.genreId.toString(),
+                (playlist.genreDistribution.get(track.genreId.toString()) || 0) + 1
+              );
+            }
+            return acc;
+          }, new Map(playlist.genreDistribution));
+
+        // Update playlist
+        await PlayListName.findByIdAndUpdate(playlistId, {
+          $inc: {
+            totalTracks: addedTracks.length,
+            totalDuration: additionalDuration
+          },
+          genreDistribution: genreUpdates,
+          lastModified: Date.now()
+        });
+      }
+
+      return res.status(200).json({
+        message: "Songs added to playlist successfully",
+        data: {
+          addedTracks: addedTracks.length,
+          skippedTracks: existingTrackIds.length,
+          invalidTracks: invalidTrackIds.length,
+          totalTracksInPlaylist: playlist.totalTracks + addedTracks.length
+        }
+      });
+
+    } catch (error) {
+      console.error("Error adding songs to playlist:", error);
+      return res.status(500).json({
+        message: "Error adding songs to playlist",
+        error: error.message
+      });
+    }
+  };
+
 module.exports = {
   getAllPlayList,
   getAllPlayListForUser,
