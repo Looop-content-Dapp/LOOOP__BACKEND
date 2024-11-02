@@ -157,51 +157,54 @@ const getPlayListSongs = async (req, res) => {
 };
 
 const createPlaylist = async (req, res) => {
-  try {
-    const { title, userId, description, isPublic, isCollaborative } = req.body;
+    try {
+      const { title, userId, description, isPublic, isCollaborative } = req.body;
 
-    // Validation
-    if (!title || !userId) {
-      return res.status(400).json({
-        message: "Title and userId are required fields",
+      // Validation
+      if (!title || !userId) {
+        return res.status(400).json({
+          message: "Title and userId are required fields"
+        });
+      }
+
+      if (title.length > 100) {
+        return res.status(400).json({
+          message: "Playlist title must be 100 characters or less"
+        });
+      }
+
+      // Generate Spotify-like cover image based on playlist title
+      const coverImage = generateCoverImage(title, 0);
+
+      // Create new playlist
+      const newPlaylist = new PlayListName({
+        title,
+        userId,
+        description: description || "",
+        isPublic: isPublic || false,
+        isCollaborative: isCollaborative || false,
+        coverImage,
+        createdDate: Date.now(),
+        lastModified: Date.now(),
+        genreDistribution: new Map(),
+        totalTracks: 0,
+        totalDuration: 0
+      });
+
+      await newPlaylist.save();
+
+      return res.status(201).json({
+        message: "Playlist created successfully",
+        data: newPlaylist
+      });
+    } catch (error) {
+      console.error("Error creating playlist:", error);
+      return res.status(500).json({
+        message: "Error creating playlist",
+        error: error.message
       });
     }
-
-    if (title.length > 100) {
-      return res.status(400).json({
-        message: "Playlist title must be 100 characters or less",
-      });
-    }
-
-    // Create new playlist
-    const newPlaylist = new PlayListName({
-      title,
-      userId,
-      description: description || "",
-      isPublic: isPublic || false,
-      isCollaborative: isCollaborative || false,
-      image: generateCoverImage(0),
-      createdDate: Date.now(),
-      lastModified: Date.now(),
-      genreDistribution: new Map(),
-      totalTracks: 0,
-      totalDuration: 0,
-    });
-
-    await newPlaylist.save();
-
-    return res.status(201).json({
-      message: "Playlist created successfully",
-      data: newPlaylist,
-    });
-  } catch (error) {
-    console.error("Error creating playlist:", error);
-    return res.status(500).json({
-      message: "Error creating playlist",
-      error: error.message,
-    });
-  }
-};
+  };
 
 const updatePlaylist = async (req, res) => {
   try {
@@ -384,6 +387,14 @@ const addSongToPlaylist = async (req, res) => {
     });
 
     await newSongToPlaylist.save();
+
+    const updatePlaylistCover = async (playlistId) => {
+        const playlist = await PlayListName.findById(playlistId);
+        if (playlist) {
+          const newCover = generateCoverImage(playlist.title, playlist.totalTracks);
+          await PlayListName.findByIdAndUpdate(playlistId, { coverImage: newCover });
+        }
+      };
 
     return res.status(200).json({
       message: "successfully added song playlist",
