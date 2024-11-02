@@ -6,8 +6,7 @@ const { generateCoverImage } = require("../utils/helpers/coverImageGenerator");
 
 const getAllPlayList = async (req, res) => {
   try {
-    const playListSongs = await PlayListName.find({})
-      .sort({ createdDate: -1 }); // Sort by creation date, newest first
+    const playListSongs = await PlayListName.find({}).sort({ createdDate: -1 }); // Sort by creation date, newest first
 
     return res.status(200).json({
       message: "Successfully retrieved all playlists",
@@ -27,14 +26,14 @@ const getAllPlayListForUser = async (req, res) => {
 
     if (!userId) {
       return res.status(400).json({
-        message: "User ID is required"
+        message: "User ID is required",
       });
     }
 
     const playLists = await PlayListName.aggregate([
       {
         $match: {
-          userId: userId
+          userId: userId,
         },
       },
       {
@@ -42,21 +41,21 @@ const getAllPlayListForUser = async (req, res) => {
           from: "playlistsongs",
           localField: "_id",
           foreignField: "playlistId",
-          as: "songs"
+          as: "songs",
         },
       },
       {
         $sort: {
-          isPinned: -1,  // Show pinned playlists first
-          lastModified: -1 // Then sort by last modified
-        }
-      }
+          isPinned: -1, // Show pinned playlists first
+          lastModified: -1, // Then sort by last modified
+        },
+      },
     ]);
 
     return res.status(200).json({
       message: "Successfully retrieved user playlists",
       data: playLists,
-      totalPlaylists: playLists.length
+      totalPlaylists: playLists.length,
     });
   } catch (error) {
     res.status(500).json({
@@ -72,7 +71,7 @@ const getPlayListSongs = async (req, res) => {
 
     if (!playlistId) {
       return res.status(400).json({
-        message: "Playlist ID is required"
+        message: "Playlist ID is required",
       });
     }
 
@@ -80,10 +79,7 @@ const getPlayListSongs = async (req, res) => {
       {
         $match: {
           $expr: {
-            $eq: [
-              "$_id",
-              { $toObjectId: playlistId }
-            ],
+            $eq: ["$_id", { $toObjectId: playlistId }],
           },
         },
       },
@@ -99,16 +95,16 @@ const getPlayListSongs = async (req, res) => {
                 from: "tracks",
                 localField: "trackId",
                 foreignField: "_id",
-                as: "trackDetails"
-              }
+                as: "trackDetails",
+              },
             },
             {
-              $unwind: "$trackDetails"
+              $unwind: "$trackDetails",
             },
             {
-              $sort: { order: 1 } // Sort songs by their order in the playlist
-            }
-          ]
+              $sort: { order: 1 }, // Sort songs by their order in the playlist
+            },
+          ],
         },
       },
       {
@@ -134,28 +130,28 @@ const getPlayListSongs = async (req, res) => {
               title: 1,
               duration: 1,
               artist: 1,
-              albumId: 1
-            }
-          }
-        }
-      }
+              albumId: 1,
+            },
+          },
+        },
+      },
     ]);
 
     if (!playlist || playlist.length === 0) {
       return res.status(404).json({
-        message: "Playlist not found"
+        message: "Playlist not found",
       });
     }
 
     return res.status(200).json({
       message: "Successfully retrieved playlist and songs",
-      data: playlist[0]
+      data: playlist[0],
     });
   } catch (error) {
     console.error("Error fetching playlist songs:", error);
     return res.status(500).json({
       message: "Error fetching playlist songs",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -167,13 +163,13 @@ const createPlaylist = async (req, res) => {
     // Validation
     if (!title || !userId) {
       return res.status(400).json({
-        message: "Title and userId are required fields"
+        message: "Title and userId are required fields",
       });
     }
 
     if (title.length > 100) {
       return res.status(400).json({
-        message: "Playlist title must be 100 characters or less"
+        message: "Playlist title must be 100 characters or less",
       });
     }
 
@@ -189,20 +185,20 @@ const createPlaylist = async (req, res) => {
       lastModified: Date.now(),
       genreDistribution: new Map(),
       totalTracks: 0,
-      totalDuration: 0
+      totalDuration: 0,
     });
 
     await newPlaylist.save();
 
     return res.status(201).json({
       message: "Playlist created successfully",
-      data: newPlaylist
+      data: newPlaylist,
     });
   } catch (error) {
     console.error("Error creating playlist:", error);
     return res.status(500).json({
       message: "Error creating playlist",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -218,14 +214,17 @@ const updatePlaylist = async (req, res) => {
 
     if (!playlist) {
       return res.status(404).json({
-        message: "Playlist not found"
+        message: "Playlist not found",
       });
     }
 
     // Check if user owns the playlist or is a collaborator
-    if (playlist.userId !== userId && !playlist.collaborators.includes(userId)) {
+    if (
+      playlist.userId !== userId &&
+      !playlist.collaborators.includes(userId)
+    ) {
       return res.status(403).json({
-        message: "You don't have permission to modify this playlist"
+        message: "You don't have permission to modify this playlist",
       });
     }
 
@@ -235,7 +234,7 @@ const updatePlaylist = async (req, res) => {
       ...(description !== undefined && { description }),
       ...(isPublic !== undefined && { isPublic }),
       ...(isCollaborative !== undefined && { isCollaborative }),
-      lastModified: Date.now()
+      lastModified: Date.now(),
     };
 
     const updatedPlaylist = await PlayListName.findByIdAndUpdate(
@@ -246,13 +245,13 @@ const updatePlaylist = async (req, res) => {
 
     return res.status(200).json({
       message: "Playlist updated successfully",
-      data: updatedPlaylist
+      data: updatedPlaylist,
     });
   } catch (error) {
     console.error("Error updating playlist:", error);
     return res.status(500).json({
       message: "Error updating playlist",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -264,7 +263,7 @@ const deletePlayList = async (req, res) => {
     // Validate input
     if (!playlistId || !userId) {
       return res.status(400).json({
-        message: "Playlist ID and user ID are required"
+        message: "Playlist ID and user ID are required",
       });
     }
 
@@ -273,13 +272,13 @@ const deletePlayList = async (req, res) => {
 
     if (!playlist) {
       return res.status(404).json({
-        message: "Playlist not found"
+        message: "Playlist not found",
       });
     }
 
     if (playlist.userId !== userId) {
       return res.status(403).json({
-        message: "You don't have permission to delete this playlist"
+        message: "You don't have permission to delete this playlist",
       });
     }
 
@@ -290,13 +289,13 @@ const deletePlayList = async (req, res) => {
     ]);
 
     return res.status(200).json({
-      message: "Playlist deleted successfully"
+      message: "Playlist deleted successfully",
     });
   } catch (error) {
     console.error("Error deleting playlist:", error);
     return res.status(500).json({
       message: "Error deleting playlist",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -311,13 +310,13 @@ const togglePinPlaylist = async (req, res) => {
 
     if (!playlist) {
       return res.status(404).json({
-        message: "Playlist not found"
+        message: "Playlist not found",
       });
     }
 
     if (playlist.userId !== userId) {
       return res.status(403).json({
-        message: "You don't have permission to pin this playlist"
+        message: "You don't have permission to pin this playlist",
       });
     }
 
@@ -328,23 +327,72 @@ const togglePinPlaylist = async (req, res) => {
         {
           $set: {
             isPinned: { $not: "$isPinned" },
-            lastModified: Date.now()
-          }
-        }
+            lastModified: Date.now(),
+          },
+        },
       ],
       { new: true }
     );
 
     return res.status(200).json({
-      message: updatedPlaylist.isPinned ? "Playlist pinned successfully" : "Playlist unpinned successfully",
-      data: updatedPlaylist
+      message: updatedPlaylist.isPinned
+        ? "Playlist pinned successfully"
+        : "Playlist unpinned successfully",
+      data: updatedPlaylist,
     });
   } catch (error) {
     console.error("Error toggling playlist pin status:", error);
     return res.status(500).json({
       message: "Error updating playlist pin status",
-      error: error.message
+      error: error.message,
     });
+  }
+};
+
+const addSongToPlaylist = async (req, res) => {
+  try {
+    const { trackId, playlistId } = req.body;
+
+    const playlist = await PlayListName.findById(playlistId);
+    const song = await Track.findById(trackId);
+
+    if (!playlist) {
+      return res.status(401).json({ message: "Playlist not found" });
+    }
+
+    if (!song) {
+      return res.status(401).json({ message: "track not found" });
+    }
+
+    const songAlreadyExists = await PlayListSongs.find({
+      userId: playlist.userId,
+      trackId,
+    });
+
+    if (songAlreadyExists.length > 0) {
+      return res.status(401).json({ message: "song already in this playlist" });
+    }
+
+    const newSongToPlaylist = new PlayListSongs({
+      trackId,
+      userId: playlist.userId,
+      playlistId,
+    });
+
+    await Song.findByIdAndUpdate(song.songId, {
+      $inc: { playlistAdditions: 1 },
+    });
+
+    await newSongToPlaylist.save();
+
+    return res.status(200).json({
+      message: "successfully added song playlist",
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error adding song to playlist", error: error.message });
   }
 };
 

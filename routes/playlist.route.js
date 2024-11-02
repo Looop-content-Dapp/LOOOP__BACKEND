@@ -6,8 +6,8 @@ const {
   createPlaylist,
   updatePlaylist,
   deletePlayList,
-  addSongToPlaylist,
   togglePinPlaylist,
+  addSongToPlaylist,
 } = require("../controller/playlistsong.controller");
 const isvaliduser = require("../middlewares/isvaliduser.middleware");
 
