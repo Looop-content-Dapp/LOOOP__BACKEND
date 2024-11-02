@@ -1,3 +1,5 @@
+// utils/helpers/coverImageGenerator.js
+
 /**
  * Generates a color value from a string (similar to how Spotify generates consistent colors for the same playlist)
  * @param {string} str - Input string to generate color from
