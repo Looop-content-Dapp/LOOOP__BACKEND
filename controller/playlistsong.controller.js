@@ -176,8 +176,6 @@ const createPlaylist = async (req, res) => {
         message: "Playlist title must be 100 characters or less"
       });
     }
-     // Generate Spotify-like cover image based on playlist title
-     const coverImage = generateCoverImage(title, 0);
 
      // Create new playlist
      const newPlaylist = new PlayListName({
@@ -186,7 +184,6 @@ const createPlaylist = async (req, res) => {
        description: description || "",
        isPublic: isPublic || false,
        isCollaborative: isCollaborative || false,
-       image: coverImage,
        createdDate: Date.now(),
        lastModified: Date.now(),
        genreDistribution: new Map(),
