@@ -19,7 +19,7 @@ playlistRouter.get("/user/:userId", getAllPlayListForUser);
 playlistRouter.get("/playlist/:playlistId", getPlayListSongs);
 
 // Post routes
-playlistRouter.post("/create", isvaliduser, createPlaylist);
+playlistRouter.post("/createplaylist", createPlaylist);
 playlistRouter.post("/songs/add", isvaliduser, addSongToPlaylist);
 
 // Put routes
