@@ -2,7 +2,6 @@ const PlayListName = require("../models/playlistnames.model");
 const PlayListSongs = require("../models/playlistsongs.model");
 const Song = require("../models/song.model");
 const Track = require("../models/track.model");
-const { generateCoverImage } = require("../utils/helpers/coverImageGenerator");
 
 const getAllPlayList = async (req, res) => {
   try {
