@@ -84,7 +84,7 @@ const PostSchema = new mongoose.Schema(
     },
     postType: {
       type: String,
-      required: true,
+      required: false,
       enum: ['regular', 'event', 'announcement'],
       default: 'regular'
     },
@@ -102,7 +102,7 @@ const PostSchema = new mongoose.Schema(
     },
     communityId: {
       type: mongoose.Schema.Types.ObjectId,
-      required: true,
+      required: false,
       ref: "community"
     },
     eventDetails: {

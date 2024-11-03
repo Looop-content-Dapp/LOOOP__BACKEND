@@ -1,8 +1,8 @@
+const bcrypt = require("bcryptjs");
 const Post = require("../models/post.model");
 const Artist = require("../models/artist.model");
 const Comment = require("../models/comment.model");
 const Like = require("../models/likes.model");
-const Community = require("../models/community.model");
 
 const getAllPosts = async (req, res) => {
     try {
@@ -275,119 +275,12 @@ const getAllPostByArtist = async (req, res) => {
   }
 };
 
-const getAllPostsByCommunity = async (req, res) => {
-    try {
-      const { communityId } = req.params;
-      const { page = 1, limit = 10, status } = req.query;
-
-      const query = {
-        communityId,
-        ...(status && { status }) // Add status filter if provided
-      };
-
-      // Get posts with artist details
-      const posts = await Post.find(query)
-        .populate('artistId', 'name email profileImage genre verified')
-        .populate('communityId', 'name description coverImage') // Add community details
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .sort({ createdAt: -1 });
-
-      // Get details for each post
-      const postsWithDetails = await Promise.all(posts.map(async (post) => {
-        // Get comments for this post
-        const comments = await Comment.find({
-          postId: post._id,
-          itemType: "comment"
-        })
-          .populate({
-            path: 'userId',
-            model: 'users',
-            select: 'email profileImage bio'
-          })
-          .sort({ createdAt: -1 })
-          .limit(3);
-
-        // Get comment counts
-        const commentCount = await Comment.countDocuments({
-          postId: post._id,
-          itemType: "comment"
-        });
-
-        // Get replies for these comments
-        const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
-          const replies = await Comment.find({
-            postId: post._id,
-            itemType: "reply",
-            parentCommentId: comment._id
-          })
-            .populate({
-              path: 'userId',
-              model: 'users',
-              select: 'email profileImage bio'
-            })
-            .sort({ createdAt: -1 })
-            .limit(2);
-
-          return {
-            ...comment.toObject(),
-            replies
-          };
-        }));
-
-        // Get likes
-        const likes = await Like.find({ postId: post._id })
-          .populate({
-            path: 'userId',
-            model: 'users',
-            select: 'email profileImage bio'
-          })
-          .limit(5);
-
-        const likeCount = await Like.countDocuments({ postId: post._id });
-
-        const postObject = post.toObject();
-
-        return {
-          ...postObject,
-          comments: commentsWithReplies,
-          commentCount,
-          likes,
-          likeCount
-        };
-      }));
-
-      const total = await Post.countDocuments(query);
-
-      return res.status(200).json({
-        message: "Successfully retrieved community posts",
-        data: {
-          posts: postsWithDetails,
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(total / limit),
-          totalPosts: total
-        }
-      });
-    } catch (error) {
-      console.error("Error in getAllPostsByCommunity:", error);
-      res.status(500).json({
-        message: "Error fetching community posts",
-        error: error.message
-      });
-    }
-  };
-
-  const createPost = async (req, res) => {
+const createPost = async (req, res) => {
     try {
       const {
         content,
-        title,
-        postType,
         media,
         artistId,
-        communityId,
-        eventDetails,
-        announcementDetails,
         tags,
         category,
         visibility,
@@ -397,92 +290,58 @@ const getAllPostsByCommunity = async (req, res) => {
       } = req.body;
 
       // Validation
-      if (!content || !artistId || !communityId || !postType) {
+      if (!content || !artistId) {
         return res.status(400).json({
           message: "Required fields missing",
-          required: ['content', 'artistId', 'communityId', 'postType']
+          required: ['content', 'artistId']
         });
       }
 
-      // Additional validation for event posts
-      if (postType === 'event') {
-        if (!eventDetails || !eventDetails.startDate || !eventDetails.endDate || !eventDetails.location) {
-          return res.status(400).json({
-            message: "Required event fields missing",
-            required: ['startDate', 'endDate', 'location']
-          });
-        }
-
-        if (new Date(eventDetails.startDate) > new Date(eventDetails.endDate)) {
-          return res.status(400).json({
-            message: "Event end date must be after start date"
-          });
-        }
-
-        if (new Date(eventDetails.startDate) < new Date()) {
-          return res.status(400).json({
-            message: "Event start date must be in the future"
-          });
-        }
-      }
-
-      // Additional validation for announcement posts
-      if (postType === 'announcement') {
-        if (!title) {
-          return res.status(400).json({
-            message: "Title is required for announcements"
-          });
-        }
-      }
-
-      // Media validation (if provided)
-      if (media && (!Array.isArray(media) || media.length === 0)) {
+      // Validate media array
+      if (!Array.isArray(media) || media.length === 0) {
         return res.status(400).json({
           message: "Media must be an array with at least one item"
         });
       }
 
-      // Check if both artist and community exist
-      const [artist, community] = await Promise.all([
-        Artist.findById(artistId),
-        Community.findById(communityId)
-      ]);
+      // Validate each media item
+      for (const item of media) {
+        if (!item.type || !item.url) {
+          return res.status(400).json({
+            message: "Each media item must have type and url",
+            mediaFormat: {
+              type: "Required - image/video/audio/gif",
+              url: "Required - media URL",
+              thumbnailUrl: "Optional - for videos",
+              duration: "Optional - for audio/video",
+              mimeType: "Optional",
+              size: "Optional",
+              width: "Optional",
+              height: "Optional"
+            }
+          });
+        }
+      }
 
+      const artist = await Artist.findById(artistId);
       if (!artist) {
         return res.status(404).json({ message: "Artist not found" });
       }
 
-      if (!community) {
-        return res.status(404).json({ message: "Community not found" });
-      }
-
-      const postData = {
+      const post = new Post({
         content,
-        title,
-        postType,
-        media: media || [],
+        media,
         artistId,
-        communityId,
         tags: tags || [],
         category,
         visibility: visibility || 'public',
         status: status || 'published',
-        type: type || (media?.length > 1 ? 'multiple' : 'single'),
-        genre: genre || artist.genre
-      };
-
-      // Add type-specific details
-      if (postType === 'event') {
-        postData.eventDetails = eventDetails;
-      } else if (postType === 'announcement') {
-        postData.announcementDetails = announcementDetails;
-      }
-
-      const post = new Post(postData);
+        type: type || (media.length > 1 ? 'multiple' : 'single'),
+        genre: genre || artist.genre // Use artist's genre if not provided
+      });
 
       await post.save();
       await post.populate('artistId', 'name email profileImage genre verified');
-      await post.populate('communityId', 'name description coverImage');
 
       return res.status(201).json({
         message: "Successfully created post",
@@ -583,5 +442,4 @@ module.exports = {
   createPost,
   likePost,
   commentOnPost,
-  getAllPostsByCommunity
 };
