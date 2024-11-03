@@ -4,29 +4,29 @@ const {
   getAllPlayListForUser,
   getPlayListSongs,
   createPlaylist,
+  addSongToPlaylist,
+  removeSongFromPlaylist,
   updatePlaylist,
   deletePlayList,
   togglePinPlaylist,
-  addSongToPlaylist,
 } = require("../controller/playlistsong.controller");
 const isvaliduser = require("../middlewares/isvaliduser.middleware");
 
 const playlistRouter = express.Router();
 
-// Get routes
+// Public routes
 playlistRouter.get("/", getAllPlayList);
 playlistRouter.get("/user/:userId", getAllPlayListForUser);
 playlistRouter.get("/playlist/:playlistId", getPlayListSongs);
 
-// Post routes
-playlistRouter.post("/createplaylist", createPlaylist);
+// Protected routes
+playlistRouter.post("/create", isvaliduser, createPlaylist);
 playlistRouter.post("/songs/add", isvaliduser, addSongToPlaylist);
+playlistRouter.post("/songs/remove", isvaliduser, removeSongFromPlaylist);
 
-// Put routes
 playlistRouter.put("/update/:playlistId", isvaliduser, updatePlaylist);
 playlistRouter.put("/pin/:playlistId", isvaliduser, togglePinPlaylist);
 
-// Delete routes
 playlistRouter.delete("/delete", isvaliduser, deletePlayList);
 
 module.exports = playlistRouter;

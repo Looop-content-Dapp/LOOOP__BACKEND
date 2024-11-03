@@ -3,29 +3,43 @@ const {
   getAllPosts,
   getPost,
   getAllPostByArtist,
+  getAllPostsByCommunity,
   createPost,
+  updatePost,
+  deletePost,
   likePost,
   commentOnPost,
-  getAllComments,
-  getAllLikes,
-  getCommentForPost,
-  getReplyForAComment,
+  getPostComments,
+  getEventAttendees,
+  toggleEventAttendance,
+  getUpcomingEvents,
+  getActiveAnnouncements
 } = require("../controller/post.controller");
+
 const postRouter = express.Router();
 
+// General post routes
 postRouter.get("/", getAllPosts);
-postRouter.get("/getallcomments", getAllComments);
-postRouter.get("/getalllikes", getAllLikes);
-
-postRouter.get("/getcommentforpost/:postId", getCommentForPost);
-// postRouter.get("/getreplyforacomment", getReplyForAComment);
 postRouter.get("/:id", getPost);
+postRouter.post("/createPost", createPost);
+postRouter.put("/:id", updatePost);
+postRouter.delete("/:id", deletePost);
 
-postRouter.get("/getpostbyartist/:artistId", getAllPostByArtist);
-postRouter.post("/createpost", createPost);
-postRouter.post("/likepost", likePost);
-postRouter.post("/commentonpost", commentOnPost);
+// Artist and community specific routes
+postRouter.get("/artist/:artistId", getAllPostByArtist);
+postRouter.get("/community/:communityId", getAllPostsByCommunity);
 
-// router.delete("/:id", deleteUsergetAllUsers);
+// Interaction routes
+postRouter.post("/like", likePost);
+postRouter.post("/comment", commentOnPost);
+postRouter.get("/:postId/comments", getPostComments);
+
+// Event specific routes
+postRouter.get("/events/upcoming", getUpcomingEvents);
+postRouter.get("/:postId/attendees", getEventAttendees);
+postRouter.post("/events/attend", toggleEventAttendance);
+
+// Announcement routes
+postRouter.get("/announcements/active", getActiveAnnouncements);
 
 module.exports = postRouter;

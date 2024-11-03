@@ -1,4 +1,67 @@
+// models/post.model.js
+
 const mongoose = require("mongoose");
+
+const EventSchema = new mongoose.Schema({
+  startDate: {
+    type: Date,
+    required: true
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  location: {
+    type: String,
+    required: true
+  },
+  venue: String,
+  ticketLink: String,
+  price: {
+    type: Number,
+    default: 0
+  },
+  isVirtual: {
+    type: Boolean,
+    default: false
+  },
+  maxAttendees: Number,
+  eventType: {
+    type: String,
+    enum: ['concert', 'meetup', 'exhibition', 'workshop', 'other'],
+    default: 'other'
+  },
+  attendees: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'users'
+  }],
+  isFullyBooked: {
+    type: Boolean,
+    default: false
+  }
+});
+
+const AnnouncementSchema = new mongoose.Schema({
+  importance: {
+    type: String,
+    enum: ['high', 'medium', 'low'],
+    default: 'medium'
+  },
+  expiryDate: Date,
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
+  targetAudience: {
+    type: String,
+    enum: ['all', 'subscribers', 'members'],
+    default: 'all'
+  },
+  notificationSent: {
+    type: Boolean,
+    default: false
+  }
+});
 
 const MediaSchema = new mongoose.Schema({
   type: {
@@ -25,6 +88,19 @@ const PostSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    title: {
+      type: String,
+      required: function() {
+        return this.postType === 'event' || this.postType === 'announcement';
+      },
+      trim: true
+    },
+    postType: {
+      type: String,
+      required: true,
+      enum: ['regular', 'event', 'announcement'],
+      default: 'regular'
+    },
     type: {
       type: String,
       required: true,
@@ -35,7 +111,24 @@ const PostSchema = new mongoose.Schema(
     artistId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "artist", // Changed to match your artist model name
+      ref: "artist",
+    },
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "community"
+    },
+    eventDetails: {
+      type: EventSchema,
+      required: function() {
+        return this.postType === 'event';
+      }
+    },
+    announcementDetails: {
+      type: AnnouncementSchema,
+      required: function() {
+        return this.postType === 'announcement';
+      }
     },
     tags: [{ type: String }],
     category: {
@@ -65,18 +158,39 @@ const PostSchema = new mongoose.Schema(
   }
 );
 
-// Virtual populate for comments and likes
+// Virtuals
 PostSchema.virtual('comments', {
     ref: 'Comment',
     localField: '_id',
     foreignField: 'postId'
-  });
+});
 
-  PostSchema.virtual('likes', {
+PostSchema.virtual('likes', {
     ref: 'Like',
     localField: '_id',
     foreignField: 'postId'
-  });
+});
+
+// Middleware
+PostSchema.pre('save', function(next) {
+  // Validate event dates
+  if (this.postType === 'event' && this.eventDetails) {
+    if (this.eventDetails.startDate > this.eventDetails.endDate) {
+      next(new Error('Event end date must be after start date'));
+    }
+    if (this.eventDetails.startDate < new Date()) {
+      next(new Error('Event start date must be in the future'));
+    }
+
+    // Check if event is fully booked
+    if (this.eventDetails.maxAttendees &&
+        this.eventDetails.attendees &&
+        this.eventDetails.attendees.length >= this.eventDetails.maxAttendees) {
+      this.eventDetails.isFullyBooked = true;
+    }
+  }
+  next();
+});
 
 const Post = mongoose.model("posts", PostSchema);
 

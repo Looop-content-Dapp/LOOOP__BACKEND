@@ -4,7 +4,7 @@ const {
   getClaimStatus,
   getUserClaims,
   updateClaimStatus
-} = require("../controllers/artistClaim.controller");
+} = require("../controller/artistClaim.controller");
 
 const artistClaimRouter = express.Router();
 
