@@ -120,7 +120,7 @@ const PostSchema = new mongoose.Schema(
     tags: [{ type: String }],
     category: {
       type: String,
-      required: true,
+      required: false,
       enum: ['artwork', 'music', 'photography', 'design', 'other']
     },
     visibility: {
