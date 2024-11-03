@@ -32,7 +32,6 @@ const EventSchema = new mongoose.Schema({
   }
 });
 
-// Announcement Schema for announcement type posts
 const AnnouncementSchema = new mongoose.Schema({
   importance: {
     type: String,
@@ -91,7 +90,7 @@ const PostSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      required: true,
+      required: false,
       enum: ['single', 'multiple', 'album'],
       default: 'single'
     },

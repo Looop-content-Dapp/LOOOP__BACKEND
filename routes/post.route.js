@@ -9,7 +9,6 @@ const {
   getAllComments,
   getAllLikes,
   getCommentForPost,
-  getReplyForAComment,
   getAllPostsByCommunity,
   getUpcomingEvents,
   getActiveAnnouncements,

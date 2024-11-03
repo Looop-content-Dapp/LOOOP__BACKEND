@@ -1,8 +1,8 @@
-const bcrypt = require("bcryptjs");
 const Post = require("../models/post.model");
 const Artist = require("../models/artist.model");
 const Comment = require("../models/comment.model");
 const Like = require("../models/likes.model");
+const Community = require("../models/community.model");
 
 const getAllPosts = async (req, res) => {
     try {
