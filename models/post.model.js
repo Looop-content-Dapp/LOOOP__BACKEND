@@ -1,5 +1,56 @@
 const mongoose = require("mongoose");
 
+// Event Schema for event type posts
+const EventSchema = new mongoose.Schema({
+  startDate: {
+    type: Date,
+    required: true
+  },
+  endDate: {
+    type: Date,
+    required: true
+  },
+  location: {
+    type: String,
+    required: true
+  },
+  venue: String,
+  ticketLink: String,
+  price: {
+    type: Number,
+    default: 0
+  },
+  isVirtual: {
+    type: Boolean,
+    default: false
+  },
+  maxAttendees: Number,
+  eventType: {
+    type: String,
+    enum: ['concert', 'meetup', 'exhibition', 'workshop', 'other'],
+    default: 'other'
+  }
+});
+
+// Announcement Schema for announcement type posts
+const AnnouncementSchema = new mongoose.Schema({
+  importance: {
+    type: String,
+    enum: ['high', 'medium', 'low'],
+    default: 'medium'
+  },
+  expiryDate: Date,
+  isPinned: {
+    type: Boolean,
+    default: false
+  },
+  targetAudience: {
+    type: String,
+    enum: ['all', 'subscribers', 'members'],
+    default: 'all'
+  }
+});
+
 const MediaSchema = new mongoose.Schema({
   type: {
     type: String,
@@ -25,6 +76,19 @@ const PostSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    title: {
+      type: String,
+      required: function() {
+        return this.postType === 'event' || this.postType === 'announcement';
+      },
+      trim: true
+    },
+    postType: {
+      type: String,
+      required: true,
+      enum: ['regular', 'event', 'announcement'],
+      default: 'regular'
+    },
     type: {
       type: String,
       required: true,
@@ -35,7 +99,24 @@ const PostSchema = new mongoose.Schema(
     artistId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      ref: "artist", // Changed to match your artist model name
+      ref: "artist",
+    },
+    communityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+      ref: "community"
+    },
+    eventDetails: {
+      type: EventSchema,
+      required: function() {
+        return this.postType === 'event';
+      }
+    },
+    announcementDetails: {
+      type: AnnouncementSchema,
+      required: function() {
+        return this.postType === 'announcement';
+      }
     },
     tags: [{ type: String }],
     category: {
@@ -70,13 +151,26 @@ PostSchema.virtual('comments', {
     ref: 'Comment',
     localField: '_id',
     foreignField: 'postId'
-  });
+});
 
-  PostSchema.virtual('likes', {
+PostSchema.virtual('likes', {
     ref: 'Like',
     localField: '_id',
     foreignField: 'postId'
-  });
+});
+
+// Pre-save middleware to validate dates for events
+PostSchema.pre('save', function(next) {
+  if (this.postType === 'event' && this.eventDetails) {
+    if (this.eventDetails.startDate > this.eventDetails.endDate) {
+      next(new Error('Event end date must be after start date'));
+    }
+    if (this.eventDetails.startDate < new Date()) {
+      next(new Error('Event start date must be in the future'));
+    }
+  }
+  next();
+});
 
 const Post = mongoose.model("posts", PostSchema);
 
