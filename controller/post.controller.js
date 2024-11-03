@@ -278,8 +278,7 @@ const getAllPostByArtist = async (req, res) => {
 const createPost = async (req, res) => {
     try {
       const {
-        title,
-        description,
+        content,
         media,
         artistId,
         tags,
@@ -291,10 +290,10 @@ const createPost = async (req, res) => {
       } = req.body;
 
       // Validation
-      if (!title || !media || !artistId || !category) {
+      if (!content || !media || !artistId || !category) {
         return res.status(400).json({
           message: "Required fields missing",
-          required: ['title', 'media', 'artistId', 'category']
+          required: ['content', 'media', 'artistId', 'category']
         });
       }
 
@@ -330,8 +329,7 @@ const createPost = async (req, res) => {
       }
 
       const post = new Post({
-        title,
-        description,
+        content,
         media,
         artistId,
         tags: tags || [],

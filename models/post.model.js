@@ -20,13 +20,9 @@ const MediaSchema = new mongoose.Schema({
 
 const PostSchema = new mongoose.Schema(
   {
-    title: {
+    content: {
       type: String,
       required: true,
-      trim: true
-    },
-    description: {
-      type: String,
       trim: true
     },
     type: {
