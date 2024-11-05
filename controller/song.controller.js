@@ -217,7 +217,7 @@ const createRelease = async (req, res) => {
       if (type === "single" && parsedSongs.length !== 1) {
         throw new Error("A single must contain exactly one song");
       }
-      if (type === "album" && (parsedSongs.length < 5 || parsedSongs.length > 20)) {
+      if (type === "album" && (parsedSongs.length < 5 || parsedSongs.length > 25)) {
         throw new Error("An album must contain between 5 and 20 songs");
       }
       if (type === "ep" && (parsedSongs.length < 2 || parsedSongs.length > 6)) {
