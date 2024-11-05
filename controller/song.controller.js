@@ -3073,6 +3073,386 @@ const getRelease = async (req, res) => {
     }
   };
 
+  // Get personalized recommendations for user dashboard
+const getDashboardRecommendations = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { limit = 20 } = req.query;
+
+      // Get user's recent listening history (last 30 days)
+      const recentHistory = await LastPlayed.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            timestamp: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }
+          }
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "trackId",
+            foreignField: "_id",
+            as: "track"
+          }
+        },
+        {
+          $unwind: "$track"
+        }
+      ]);
+
+      // Extract favorite genres and artists
+      const favoriteGenres = recentHistory.reduce((genres, item) => {
+        if (item.track.metadata.genre) {
+          item.track.metadata.genre.forEach(genre => {
+            genres[genre] = (genres[genre] || 0) + 1;
+          });
+        }
+        return genres;
+      }, {});
+
+      const favoriteArtists = recentHistory.reduce((artists, item) => {
+        const artistId = item.track.artistId.toString();
+        artists[artistId] = (artists[artistId] || 0) + 1;
+        return artists;
+      }, {});
+
+      // Get top genres and artists
+      const topGenres = Object.entries(favoriteGenres)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([genre]) => genre);
+
+      const topArtistIds = Object.entries(favoriteArtists)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 5)
+        .map(([artistId]) => new mongoose.Types.ObjectId(artistId));
+
+      // Get recommendations based on favorite genres and artists
+      const recommendations = await Track.aggregate([
+        {
+          $match: {
+            $or: [
+              { "metadata.genre": { $in: topGenres } },
+              { artistId: { $in: topArtistIds } }
+            ],
+            // Exclude recently played tracks
+            _id: {
+              $nin: recentHistory.map(item => item.trackId)
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "releaseId",
+            foreignField: "_id",
+            as: "release"
+          }
+        },
+        {
+          $unwind: "$release"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        // Calculate recommendation score
+        {
+          $addFields: {
+            recommendationScore: {
+              $add: [
+                // Genre match bonus
+                {
+                  $cond: {
+                    if: { $in: [{ $arrayElemAt: ["$metadata.genre", 0] }, topGenres] },
+                    then: 5,
+                    else: 0
+                  }
+                },
+                // Artist match bonus
+                {
+                  $cond: {
+                    if: { $in: ["$artistId", topArtistIds] },
+                    then: 3,
+                    else: 0
+                  }
+                },
+                // Recent release bonus
+                {
+                  $cond: {
+                    if: {
+                      $gte: [
+                        "$release.dates.release_date",
+                        new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+                      ]
+                    },
+                    then: 2,
+                    else: 0
+                  }
+                }
+              ]
+            }
+          }
+        },
+        {
+          $sort: { recommendationScore: -1 }
+        },
+        {
+          $limit: parseInt(limit)
+        },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            duration: 1,
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage"
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              artwork: "$release.artwork.cover_image",
+              type: "$release.type"
+            },
+            metadata: {
+              genre: 1,
+              isrc: 1
+            },
+            recommendationScore: 1,
+            recommendationReason: {
+              $cond: {
+                if: { $in: ["$artistId", topArtistIds] },
+                then: "Based on artists you like",
+                else: "Based on your favorite genres"
+              }
+            }
+          }
+        }
+      ]);
+
+      return res.status(200).json({
+        message: "Successfully retrieved dashboard recommendations",
+        data: recommendations
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error fetching dashboard recommendations",
+        error: error.message
+      });
+    }
+  };
+
+  // Get new releases from followed artists
+  const getFollowedArtistsReleases = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { days = 30, limit = 20 } = req.query;
+
+      // Get user's followed artists
+      const followedArtists = await Follow.find({
+        userId: new mongoose.Types.ObjectId(userId)
+      });
+
+      const artistIds = followedArtists.map(follow => follow.artistId);
+
+      // Get recent releases from followed artists
+      const newReleases = await Release.aggregate([
+        {
+          $match: {
+            artistId: { $in: artistIds },
+            "dates.release_date": {
+              $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        {
+          $sort: { "dates.release_date": -1 }
+        },
+        {
+          $limit: parseInt(limit)
+        },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            type: 1,
+            releaseDate: "$dates.release_date",
+            artwork: "$artwork.cover_image",
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage"
+            },
+            metadata: {
+              genre: 1,
+              totalTracks: 1
+            }
+          }
+        }
+      ]);
+
+      return res.status(200).json({
+        message: "Successfully retrieved new releases from followed artists",
+        data: newReleases
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error fetching followed artists' releases",
+        error: error.message
+      });
+    }
+  };
+
+  // Get daily mix playlists based on user's listening habits
+  const getDailyMixes = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { mixCount = 6, songsPerMix = 25 } = req.query;
+
+      // Get user's listening history from last 90 days
+      const listeningHistory = await LastPlayed.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            timestamp: {
+              $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "trackId",
+            foreignField: "_id",
+            as: "track"
+          }
+        },
+        {
+          $unwind: "$track"
+        }
+      ]);
+
+      // Group tracks by genre
+      const genreGroups = listeningHistory.reduce((groups, item) => {
+        if (item.track.metadata.genre) {
+          item.track.metadata.genre.forEach(genre => {
+            if (!groups[genre]) {
+              groups[genre] = [];
+            }
+            groups[genre].push(item.track);
+          });
+        }
+        return groups;
+      }, {});
+
+      // Sort genres by number of tracks and take top genres for mixes
+      const topGenres = Object.entries(genreGroups)
+        .sort(([,a], [,b]) => b.length - a.length)
+        .slice(0, parseInt(mixCount))
+        .map(([genre]) => genre);
+
+      // Generate mix for each top genre
+      const mixes = await Promise.all(topGenres.map(async (genre) => {
+        // Get tracks for this genre mix
+        const mixTracks = await Track.aggregate([
+          {
+            $match: {
+              "metadata.genre": genre,
+              // Exclude tracks already in user's recent history
+              _id: {
+                $nin: listeningHistory.map(item => item.trackId)
+              }
+            }
+          },
+          {
+            $lookup: {
+              from: "releases",
+              localField: "releaseId",
+              foreignField: "_id",
+              as: "release"
+            }
+          },
+          {
+            $unwind: "$release"
+          },
+          {
+            $lookup: {
+              from: "artists",
+              localField: "artistId",
+              foreignField: "_id",
+              as: "artist"
+            }
+          },
+          {
+            $unwind: "$artist"
+          },
+          {
+            $sample: { size: parseInt(songsPerMix) }
+          },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              duration: 1,
+              artist: {
+                _id: "$artist._id",
+                name: "$artist.name"
+              },
+              release: {
+                _id: "$release._id",
+                title: "$release.title",
+                artwork: "$release.artwork.cover_image"
+              }
+            }
+          }
+        ]);
+
+        return {
+          genre,
+          name: `Daily Mix: ${genre}`,
+          description: `A mix of ${genre} music based on your listening history`,
+          coverImage: mixTracks[0]?.release.artwork || null,
+          totalDuration: mixTracks.reduce((sum, track) => sum + track.duration, 0),
+          trackCount: mixTracks.length,
+          tracks: mixTracks
+        };
+      }));
+
+      return res.status(200).json({
+        message: "Successfully generated daily mixes",
+        data: mixes
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error generating daily mixes",
+        error: error.message
+      });
+    }
+  };
+
     // Export all functions
     module.exports = {
       getAllSongs,
@@ -3099,5 +3479,8 @@ const getRelease = async (req, res) => {
       getAllReleases,
       getRelease,
       getSearchSuggestions,
-      getTracksFromRelease
+      getTracksFromRelease,
+      getDashboardRecommendations,
+      getFollowedArtistsReleases,
+      getDailyMixes
     };

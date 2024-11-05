@@ -15,6 +15,7 @@ const {
   deleteUser,
   addFriend,
   getUserFriends,
+  getUserByEmail,
 } = require("../controller/user.controller");
 const isUser = require("../middlewares/isvaliduser.middleware");
 const validateUsername = require("../middlewares/validateUsername");
@@ -42,5 +43,6 @@ userrouter.post("/addfave/:userId/:artistId", addToFavorite);
 userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
 userrouter.delete("/:userId", deleteUser);
+userrouter.get("/email/:email", getUserByEmail);
 
 module.exports = userrouter;
