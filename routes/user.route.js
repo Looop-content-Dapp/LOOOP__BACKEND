@@ -18,7 +18,6 @@ const {
   getUserByEmail,
 } = require("../controller/user.controller");
 const isUser = require("../middlewares/isvaliduser.middleware");
-const validateUsername = require("../middlewares/validateUsername");
 const userrouter = express.Router();
 
 userrouter.get("/isfave/:userId/:artistId", isArtistFave);
