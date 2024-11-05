@@ -12,6 +12,7 @@ const Follow = require("../models/followers.model");
 const Friends = require("../models/friends.model");
 const { matchUser } = require("../utils/helpers/searchquery");
 const LastPlayed = require("../models/lastplayed.model");
+const generateUsername = require("../utils/helpers/generateUsername");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -191,11 +192,13 @@ const createUser = async (req, res) => {
         .json({ message: "Password and Email is required" });
     }
 
+    const username = await generateUsername(email);
+
     let tx = await looopContract.register_account(
       process.env.NFT_CONTRACT_ADDRESS,
       process.env.NFT_TOKEN_ID,
       process.env.IMPLEMENTATION_HASH,
-      email,
+      username,
       password
     );
 
@@ -206,6 +209,7 @@ const createUser = async (req, res) => {
 
     const user = new User({
       email,
+      username,
       password: hashedPassword,
     });
 

@@ -1,69 +1,73 @@
 const express = require("express");
 const {
-  getAllSongs,
-  getSong,
-  createSong,
-  createRelease,
-  addRelease,
-  getAllReleases,
-  getRelease,
-  deleteASongFromARelease,
-  getReleaseBasedOnGenres,
-  getTop100Songs,
-  getAlbumsAndEpByArtist,
-  getSingles,
-  getSongArtistFeaturedOn,
-  getTopSongsForArtist,
-  streamSong,
-  searchSong,
-  getSongOfArtistTheyFollow,
-  deleteRlease,
-  getSongLastPlayed,
-  getTracksFromRelease,
-  editSongFile,
-  getReleaseByArtist,
-  getLikedAlbum,
-  getLikeSong,
-  saveAlbum,
-  likeSong,
+    getAllSongs,
+    getSong,
+    createRelease,
+    streamSong,
+    shareSong,
+    addToPlaylist,
+    getSongEngagementMetrics,
+    toggleSavedRelease,
+    getSavedReleases,
+    getUserTopSongs,
+    getUserListeningHistory,
+    getUserListeningInsights,
+    getTopSongs,
+    getTrendingSongsByRegion,
+    updateSongMetadata,
+    getTopSongsForArtist,
+    getAlbumsAndEpByArtist,
+    getSingles,
+    getAllReleases,
+    getRelease,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
 
-songRouter.delete("/release/:releaseId", deleteRlease);
-
-songRouter.get("/tracks/:releaseId", getTracksFromRelease);
-songRouter.get("/search", searchSong);
-songRouter.get("/artisttheyfollow/:userId", getSongOfArtistTheyFollow);
-songRouter.get("/lastplayed/:userId", getSongLastPlayed);
-songRouter.get("/gettopp100songs", getTop100Songs);
-songRouter.get("/gettopsongforartist/:artistId", getTopSongsForArtist);
-songRouter.get("/albumsandep/:artistId", getAlbumsAndEpByArtist);
-songRouter.get("/getsingles/:artistId", getSingles);
-songRouter.get("/getsongartistfeaturedon/:artistId", getSongArtistFeaturedOn);
-songRouter.get("/releases/:artistId", getReleaseByArtist);
-songRouter.get("/album/:userId", getLikedAlbum);
-songRouter.get("/like/:userId", getLikeSong);
-
-songRouter.get("/getallreleases", getAllReleases);
+// Basic Song Operations
 songRouter.get("/", getAllSongs);
 songRouter.get("/:songId", getSong);
-songRouter.get("/getrelease/:releaseId", getRelease);
-songRouter.get("/getreleasebasedongenres/:userId", getReleaseBasedOnGenres);
+// songRouter.patch("/edit-song", editSongFile);
 
-songRouter.post("/createsong", createRelease);
-songRouter.post("/addRelease", addRelease);
-songRouter.post("/streamsong/:songId/:userId", streamSong);
-songRouter.post("/album/:userId/:releaseId", saveAlbum);
-songRouter.post("/like/:userId/:trackId", likeSong);
+// Search and Discovery
+// songRouter.get("/discover/genre/:userId", getReleaseBasedOnGenres);
+// songRouter.get("/discover/following/:userId", getSongOfArtistTheyFollow);
 
-songRouter.patch("/editsong", editSongFile);
+// Release Management
+songRouter.get("/releases/all", getAllReleases);
+songRouter.get("/releases/:releaseId", getRelease);
+// songRouter.get("/releases/artist/:artistId", getReleaseByArtist);
+songRouter.post("/releases/create", createRelease);
+// songRouter.post("/releases/add-track", addRelease);
+// songRouter.delete("/releases/:releaseId", deleteRlease);
+// songRouter.get("/releases/:releaseId/tracks", getTracksFromRelease);
+// songRouter.delete("/releases/tracks/:songId/:trackId", deleteASongFromARelease);
 
-songRouter.delete(
-  "/deleteasongfromarelease/:songId/:trackId",
-  deleteASongFromARelease
-);
+// Artist-specific Routes
+songRouter.get("/artist/:artistId/top-songs", getTopSongsForArtist);
+songRouter.get("/artist/:artistId/albums-eps", getAlbumsAndEpByArtist);
+songRouter.get("/artist/:artistId/singles", getSingles);
+// songRouter.get("/artist/:artistId/features", getSongArtistFeaturedOn);
 
-// songRouter.delete("/:id", deleteUsergetAllUsers);
+// User Interactions & Library
+songRouter.post("/stream/:songId/:userId", streamSong);
+// songRouter.get("/history/:userId", getSongLastPlayed);
+// songRouter.get("/library/albums/:userId", getLikedAlbum);
+// songRouter.get("/library/tracks/:userId", getLikeSong);
+// songRouter.post("/library/albums/:userId/:releaseId", saveAlbum);
+// songRouter.post("/library/tracks/:userId/:trackId", likeSong);
+
+// New Enhanced Routes
+// Song Analytics
+songRouter.get("/analytics/:songId/engagement", getSongEngagementMetrics);
+
+// User Library Management
+songRouter.post("/library/save/:userId/:releaseId", toggleSavedRelease);
+songRouter.get("/library/saved/:userId", getSavedReleases);
+
+// User Insights and History
+songRouter.get("/insights/top-songs/:userId", getUserTopSongs);
+songRouter.get("/insights/history/:userId", getUserListeningHistory);
+songRouter.get("/insights/stats/:userId", getUserListeningInsights);
 
 module.exports = songRouter;

@@ -9,6 +9,7 @@ const genreRoute = require("./routes/genres.route");
 const playlistRouter = require("./routes/playlist.route");
 const postRouter = require("./routes/post.route");
 const artistClaimRouter = require("./routes/artistClaim.route");
+const searchRoutes = require("./routes/search.routes");
 
 require("dotenv").config();
 const express = require("express"),
@@ -40,6 +41,7 @@ app.use("/api/genre", genreRoute);
 app.use("/api/playlist", playlistRouter);
 app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter)
+app.use('/api/search', searchRoutes);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 

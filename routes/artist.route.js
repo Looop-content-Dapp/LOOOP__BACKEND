@@ -17,10 +17,10 @@ artistrouter.get("/", getAllArtists);
 artistrouter.get("/:id", getArtist);
 artistrouter.get("/getartistsubcribers/:artistId", getArtistSubcribers);
 artistrouter.get("/follow/:id", getFollow);
-artistrouter.get(
-  "/usergenres/:userId",
-  getArtistBasedOnUserGenreExcludingWhoTheyFollow
-);
+// artistrouter.get(
+//   "/usergenres/:userId",
+//   getArtistBasedOnUserGenreExcludingWhoTheyFollow
+// );
 artistrouter.get("/artistpost/:artistId", getArtistPost);
 
 artistrouter.post("/follow/:userId/:artistId", followArtist);

@@ -33,6 +33,9 @@ const playListNameSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+playListNameSchema.index({ title: 1 });
+playListNameSchema.index({ description: 1 });
+
 const PlayListName = mongoose.model("playListname", playListNameSchema);
 
 module.exports = PlayListName;
