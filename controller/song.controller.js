@@ -2845,6 +2845,234 @@ const getRelease = async (req, res) => {
     }
   };
 
+  const getTracksFromRelease = async (req, res) => {
+    try {
+      const { releaseId } = req.params;
+      const { sort = 'track_number' } = req.query;
+
+      // Validate releaseId
+      if (!mongoose.Types.ObjectId.isValid(releaseId)) {
+        return res.status(400).json({
+          message: "Invalid release ID format"
+        });
+      }
+
+      // Define sort options
+      const sortOptions = {
+        track_number: { "track_number": 1 },
+        popularity: { "analytics.totalStreams": -1 },
+        title: { "title": 1 },
+        duration: { "duration": 1 }
+      };
+
+      const tracks = await Track.aggregate([
+        {
+          $match: {
+            releaseId: new mongoose.Types.ObjectId(releaseId)
+          }
+        },
+        // Lookup song data
+        {
+          $lookup: {
+            from: "songs",
+            localField: "songId",
+            foreignField: "_id",
+            as: "songData"
+          }
+        },
+        {
+          $unwind: "$songData"
+        },
+        // Lookup release data
+        {
+          $lookup: {
+            from: "releases",
+            localField: "releaseId",
+            foreignField: "_id",
+            as: "releaseData"
+          }
+        },
+        {
+          $unwind: "$releaseData"
+        },
+        // Lookup main artist
+        {
+          $lookup: {
+            from: "artists",
+            localField: "artistId",
+            foreignField: "_id",
+            as: "artistData"
+          }
+        },
+        {
+          $unwind: "$artistData"
+        },
+        // Lookup featured artists
+        {
+          $lookup: {
+            from: "ft",
+            localField: "_id",
+            foreignField: "trackId",
+            as: "featuredArtists"
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "featuredArtists.artistId",
+            foreignField: "_id",
+            as: "featuredArtistsData"
+          }
+        },
+        // Calculate engagement metrics
+        {
+          $addFields: {
+            engagementScore: {
+              $add: [
+                { $multiply: ["$songData.analytics.totalStreams", 1] },
+                { $multiply: ["$songData.analytics.playlistAdditions", 2] },
+                { $multiply: ["$songData.analytics.shares.total", 3] },
+                { $multiply: ["$songData.analytics.likes", 1.5] }
+              ]
+            },
+            completionRate: {
+              $cond: {
+                if: { $gt: ["$interactions.totalStreams", 0] },
+                then: {
+                  $multiply: [
+                    { $divide: ["$interactions.totalCompletionRate", "$interactions.totalStreams"] },
+                    100
+                  ]
+                },
+                else: 0
+              }
+            }
+          }
+        },
+        // Project final shape
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            version: 1,
+            duration: 1,
+            track_number: 1,
+            disc_number: 1,
+            isrc: "$metadata.isrc",
+            artist: {
+              _id: "$artistData._id",
+              name: "$artistData.name",
+              image: "$artistData.profileImage"
+            },
+            featuredArtists: {
+              $map: {
+                input: "$featuredArtistsData",
+                as: "artist",
+                in: {
+                  _id: "$$artist._id",
+                  name: "$$artist.name",
+                  role: {
+                    $arrayElemAt: [
+                      "$featuredArtists.contribution",
+                      { $indexOfArray: ["$featuredArtistsData._id", "$$artist._id"] }
+                    ]
+                  }
+                }
+              }
+            },
+            release: {
+              _id: "$releaseData._id",
+              title: "$releaseData.title",
+              artwork: "$releaseData.artwork.cover_image",
+              type: "$releaseData.type",
+              releaseDate: "$releaseData.dates.release_date"
+            },
+            songData: {
+              _id: "$songData._id",
+              fileUrl: "$songData.fileUrl",
+              format: "$songData.format",
+              bitrate: "$songData.bitrate",
+              waveform: "$songData.waveform"
+            },
+            metadata: {
+              genre: "$metadata.genre",
+              bpm: "$metadata.bpm",
+              key: "$metadata.key",
+              mood: "$metadata.mood",
+              tags: "$metadata.tags",
+              languageCode: "$metadata.languageCode"
+            },
+            lyrics: 1,
+            flags: 1,
+            analytics: {
+              totalStreams: "$songData.analytics.totalStreams",
+              uniqueListeners: "$songData.analytics.uniqueListeners",
+              completionRate: "$completionRate",
+              skipRate: {
+                $multiply: [
+                  { $divide: ["$interactions.skipCount", { $max: ["$interactions.totalStreams", 1] }] },
+                  100
+                ]
+              },
+              playlist: {
+                total: "$songData.analytics.playlistAdditions",
+                editorial: "$releaseData.analytics.playlists.editorial"
+              },
+              shares: "$songData.analytics.shares",
+              likes: "$songData.analytics.likes",
+              engagementScore: "$engagementScore"
+            }
+          }
+        },
+        {
+          $sort: sortOptions[sort] || sortOptions.track_number
+        }
+      ]);
+
+      // If no tracks found
+      if (!tracks.length) {
+        return res.status(404).json({
+          message: "No tracks found for this release"
+        });
+      }
+
+      // Calculate release-level statistics
+      const releaseStats = {
+        totalTracks: tracks.length,
+        totalDuration: tracks.reduce((sum, track) => sum + (track.duration || 0), 0),
+        totalStreams: tracks.reduce((sum, track) => sum + (track.analytics.totalStreams || 0), 0),
+        averageCompletionRate: tracks.reduce((sum, track) => sum + (track.analytics.completionRate || 0), 0) / tracks.length,
+        topPerformingTracks: tracks
+          .sort((a, b) => b.analytics.engagementScore - a.analytics.engagementScore)
+          .slice(0, 3)
+          .map(track => ({
+            id: track._id,
+            title: track.title,
+            streams: track.analytics.totalStreams
+          }))
+      };
+
+      return res.status(200).json({
+        message: "Successfully retrieved release tracks",
+        data: {
+          tracks,
+          releaseStats
+        },
+        meta: {
+          sortBy: sort,
+          totalTracks: tracks.length
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in getTracksFromRelease:", error);
+      return res.status(500).json({
+        message: "Error fetching release tracks",
+        error: error.message
+      });
+    }
+  };
+
     // Export all functions
     module.exports = {
       getAllSongs,
@@ -2870,5 +3098,6 @@ const getRelease = async (req, res) => {
       getSingles,
       getAllReleases,
       getRelease,
-      getSearchSuggestions
+      getSearchSuggestions,
+      getTracksFromRelease
     };

@@ -20,6 +20,7 @@ const {
     getSingles,
     getAllReleases,
     getRelease,
+    getTracksFromRelease,
 } = require("../controller/song.controller");
 
 const songRouter = express.Router();
@@ -40,7 +41,7 @@ songRouter.get("/releases/:releaseId", getRelease);
 songRouter.post("/releases/create", createRelease);
 // songRouter.post("/releases/add-track", addRelease);
 // songRouter.delete("/releases/:releaseId", deleteRlease);
-// songRouter.get("/releases/:releaseId/tracks", getTracksFromRelease);
+songRouter.get("/releases/:releaseId/tracks", getTracksFromRelease);
 // songRouter.delete("/releases/tracks/:songId/:trackId", deleteASongFromARelease);
 
 // Artist-specific Routes
