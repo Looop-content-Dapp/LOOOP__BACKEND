@@ -113,9 +113,9 @@ const generateUsername = async (email) => {
     }
 
     // Final validation
-    if (username.length < 3 || username.length > 20) {
-      throw new Error('Generated username does not meet length requirements');
-    }
+    // if (username.length < 3 || username.length > 20) {
+    //   throw new Error('Generated username does not meet length requirements');
+    // }
 
     // Log success for debugging (remove in production)
     console.log(`Generated username '${username}' from email '${email}'`);
