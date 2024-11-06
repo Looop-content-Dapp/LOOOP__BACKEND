@@ -2,8 +2,8 @@
 const User = require('../../models/user.model');
 
 /**
- * Generates a unique username from email address
- * Returns usernames between 6-8 characters
+ * Generates a unique username from any email address format
+ * Handles various email patterns and ensures uniqueness
  */
 const generateUsername = async (email) => {
   try {
@@ -22,10 +22,16 @@ const generateUsername = async (email) => {
 
     // Clean up the username part
     baseUsername = baseUsername
-      .replace(/\./g, '') // Remove dots
-      .replace(/[^a-zA-Z0-9]/g, '') // Remove special characters
-      .toLowerCase() // Convert to lowercase
-      .slice(0, 5); // Keep only first 5 chars for base (leaving room for uniqueness digits)
+      // Remove dots
+      .replace(/\./g, '')
+      // Replace special characters with underscore
+      .replace(/[^a-zA-Z0-9]/g, '_')
+      // Convert to lowercase
+      .toLowerCase()
+      // Remove consecutive underscores
+      .replace(/_+/g, '_')
+      // Remove leading/trailing underscores
+      .replace(/^_+|_+$/g, '');
 
     // Handle empty or invalid baseUsername
     if (!baseUsername || baseUsername.length < 2) {
@@ -38,9 +44,12 @@ const generateUsername = async (email) => {
       return !!existingUser;
     };
 
-    // Function to generate a random string
-    const generateRandomString = (length = 2) => {
-      const chars = '23456789abcdefghijkmnpqrstuvwxyz'; // removed similar looking characters
+    // Function to generate a random string with configurable character sets
+    const generateRandomString = (length = 3, useSpecialChars = false) => {
+      let chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+      if (useSpecialChars) {
+        chars += '_';
+      }
       let result = '';
       for (let i = 0; i < length; i++) {
         result += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -48,41 +57,68 @@ const generateUsername = async (email) => {
       return result;
     };
 
-    // Ensure base length is at least 4 characters
-    if (baseUsername.length < 4) {
-      baseUsername = baseUsername.padEnd(4, generateRandomString(4 - baseUsername.length));
+    // Ensure username meets minimum length
+    if (baseUsername.length < 3) {
+      baseUsername = baseUsername.padEnd(3, generateRandomString(3 - baseUsername.length));
     }
 
     // Try different username generation strategies
     let username = baseUsername;
     let attempts = 0;
-    const maxAttempts = 10;
+    let maxAttempts = 15; // Increased max attempts for better coverage
 
     while (await isUsernameTaken(username) && attempts < maxAttempts) {
       attempts++;
 
-      // Add 2-3 random characters to make final length 6-8
-      const suffixLength = 2 + (attempts % 2); // alternates between 2 and 3
-      const randomSuffix = generateRandomString(suffixLength);
+      switch (true) {
+        case attempts <= 3:
+          // First strategy: Add random numbers
+          const randomNum = Math.floor(Math.random() * 999).toString().padStart(3, '0');
+          username = `${baseUsername}${randomNum}`;
+          break;
 
-      // Keep base length at 4-5 characters
-      const baseLength = Math.min(5, 8 - suffixLength);
-      const trimmedBase = baseUsername.slice(0, baseLength);
+        case attempts <= 6:
+          // Second strategy: Add random letters
+          const randomLetters = generateRandomString(4, false);
+          username = `${baseUsername}${randomLetters}`;
+          break;
 
-      username = `${trimmedBase}${randomSuffix}`;
+        case attempts <= 9:
+          // Third strategy: Mix numbers and letters with underscore
+          const mixedString = generateRandomString(4, true);
+          username = `${baseUsername}_${mixedString}`;
+          break;
+
+        default:
+          // Final strategy: Timestamp + random string for guaranteed uniqueness
+          const timestamp = Date.now().toString().slice(-4);
+          const randomSuffix = generateRandomString(2, true);
+          username = `${baseUsername}${timestamp}${randomSuffix}`;
+      }
+
+      // Ensure username length is appropriate (3-20 characters)
+      if (username.length > 20) {
+        // If too long, trim the base and add unique identifier
+        const trimmedBase = baseUsername.slice(0, 12);
+        const uniqueSuffix = `_${timestamp.slice(-4)}${generateRandomString(2)}`;
+        username = trimmedBase + uniqueSuffix;
+      }
     }
 
-    // Last resort: Create a 6-character random username
+    // Last resort: If still not unique, create a completely random username
     if (await isUsernameTaken(username)) {
-      const shortBase = baseUsername.slice(0, 3);
-      const timestamp = Date.now().toString().slice(-3);
-      username = `${shortBase}${timestamp}`;
+      const timestamp = Date.now().toString().slice(-6);
+      const randomStr = generateRandomString(4, true);
+      username = `user_${timestamp}${randomStr}`;
     }
 
     // Final validation
-    if (username.length < 6 || username.length > 8) {
-      throw new Error('Generated username does not meet length requirements (6-8 characters)');
+    if (username.length < 3 || username.length > 20) {
+      throw new Error('Generated username does not meet length requirements');
     }
+
+    // Log success for debugging (remove in production)
+    console.log(`Generated username '${username}' from email '${email}'`);
 
     return username;
   } catch (error) {
