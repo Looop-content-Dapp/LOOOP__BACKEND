@@ -383,8 +383,8 @@ const streamSong = async (req, res) => {
     session.startTransaction();
 
     try {
-      const { songId, userId, deviceType = 'unknown', quality = 'standard', region = 'unknown' } = req.params;
-      const { completionRate = 0, timestamp, offline = false } = req.body;
+      const { songId, userId, } = req.params;
+      const { completionRate = 0, timestamp, offline = false, deviceType = 'unknown', quality = 'standard', region = 'unknown'  } = req.body;
 
       // Update song analytics with default values and proper type conversion
       const songUpdate = {
