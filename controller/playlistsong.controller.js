@@ -8,7 +8,7 @@ const generateCoverImage = () => {
     '#1DB954', '#1ED760', '#2D46B9', '#509BF5',
     '#B49BC8', '#E91429', '#F037A5'
   ];
-  return colors[Math.floor(Math.random() * colors.length)];
+  return "https://i.pinimg.com/564x/66/39/19/66391940e99ae6e58a0478b9c23f333d.jpg";
 };
 
 // Get all playlists (public)
