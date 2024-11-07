@@ -25,6 +25,7 @@ const {
     getSearchSuggestions,
     getFollowedArtistsReleases,
     getDailyMixes,
+    getLastPlayed,
 
 } = require("../controller/song.controller");
 
@@ -74,5 +75,6 @@ songRouter.post("/playlist/add/:songId", addToPlaylist);
 songRouter.get("/recommendations/dashboard/:userId", getDashboardRecommendations);
 songRouter.get("/recommendations/followed/:userId", getFollowedArtistsReleases);
 songRouter.get("/recommendations/daily-mix/:userId", getDailyMixes);
+songRouter.get("/history/last-played/:userId", getLastPlayed);
 
 module.exports = songRouter;

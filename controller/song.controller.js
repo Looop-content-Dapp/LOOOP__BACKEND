@@ -3908,6 +3908,208 @@ const getRelease = async (req, res) => {
     }
   };
 
+  const getLastPlayed = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const {
+        page = 1,
+        limit = 20,
+        startDate,
+        endDate,
+        uniqueOnly = false // Option to show only unique songs
+      } = req.query;
+
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      // Build date filter
+      const dateFilter = {};
+      if (startDate) {
+        dateFilter.$gte = new Date(startDate);
+      }
+      if (endDate) {
+        dateFilter.$lte = new Date(endDate);
+      }
+
+      // Build the aggregation pipeline
+      const pipeline = [
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId),
+            ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
+          }
+        },
+        {
+          $sort: { timestamp: -1 }
+        }
+      ];
+
+      // Add group stage if uniqueOnly is true
+      if (uniqueOnly === 'true') {
+        pipeline.push({
+          $group: {
+            _id: "$trackId",
+            lastPlayed: { $first: "$timestamp" },
+            deviceType: { $first: "$deviceType" },
+            quality: { $first: "$quality" },
+            completionRate: { $first: "$completionRate" }
+          }
+        });
+      }
+
+      // Continue with the rest of the pipeline
+      pipeline.push(
+        {
+          $lookup: {
+            from: "tracks",
+            localField: uniqueOnly === 'true' ? "_id" : "trackId",
+            foreignField: "_id",
+            as: "track"
+          }
+        },
+        {
+          $unwind: "$track"
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "track.releaseId",
+            foreignField: "_id",
+            as: "release"
+          }
+        },
+        {
+          $unwind: "$release"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "track.artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        // Lookup featured artists
+        {
+          $lookup: {
+            from: "ft",
+            localField: "track._id",
+            foreignField: "trackId",
+            as: "features"
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "features.artistId",
+            foreignField: "_id",
+            as: "featuredArtists"
+          }
+        },
+        {
+          $skip: skip
+        },
+        {
+          $limit: parseInt(limit)
+        },
+        {
+          $project: {
+            _id: "$track._id",
+            playedAt: "$timestamp",
+            lastPlayed: "$lastPlayed", // For uniqueOnly mode
+            track: {
+              title: "$track.title",
+              duration: "$track.duration",
+              isExplicit: "$track.flags.isExplicit",
+              trackNumber: "$track.track_number"
+            },
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage"
+            },
+            featuredArtists: {
+              $map: {
+                input: "$featuredArtists",
+                as: "artist",
+                in: {
+                  _id: "$$artist._id",
+                  name: "$$artist.name"
+                }
+              }
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              type: "$release.type",
+              artwork: {
+                high: "$release.artwork.cover_image.high",
+                medium: "$release.artwork.cover_image.medium",
+                low: "$release.artwork.cover_image.low",
+                thumbnail: "$release.artwork.cover_image.thumbnail"
+              },
+              releaseDate: "$release.dates.release_date"
+            },
+            playbackInfo: {
+              deviceType: "$deviceType",
+              quality: "$quality",
+              completionRate: "$completionRate"
+            }
+          }
+        }
+      );
+
+      const [results, totalCount] = await Promise.all([
+        LastPlayed.aggregate(pipeline),
+        LastPlayed.countDocuments({
+          userId: new mongoose.Types.ObjectId(userId),
+          ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
+        })
+      ]);
+
+      // Calculate listening statistics
+      const stats = {
+        totalTracks: totalCount,
+        uniqueArtists: new Set(results.map(item => item.artist._id.toString())).size,
+        uniqueReleases: new Set(results.map(item => item.release._id.toString())).size,
+        completionRate: results.reduce((sum, item) => sum + (item.playbackInfo.completionRate || 0), 0) / results.length,
+        deviceTypes: Object.entries(
+          results.reduce((acc, item) => {
+            acc[item.playbackInfo.deviceType] = (acc[item.playbackInfo.deviceType] || 0) + 1;
+            return acc;
+          }, {})
+        ).map(([type, count]) => ({ type, count }))
+      };
+
+      return res.status(200).json({
+        message: "Successfully retrieved listening history",
+        data: results,
+        stats,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(totalCount / parseInt(limit)),
+          hasMore: totalCount > skip + results.length
+        },
+        meta: {
+          uniqueOnly: uniqueOnly === 'true',
+          dateRange: {
+            start: startDate || 'all time',
+            end: endDate || 'present'
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in getLastPlayed:", error);
+      return res.status(500).json({
+        message: "Error fetching listening history",
+        error: error.message
+      });
+    }
+  };
+
     // Export all functions
     module.exports = {
       getAllSongs,
@@ -3937,5 +4139,6 @@ const getRelease = async (req, res) => {
       getTracksFromRelease,
       getDashboardRecommendations,
       getFollowedArtistsReleases,
-      getDailyMixes
+      getDailyMixes,
+      getLastPlayed
     };
