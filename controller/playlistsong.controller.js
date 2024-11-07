@@ -1,6 +1,7 @@
 const PlayListName = require("../models/playlistnames.model");
 const PlayListSongs = require("../models/playlistsongs.model");
 const Track = require("../models/track.model");
+const { transformTrackData } = require("../utils/helpers/transformData");
 
 // Helper function to generate a simple color-based cover
 const generateCoverImage = () => {
@@ -29,51 +30,79 @@ const getAllPlayList = async (req, res) => {
   }
 };
 
-// Get all playlists for a specific user
 const getAllPlayListForUser = async (req, res) => {
-  try {
-    const { userId } = req.params;
+    try {
+      const { userId } = req.params;
 
-    if (!userId) {
-      return res.status(400).json({
-        message: "User ID is required"
+      if (!userId) {
+        return res.status(400).json({
+          message: "User ID is required"
+        });
+      }
+
+      const playlists = await PlayListName.aggregate([
+        {
+          $match: {
+            userId: userId
+          }
+        },
+        {
+          $lookup: {
+            from: "playlistsongs",
+            localField: "_id",
+            foreignField: "playlistId",
+            as: "songs"
+          }
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "songs.trackId",
+            foreignField: "_id",
+            as: "trackDetails"
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "trackDetails.artistId",
+            foreignField: "_id",
+            as: "artistData"
+          }
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "trackDetails.releaseId",
+            foreignField: "_id",
+            as: "releaseData"
+          }
+        },
+        {
+          $sort: {
+            isPinned: -1,
+            lastModified: -1
+          }
+        }
+      ]).then(playlists => {
+        return playlists.map(playlist => ({
+          ...playlist,
+          songs: playlist.songs.map(transformTrackData)
+        }));
+      });
+
+      return res.status(200).json({
+        message: "Successfully retrieved user playlists",
+        data: playlists,
+        totalPlaylists: playlists.length
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error fetching user playlists",
+        error: error.message
       });
     }
-
-    const playLists = await PlayListName.aggregate([
-      {
-        $match: {
-          userId: userId
-        },
-      },
-      {
-        $lookup: {
-          from: "playlistsongs",
-          localField: "_id",
-          foreignField: "playlistId",
-          as: "songs"
-        },
-      },
-      {
-        $sort: {
-          isPinned: -1,
-          lastModified: -1
-        }
-      }
-    ]);
-
-    return res.status(200).json({
-      message: "Successfully retrieved user playlists",
-      data: playLists,
-      totalPlaylists: playLists.length
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching user playlists",
-      error: error.message,
-    });
-  }
-};
+  };
 
 // Get a specific playlist with its songs
 const getPlayListSongs = async (req, res) => {

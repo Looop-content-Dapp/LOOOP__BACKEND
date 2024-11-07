@@ -10,6 +10,7 @@ const SavedRelease = require("../models/savedalbums.model");
 const LikeTracks = require("../models/liketracks.model");
 const { matchUser } = require("../utils/helpers/searchquery");
 const { default: mongoose } = require("mongoose");
+const { transformTrackData } = require("../utils/helpers/transformData");
 
 // Common aggregation pipelines
 const releaseDetailsPipeline = [
@@ -1328,77 +1329,85 @@ const toggleSavedRelease = async (req, res) => {
 
 // Get user's saved releases with filtering
 const getSavedReleases = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { type, sort = 'recent', page = 1, limit = 20 } = req.query;
+    try {
+      const { userId } = req.params;
+      const { type, sort = 'recent', page = 1, limit = 20 } = req.query;
 
-    const query = { userId };
-    if (type) {
-      query.releaseType = type;
+      const query = { userId };
+      if (type) {
+        query.releaseType = type;
+      }
+
+      const sortOptions = {
+        recent: { saveDate: -1 },
+        oldest: { saveDate: 1 },
+        alphabetical: { 'release.title': 1 }
+      };
+
+      const savedReleases = await SavedRelease.aggregate([
+        {
+          $match: query
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "releaseId",
+            foreignField: "_id",
+            as: "releaseData"
+          }
+        },
+        {
+          $unwind: "$releaseData"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "releaseData.artistId",
+            foreignField: "_id",
+            as: "artistData"
+          }
+        },
+        {
+          $unwind: "$artistData"
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "releaseData._id",
+            foreignField: "releaseId",
+            as: "tracks"
+          }
+        },
+        {
+          $sort: sortOptions[sort] || sortOptions.recent
+        },
+        {
+          $skip: (page - 1) * limit
+        },
+        {
+          $limit: parseInt(limit)
+        }
+      ]).then(releases => releases.map(transformTrackData));
+
+      const total = await SavedRelease.countDocuments(query);
+
+      return res.status(200).json({
+        message: "Successfully retrieved saved releases",
+        data: savedReleases,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(total / limit),
+          hasMore: total > (page * limit)
+        }
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error fetching saved releases",
+        error: error.message
+      });
     }
-
-    const sortOptions = {
-      recent: { saveDate: -1 },
-      oldest: { saveDate: 1 },
-      alphabetical: { 'release.title': 1 }
-    };
-
-    const savedReleases = await SavedRelease.aggregate([
-      {
-        $match: query
-      },
-      {
-        $lookup: {
-          from: "releases",
-          localField: "releaseId",
-          foreignField: "_id",
-          as: "release"
-        }
-      },
-      {
-        $unwind: "$release"
-      },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "release.artistId",
-          foreignField: "_id",
-          as: "artist"
-        }
-      },
-      {
-        $unwind: "$artist"
-      },
-      {
-        $sort: sortOptions[sort] || sortOptions.recent
-      },
-      {
-        $skip: (page - 1) * limit
-      },
-      {
-        $limit: parseInt(limit)
-      }
-    ]);
-
-    const total = await SavedRelease.countDocuments(query);
-
-    return res.status(200).json({
-      message: "Successfully retrieved saved releases",
-      data: savedReleases,
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(total / limit),
-        hasMore: total > (page * limit)
-      }
-    });
-
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error fetching saved releases",
-      error: error.message
-    });
-  }
-};
+  };
 
 // Get user's most interacted songs
 const getUserTopSongs = async (req, res) => {
