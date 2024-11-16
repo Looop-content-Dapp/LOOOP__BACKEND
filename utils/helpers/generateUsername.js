@@ -120,7 +120,7 @@ const generateUsername = async (email) => {
     // Log success for debugging (remove in production)
     console.log(`Generated username '${username}' from email '${email}'`);
 
-    return username;
+    return username.slice(0,  10);
   } catch (error) {
     console.error('Username generation error:', error);
     throw new Error(`Failed to generate username: ${error.message}`);

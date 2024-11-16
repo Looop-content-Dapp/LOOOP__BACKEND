@@ -5,19 +5,25 @@ const {
   joinCommunity,
   createCommunity,
   searchCommunity,
-  deleteCommunity
+  deleteCommunity,
+  getArtistCommunitiesByGenre,
+  getTrendingArtistsByGenre
 } = require("../controller/community.controller");
-const { createArtist } = require("../controller/artist.controller");
 
 const communityRouter = express.Router();
 
+// Basic community routes
 communityRouter.get("/search", searchCommunity);
 communityRouter.get("/", getAllCommunity);
 communityRouter.get("/:communityid", getCommunity);
 
+// Community management routes
 communityRouter.post("/createcommunity", createCommunity);
 communityRouter.post("/joincommunity", joinCommunity);
-communityRouter.delete("/deletcommunity/:communityId", deleteCommunity);
-// router.delete("/:id", deleteUsergetAllUsers);
+communityRouter.delete("/deletecommunity/:communityId", deleteCommunity);
+
+// New genre-based recommendation routes
+communityRouter.get("/artists-by-genre/:userId", getArtistCommunitiesByGenre);
+communityRouter.get("/trending-artists/:userId", getTrendingArtistsByGenre);
 
 module.exports = communityRouter;
