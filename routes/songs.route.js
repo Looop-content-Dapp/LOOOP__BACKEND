@@ -26,6 +26,8 @@ const {
     getFollowedArtistsReleases,
     getDailyMixes,
     getLastPlayed,
+    getLocationBasedTracks,
+    getWorldwideTopSongs,
 
 } = require("../controller/song.controller");
 
@@ -76,5 +78,8 @@ songRouter.get("/recommendations/dashboard/:userId", getDashboardRecommendations
 songRouter.get("/recommendations/followed/:userId", getFollowedArtistsReleases);
 songRouter.get("/recommendations/daily-mix/:userId", getDailyMixes);
 songRouter.get("/history/last-played/:userId", getLastPlayed);
+
+songRouter.get("/discover/location", getLocationBasedTracks);
+songRouter.get("/discover/worldwide", getWorldwideTopSongs);
 
 module.exports = songRouter;

@@ -3925,13 +3925,13 @@ const getRelease = async (req, res) => {
         limit = 20,
         startDate,
         endDate,
-        uniqueOnly = false // Option to show only unique songs
+        uniqueOnly = false,
+        includeStats = true
       } = req.query;
 
       const skip = (parseInt(page) - 1) * parseInt(limit);
-
-      // Build date filter
       const dateFilter = {};
+
       if (startDate) {
         dateFilter.$gte = new Date(startDate);
       }
@@ -3939,8 +3939,8 @@ const getRelease = async (req, res) => {
         dateFilter.$lte = new Date(endDate);
       }
 
-      // Build the aggregation pipeline
-      const pipeline = [
+      // First pipeline to get recent tracks with context
+      const recentTracksPipeline = [
         {
           $match: {
             userId: new mongoose.Types.ObjectId(userId),
@@ -3952,26 +3952,379 @@ const getRelease = async (req, res) => {
         }
       ];
 
-      // Add group stage if uniqueOnly is true
       if (uniqueOnly === 'true') {
-        pipeline.push({
+        recentTracksPipeline.push({
           $group: {
             _id: "$trackId",
             lastPlayed: { $first: "$timestamp" },
             deviceType: { $first: "$deviceType" },
             quality: { $first: "$quality" },
-            completionRate: { $first: "$completionRate" }
+            completionRate: { $first: "$completionRate" },
+            playCount: { $sum: 1 }
           }
         });
       }
 
-      // Continue with the rest of the pipeline
-      pipeline.push(
+      recentTracksPipeline.push(
         {
           $lookup: {
             from: "tracks",
             localField: uniqueOnly === 'true' ? "_id" : "trackId",
             foreignField: "_id",
+            as: "track"
+          }
+        },
+        {
+          $unwind: "$track"
+        },
+        {
+          $lookup: {
+            from: "songs",
+            localField: "track.songId",
+            foreignField: "_id",
+            as: "song"
+          }
+        },
+        {
+          $unwind: "$song"
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "track.releaseId",
+            foreignField: "_id",
+            as: "release"
+          }
+        },
+        {
+          $unwind: "$release"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "track.artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        {
+          $lookup: {
+            from: "ft",
+            localField: "track._id",
+            foreignField: "trackId",
+            as: "features"
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "features.artistId",
+            foreignField: "_id",
+            as: "featuredArtists"
+          }
+        },
+        {
+          $skip: skip
+        },
+        {
+          $limit: parseInt(limit)
+        }
+      );
+
+      // Get listening statistics if requested
+      let stats = {};
+      if (includeStats === 'true') {
+        const statsPipeline = [
+          {
+            $match: {
+              userId: new mongoose.Types.ObjectId(userId),
+              ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              totalPlaytime: {
+                $sum: {
+                  $multiply: [
+                    { $divide: ["$completionRate", 100] },
+                    "$track.duration"
+                  ]
+                }
+              },
+              totalTracks: { $sum: 1 },
+              uniqueTracks: { $addToSet: "$trackId" },
+              uniqueArtists: { $addToSet: "$track.artistId" },
+              uniqueReleases: { $addToSet: "$track.releaseId" },
+              avgCompletionRate: { $avg: "$completionRate" },
+              devices: { $addToSet: "$deviceType" },
+              qualities: { $addToSet: "$quality" }
+            }
+          },
+          {
+            $project: {
+              _id: 0,
+              totalPlaytime: 1,
+              totalTracks: 1,
+              uniqueTracks: { $size: "$uniqueTracks" },
+              uniqueArtists: { $size: "$uniqueArtists" },
+              uniqueReleases: { $size: "$uniqueReleases" },
+              avgCompletionRate: 1,
+              devices: 1,
+              qualities: 1
+            }
+          }
+        ];
+
+        const statsResult = await LastPlayed.aggregate(statsPipeline);
+        stats = statsResult[0] || {};
+      }
+
+      const [results, totalCount] = await Promise.all([
+        LastPlayed.aggregate(recentTracksPipeline),
+        LastPlayed.countDocuments({
+          userId: new mongoose.Types.ObjectId(userId),
+          ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
+        })
+      ]);
+
+      // Transform results for response
+      const transformedResults = results.map(item => ({
+        _id: item.track._id,
+        playedAt: uniqueOnly === 'true' ? item.lastPlayed : item.timestamp,
+        track: {
+          title: item.track.title,
+          duration: item.track.duration,
+          isExplicit: item.track.flags.isExplicit,
+          trackNumber: item.track.track_number,
+          analytics: {
+            streams: item.song.analytics.totalStreams,
+            likes: item.song.analytics.likes
+          }
+        },
+        artist: {
+          _id: item.artist._id,
+          name: item.artist.name,
+          image: item.artist.profileImage
+        },
+        featuredArtists: item.featuredArtists.map(artist => ({
+          _id: artist._id,
+          name: artist.name
+        })),
+        release: {
+          _id: item.release._id,
+          title: item.release.title,
+          type: item.release.type,
+          artwork: item.release.artwork.cover_image,
+          releaseDate: item.release.dates.release_date
+        },
+        playbackInfo: {
+          deviceType: item.deviceType,
+          quality: item.quality,
+          completionRate: item.completionRate,
+          ...(uniqueOnly === 'true' && { playCount: item.playCount })
+        }
+      }));
+
+      return res.status(200).json({
+        message: "Successfully retrieved listening history",
+        data: transformedResults,
+        ...(includeStats === 'true' && { stats }),
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(totalCount / parseInt(limit)),
+          hasMore: totalCount > skip + results.length
+        },
+        meta: {
+          uniqueOnly: uniqueOnly === 'true',
+          dateRange: {
+            start: startDate || 'all time',
+            end: endDate || 'present'
+          }
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in getLastPlayed:", error);
+      return res.status(500).json({
+        message: "Error fetching listening history",
+        error: error.message
+      });
+    }
+  };
+
+  const getLocationBasedTracks = async (req, res) => {
+    try {
+      const { latitude, longitude, radius = 50, limit = 20 } = req.query;
+
+      if (!latitude || !longitude) {
+        return res.status(400).json({
+          message: "Latitude and longitude are required"
+        });
+      }
+
+      const coordinates = [parseFloat(longitude), parseFloat(latitude)];
+
+      const tracks = await Track.aggregate([
+        {
+          $lookup: {
+            from: "songs",
+            localField: "songId",
+            foreignField: "_id",
+            as: "songData"
+          }
+        },
+        {
+          $unwind: "$songData"
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "releaseId",
+            foreignField: "_id",
+            as: "release"
+          }
+        },
+        {
+          $unwind: "$release"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        {
+          $match: {
+            "artist.location.coordinates": {
+              $near: {
+                $geometry: {
+                  type: "Point",
+                  coordinates: coordinates
+                },
+                $maxDistance: radius * 1000 // Convert km to meters
+              }
+            }
+          }
+        },
+        {
+          $addFields: {
+            popularity: {
+              $add: [
+                { $multiply: ["$songData.analytics.totalStreams", 1] },
+                { $multiply: ["$songData.analytics.playlistAdditions", 2] },
+                { $multiply: ["$songData.analytics.shares.total", 3] }
+              ]
+            }
+          }
+        },
+        {
+          $sort: { popularity: -1 }
+        },
+        {
+          $limit: parseInt(limit)
+        },
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            duration: 1,
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage",
+              location: "$artist.location"
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              artwork: "$release.artwork.cover_image",
+              releaseDate: "$release.dates.release_date"
+            },
+            analytics: {
+              streams: "$songData.analytics.totalStreams",
+              shares: "$songData.analytics.shares.total",
+              playlists: "$songData.analytics.playlistAdditions"
+            },
+            distance: {
+              $round: [
+                {
+                  $divide: [
+                    { $meta: "distanceMeters" },
+                    1000 // Convert to kilometers
+                  ]
+                },
+                1
+              ]
+            }
+          }
+        }
+      ]);
+
+      return res.status(200).json({
+        message: "Successfully retrieved location-based tracks",
+        data: tracks,
+        meta: {
+          location: {
+            latitude: parseFloat(latitude),
+            longitude: parseFloat(longitude),
+            radius: parseInt(radius)
+          },
+          totalTracks: tracks.length
+        }
+      });
+
+    } catch (error) {
+      console.error("Error in getLocationBasedTracks:", error);
+      return res.status(500).json({
+        message: "Error fetching location-based tracks",
+        error: error.message
+      });
+    }
+  };
+
+  // Get worldwide top songs
+  const getWorldwideTopSongs = async (req, res) => {
+    try {
+      const {
+        timeframe = '24h',
+        limit = 50,
+        offset = 0,
+        includeRegionalStats = false
+      } = req.query;
+
+      // Calculate date range based on timeframe
+      const endDate = new Date();
+      const startDate = new Date();
+      switch (timeframe) {
+        case '24h': startDate.setDate(endDate.getDate() - 1); break;
+        case '7d': startDate.setDate(endDate.getDate() - 7); break;
+        case '30d': startDate.setDate(endDate.getDate() - 30); break;
+        case '90d': startDate.setDate(endDate.getDate() - 90); break;
+      }
+
+      const pipeline = [
+        {
+          $match: {
+            "streamHistory.timestamp": {
+              $gte: startDate,
+              $lte: endDate
+            }
+          }
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "_id",
+            foreignField: "songId",
             as: "track"
           }
         },
@@ -3999,126 +4352,161 @@ const getRelease = async (req, res) => {
         },
         {
           $unwind: "$artist"
-        },
-        // Lookup featured artists
+        }
+      ];
+
+      // Add regional stats calculation if requested
+      if (includeRegionalStats === 'true') {
+        pipeline.push({
+          $addFields: {
+            regionalStats: {
+              $reduce: {
+                input: "$streamHistory",
+                initialValue: {},
+                in: {
+                  $mergeObjects: [
+                    "$$value",
+                    {
+                      $cond: {
+                        if: {
+                          $and: [
+                            { $gte: ["$$this.timestamp", startDate] },
+                            { $lte: ["$$this.timestamp", endDate] }
+                          ]
+                        },
+                        then: {
+                          $let: {
+                            vars: {
+                              region: "$$this.region"
+                            },
+                            in: {
+                              $mergeObjects: [
+                                "$$value",
+                                {
+                                  "$$region": {
+                                    streams: { $add: [{ $ifNull: ["$$value.$$region.streams", 0] }, 1] }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        },
+                        else: "$$value"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        });
+      }
+
+      // Add final aggregation stages
+      pipeline.push(
         {
-          $lookup: {
-            from: "ft",
-            localField: "track._id",
-            foreignField: "trackId",
-            as: "features"
+          $addFields: {
+            recentStreams: {
+              $size: {
+                $filter: {
+                  input: "$streamHistory",
+                  cond: {
+                    $and: [
+                      { $gte: ["$$this.timestamp", startDate] },
+                      { $lte: ["$$this.timestamp", endDate] }
+                    ]
+                  }
+                }
+              }
+            },
+            globalScore: {
+              $add: [
+                { $multiply: ["$analytics.totalStreams", 1] },
+                { $multiply: ["$analytics.playlistAdditions", 2] },
+                { $multiply: ["$analytics.shares.total", 3] },
+                { $multiply: ["$analytics.likes", 1.5] }
+              ]
+            }
           }
         },
         {
-          $lookup: {
-            from: "artists",
-            localField: "features.artistId",
-            foreignField: "_id",
-            as: "featuredArtists"
-          }
+          $sort: { globalScore: -1 }
         },
         {
-          $skip: skip
+          $skip: parseInt(offset)
         },
         {
           $limit: parseInt(limit)
         },
         {
           $project: {
-            _id: "$track._id",
-            playedAt: "$timestamp",
-            lastPlayed: "$lastPlayed", // For uniqueOnly mode
+            _id: 1,
             track: {
+              _id: "$track._id",
               title: "$track.title",
               duration: "$track.duration",
-              isExplicit: "$track.flags.isExplicit",
-              trackNumber: "$track.track_number"
+              isrc: "$track.metadata.isrc"
             },
             artist: {
               _id: "$artist._id",
               name: "$artist.name",
               image: "$artist.profileImage"
             },
-            featuredArtists: {
-              $map: {
-                input: "$featuredArtists",
-                as: "artist",
-                in: {
-                  _id: "$$artist._id",
-                  name: "$$artist.name"
-                }
-              }
-            },
             release: {
               _id: "$release._id",
               title: "$release.title",
-              type: "$release.type",
-              artwork: {
-                high: "$release.artwork.cover_image.high",
-                medium: "$release.artwork.cover_image.medium",
-                low: "$release.artwork.cover_image.low",
-                thumbnail: "$release.artwork.cover_image.thumbnail"
-              },
+              artwork: "$release.artwork.cover_image",
               releaseDate: "$release.dates.release_date"
             },
-            playbackInfo: {
-              deviceType: "$deviceType",
-              quality: "$quality",
-              completionRate: "$completionRate"
-            }
+            analytics: {
+              totalStreams: "$analytics.totalStreams",
+              recentStreams: "$recentStreams",
+              playlistAdditions: "$analytics.playlistAdditions",
+              shares: "$analytics.shares.total",
+              likes: "$analytics.likes",
+              globalScore: "$globalScore"
+            },
+            ...(includeRegionalStats === 'true' && { regionalStats: 1 })
           }
         }
       );
 
-      const [results, totalCount] = await Promise.all([
-        LastPlayed.aggregate(pipeline),
-        LastPlayed.countDocuments({
-          userId: new mongoose.Types.ObjectId(userId),
-          ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
+      const [songs, total] = await Promise.all([
+        Song.aggregate(pipeline),
+        Song.countDocuments({
+          "streamHistory.timestamp": {
+            $gte: startDate,
+            $lte: endDate
+          }
         })
       ]);
 
-      // Calculate listening statistics
-      const stats = {
-        totalTracks: totalCount,
-        uniqueArtists: new Set(results.map(item => item.artist._id.toString())).size,
-        uniqueReleases: new Set(results.map(item => item.release._id.toString())).size,
-        completionRate: results.reduce((sum, item) => sum + (item.playbackInfo.completionRate || 0), 0) / results.length,
-        deviceTypes: Object.entries(
-          results.reduce((acc, item) => {
-            acc[item.playbackInfo.deviceType] = (acc[item.playbackInfo.deviceType] || 0) + 1;
-            return acc;
-          }, {})
-        ).map(([type, count]) => ({ type, count }))
-      };
-
       return res.status(200).json({
-        message: "Successfully retrieved listening history",
-        data: results,
-        stats,
+        message: "Successfully retrieved worldwide top songs",
+        data: songs,
         pagination: {
-          current: parseInt(page),
-          total: Math.ceil(totalCount / parseInt(limit)),
-          hasMore: totalCount > skip + results.length
+          offset: parseInt(offset),
+          limit: parseInt(limit),
+          total,
+          hasMore: total > (parseInt(offset) + songs.length)
         },
         meta: {
-          uniqueOnly: uniqueOnly === 'true',
+          timeframe,
           dateRange: {
-            start: startDate || 'all time',
-            end: endDate || 'present'
+            start: startDate,
+            end: endDate
           }
         }
       });
 
     } catch (error) {
-      console.error("Error in getLastPlayed:", error);
+      console.error("Error in getWorldwideTopSongs:", error);
       return res.status(500).json({
-        message: "Error fetching listening history",
+        message: "Error fetching worldwide top songs",
         error: error.message
       });
     }
   };
-
     // Export all functions
     module.exports = {
       getAllSongs,
@@ -4149,5 +4537,7 @@ const getRelease = async (req, res) => {
       getDashboardRecommendations,
       getFollowedArtistsReleases,
       getDailyMixes,
-      getLastPlayed
+      getLastPlayed,
+      getLocationBasedTracks,
+      getWorldwideTopSongs
     };

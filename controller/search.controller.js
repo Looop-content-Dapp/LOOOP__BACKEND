@@ -394,13 +394,6 @@ const getRecentSearches = async (req, res) => {
   try {
     const userId = req.user?._id;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
-    }
-
     const searches = await RecentSearch.find({ userId })
       .sort({ timestamp: -1 })
       .limit(10)
@@ -423,13 +416,6 @@ const getRecentSearches = async (req, res) => {
 const clearRecentSearches = async (req, res) => {
   try {
     const userId = req.user?._id;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required"
-      });
-    }
 
     await RecentSearch.deleteMany({ userId });
 
