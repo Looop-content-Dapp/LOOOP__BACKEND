@@ -4158,15 +4158,22 @@ const getRelease = async (req, res) => {
 
   const getLocationBasedTracks = async (req, res) => {
     try {
-      const { latitude, longitude, radius = 50, limit = 20 } = req.query;
+      const { countryCode, limit = 30, timeframe = '7d' } = req.query;
 
-      if (!latitude || !longitude) {
+      if (!countryCode) {
         return res.status(400).json({
-          message: "Latitude and longitude are required"
+          message: "Country code is required"
         });
       }
 
-      const coordinates = [parseFloat(longitude), parseFloat(latitude)];
+      // Calculate date range
+      const endDate = new Date();
+      const startDate = new Date();
+      switch (timeframe) {
+        case '24h': startDate.setDate(endDate.getDate() - 1); break;
+        case '7d': startDate.setDate(endDate.getDate() - 7); break;
+        case '30d': startDate.setDate(endDate.getDate() - 30); break;
+      }
 
       const tracks = await Track.aggregate([
         {
@@ -4204,19 +4211,30 @@ const getRelease = async (req, res) => {
         },
         {
           $match: {
-            "artist.location.coordinates": {
-              $near: {
-                $geometry: {
-                  type: "Point",
-                  coordinates: coordinates
-                },
-                $maxDistance: radius * 1000 // Convert km to meters
+            "songData.streamHistory": {
+              $elemMatch: {
+                region: countryCode,
+                timestamp: { $gte: startDate, $lte: endDate }
               }
             }
           }
         },
         {
           $addFields: {
+            regionalStreams: {
+              $size: {
+                $filter: {
+                  input: "$songData.streamHistory",
+                  cond: {
+                    $and: [
+                      { $eq: ["$$this.region", countryCode] },
+                      { $gte: ["$$this.timestamp", startDate] },
+                      { $lte: ["$$this.timestamp", endDate] }
+                    ]
+                  }
+                }
+              }
+            },
             popularity: {
               $add: [
                 { $multiply: ["$songData.analytics.totalStreams", 1] },
@@ -4227,7 +4245,7 @@ const getRelease = async (req, res) => {
           }
         },
         {
-          $sort: { popularity: -1 }
+          $sort: { regionalStreams: -1, popularity: -1 }
         },
         {
           $limit: parseInt(limit)
@@ -4240,8 +4258,7 @@ const getRelease = async (req, res) => {
             artist: {
               _id: "$artist._id",
               name: "$artist.name",
-              image: "$artist.profileImage",
-              location: "$artist.location"
+              image: "$artist.profileImage"
             },
             release: {
               _id: "$release._id",
@@ -4250,20 +4267,10 @@ const getRelease = async (req, res) => {
               releaseDate: "$release.dates.release_date"
             },
             analytics: {
-              streams: "$songData.analytics.totalStreams",
-              shares: "$songData.analytics.shares.total",
-              playlists: "$songData.analytics.playlistAdditions"
-            },
-            distance: {
-              $round: [
-                {
-                  $divide: [
-                    { $meta: "distanceMeters" },
-                    1000 // Convert to kilometers
-                  ]
-                },
-                1
-              ]
+              totalStreams: "$songData.analytics.totalStreams",
+              regionalStreams: "$regionalStreams",
+              playlistAdditions: "$songData.analytics.playlistAdditions",
+              shares: "$songData.analytics.shares.total"
             }
           }
         }
@@ -4273,11 +4280,8 @@ const getRelease = async (req, res) => {
         message: "Successfully retrieved location-based tracks",
         data: tracks,
         meta: {
-          location: {
-            latitude: parseFloat(latitude),
-            longitude: parseFloat(longitude),
-            radius: parseInt(radius)
-          },
+          country: countryCode,
+          timeframe,
           totalTracks: tracks.length
         }
       });
