@@ -192,7 +192,7 @@ releaseSchema.index({
   'analytics.totalStreams': -1,
   'analytics.saves': -1,
   'analytics.playlists.total': -1
-}); // For popularity sorting
+}); // For popularity sortingç
 releaseSchema.index({ title: 1 });
 releaseSchema.index({ "metadata.genre": 1 });
 

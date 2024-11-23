@@ -13,6 +13,7 @@ const Friends = require("../models/friends.model");
 const { matchUser } = require("../utils/helpers/searchquery");
 const LastPlayed = require("../models/lastplayed.model");
 const generateUsername = require("../utils/helpers/generateUsername");
+const { default: mongoose } = require("mongoose");
 
 const getAllUsers = async (req, res) => {
   try {
@@ -255,63 +256,132 @@ const createGenresForUser = async (req, res) => {
 };
 
 const getArtistBasedOnUserGenre = async (req, res) => {
-  try {
-    const { userId } = req.params;
+    try {
+      const { userId } = req.params;
 
-    const user = await User.findById(userId);
+      const user = await User.findById(userId);
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
-    const userGenres = await Preferences.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$userId",
+      // Get user's genre preferences with populated genre names
+      const userGenres = await Preferences.aggregate([
+        {
+          $match: {
+            userId: new mongoose.Types.ObjectId(userId)
+          }
+        },
+        {
+          $lookup: {
+            from: "genres",
+            let: { genreId: "$genreId" },
+            pipeline: [
               {
-                $toObjectId: userId,
-              },
+                $match: {
+                  $expr: {
+                    $eq: ["$_id", "$$genreId"]
+                  }
+                }
+              }
             ],
-          },
+            as: "genre"
+          }
         },
-      },
-      {
-        $lookup: {
-          from: "genres",
-          localField: "genreId",
-          foreignField: "_id",
-          as: "genre",
+        {
+          $unwind: "$genre"
         },
-      },
-      {
-        $unwind: "$genre",
-      },
-    ]);
+        // Group to get array of genre names and convert to lowercase
+        {
+          $group: {
+            _id: null,
+            genres: { $push: { $toLower: "$genre.name" } },
+            originalGenres: { $push: "$genre.name" }
+          }
+        }
+      ]);
 
-    let newArr = [];
+      if (!userGenres.length) {
+        return res.status(200).json({
+          message: "No genres found for user",
+          data: []
+        });
+      }
 
-    userGenres.forEach((genre) => {
-      newArr.push(genre.genre.name);
-    });
+      const lowercaseGenres = userGenres[0].genres;
 
-    const artists = await Artist.find({
-      $text: { $search: newArr.join(",") },
-    });
+      // Find artists that match any of the user's genres (case-insensitive)
+      const artists = await Artist.aggregate([
+        {
+          $addFields: {
+            lowercaseGenres: {
+              $map: {
+                input: "$genres",
+                as: "genre",
+                in: { $toLower: "$$genre" }
+              }
+            }
+          }
+        },
+        {
+          $match: {
+            lowercaseGenres: {
+              $in: lowercaseGenres
+            }
+          }
+        },
+        // Calculate matching genres count using lowercase comparison
+        {
+          $addFields: {
+            matchingGenresCount: {
+              $size: {
+                $setIntersection: ["$lowercaseGenres", lowercaseGenres]
+              }
+            }
+          }
+        },
+        // Sort by matching genres count and popularity
+        {
+          $sort: {
+            matchingGenresCount: -1,
+            popularity: -1
+          }
+        },
+        {
+          $limit: 50
+        },
+        // Only include the fields we want (inclusion-only projection)
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            images: 1,
+            genres: 1,
+            popularity: 1,
+            monthlyListeners: 1,
+            verified: 1,
+            matchingGenresCount: 1,
+            artistId: 1
+          }
+        }
+      ]);
 
-    return res.status(200).json({
-      message: "successfully gotten a artist based on genres of user",
-      data: artists,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "Error fetching artist based on genre of user",
-      error: error.message,
-    });
-  }
-};
+      return res.status(200).json({
+        message: "Successfully retrieved artists based on user genres",
+        data: {
+          artists,
+          userGenres: userGenres[0].originalGenres,
+          totalMatches: artists.length
+        }
+      });
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({
+        message: "Error fetching artists based on genre of user",
+        error: error.message
+      });
+    }
+  };
 
 const createUserFaveArtistBasedOnGenres = async (req, res) => {
   try {
