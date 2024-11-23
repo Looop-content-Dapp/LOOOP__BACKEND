@@ -784,36 +784,74 @@ const addToPlaylist = async (req, res) => {
     };
 
     const getTrendingSongsByRegion = async (req, res) => {
-      try {
-        const { region } = req.params;
-        const { timeframe = '24h', limit = 50 } = req.query;
+        try {
+          const { region } = req.params;
+          const { timeframe = '24h', limit = 50 } = req.query;
 
-        const endDate = new Date();
-        const startDate = new Date();
-        switch (timeframe) {
-          case '24h': startDate.setDate(endDate.getDate() - 1); break;
-          case '7d': startDate.setDate(endDate.getDate() - 7); break;
-          case '30d': startDate.setDate(endDate.getDate() - 30); break;
-        }
+          // Calculate date range
+          const endDate = new Date();
+          const startDate = new Date();
+          switch (timeframe) {
+            case '24h': startDate.setDate(endDate.getDate() - 1); break;
+            case '7d': startDate.setDate(endDate.getDate() - 7); break;
+            case '30d': startDate.setDate(endDate.getDate() - 30); break;
+          }
 
-        const trendingSongs = await Song.aggregate([
-          {
-            $match: {
-              "streamHistory": {
-                $elemMatch: {
-                  region: region,
-                  timestamp: { $gte: startDate, $lte: endDate }
+          const trendingSongs = await Track.aggregate([
+            // First get tracks and their associated data
+            {
+              $lookup: {
+                from: "songs",
+                localField: "songId",
+                foreignField: "_id",
+                as: "songData"
+              }
+            },
+            {
+              $unwind: "$songData"
+            },
+            // Get release data
+            {
+              $lookup: {
+                from: "releases",
+                localField: "releaseId",
+                foreignField: "_id",
+                as: "release"
+              }
+            },
+            {
+              $unwind: "$release"
+            },
+            // Get artist data
+            {
+              $lookup: {
+                from: "artists",
+                localField: "artistId",
+                foreignField: "_id",
+                as: "artist"
+              }
+            },
+            {
+              $unwind: "$artist"
+            },
+            // Match streams from specified region and timeframe
+            {
+              $match: {
+                "songData.streamHistory": {
+                  $elemMatch: {
+                    region: region,
+                    timestamp: { $gte: startDate, $lte: endDate }
+                  }
                 }
               }
-            }
-          },
-          {
-            $addFields: {
-              regionalStats: {
-                streams: {
+            },
+            // Calculate trending metrics
+            {
+              $addFields: {
+                recentStreams: {
                   $size: {
                     $filter: {
-                      input: "$streamHistory",
+                      input: "$songData.streamHistory",
                       cond: {
                         $and: [
                           { $eq: ["$$this.region", region] },
@@ -823,77 +861,165 @@ const addToPlaylist = async (req, res) => {
                       }
                     }
                   }
+                },
+                recentShares: {
+                  $size: {
+                    $filter: {
+                      input: "$songData.shareHistory",
+                      cond: {
+                        $and: [
+                          { $eq: ["$$this.region", region] },
+                          { $gte: ["$$this.timestamp", startDate] },
+                          { $lte: ["$$this.timestamp", endDate] }
+                        ]
+                      }
+                    }
+                  }
+                },
+                // Calculate trending score based on multiple factors
+                trendingScore: {
+                  $add: [
+                    // Recent streams are weighted heavily
+                    {
+                      $multiply: [
+                        {
+                          $size: {
+                            $filter: {
+                              input: "$songData.streamHistory",
+                              cond: {
+                                $and: [
+                                  { $eq: ["$$this.region", region] },
+                                  { $gte: ["$$this.timestamp", startDate] },
+                                  { $lte: ["$$this.timestamp", endDate] }
+                                ]
+                              }
+                            }
+                          }
+                        },
+                        3 // Weight for streams
+                      ]
+                    },
+                    // Playlist additions indicate growing popularity
+                    {
+                      $multiply: [
+                        "$songData.analytics.playlistAdditions",
+                        2 // Weight for playlist adds
+                      ]
+                    },
+                    // Shares indicate viral potential
+                    {
+                      $multiply: [
+                        "$songData.analytics.shares.total",
+                        2.5 // Weight for shares
+                      ]
+                    },
+                    // Likes show user engagement
+                    {
+                      $multiply: [
+                        "$songData.analytics.likes",
+                        1.5 // Weight for likes
+                      ]
+                    },
+                    // Bonus for high completion rates
+                    {
+                      $multiply: [
+                        { $avg: "$songData.streamHistory.completionRate" },
+                        0.5 // Weight for completion rate
+                      ]
+                    }
+                  ]
+                }
+              }
+            },
+            // Sort by trending score
+            {
+              $sort: { trendingScore: -1 }
+            },
+            {
+              $limit: parseInt(limit)
+            },
+            // Project final shape
+            {
+              $project: {
+                _id: 1,
+                title: 1,
+                duration: 1,
+                artist: {
+                  _id: "$artist._id",
+                  name: "$artist.name",
+                  image: "$artist.profileImage",
+                  verified: "$artist.verified"
+                },
+                release: {
+                  _id: "$release._id",
+                  title: "$release.title",
+                  artwork: "$release.artwork.cover_image",
+                  releaseDate: "$release.dates.release_date"
+                },
+                analytics: {
+                  streams: {
+                    total: "$songData.analytics.totalStreams",
+                    recent: "$recentStreams"
+                  },
+                  shares: {
+                    total: "$songData.analytics.shares.total",
+                    recent: "$recentShares"
+                  },
+                  playlists: "$songData.analytics.playlistAdditions",
+                  likes: "$songData.analytics.likes"
+                },
+                trendingScore: 1,
+                trendingRank: {
+                  $add: [{ $indexOfArray: ["$trendingScore", "$trendingScore"] }, 1]
                 }
               }
             }
-          },
-          {
-            $lookup: {
-              from: "tracks",
-              localField: "_id",
-              foreignField: "songId",
-              as: "track"
-            }
-          },
-          {
-            $unwind: "$track"
-          },
-          {
-            $lookup: {
-              from: "releases",
-              localField: "track.releaseId",
-              foreignField: "_id",
-              as: "release"
-            }
-          },
-          {
-            $unwind: "$release"
-          },
-          {
-            $lookup: {
-              from: "artists",
-              localField: "track.artistId",
-              foreignField: "_id",
-              as: "artist"
-            }
-          },
-          {
-            $unwind: "$artist"
-          },
-          {
-            $project: {
-              _id: 1,
-              title: "$track.title",
-              artist: "$artist.name",
-              release: "$release.title",
-              cover: "$release.artwork.cover_image",
-              regionalStats: 1,
-              genre: "$track.metadata.genre",
-              duration: "$track.duration"
-            }
-          },
-          {
-            $sort: { "regionalStats.streams": -1 }
-          },
-          {
-            $limit: parseInt(limit)
-          }
-        ]);
+          ]);
 
-        return res.status(200).json({
-          message: "Successfully retrieved trending songs",
-          region,
-          timeframe,
-          data: trendingSongs
-        });
+          // Calculate trending percentage changes
+          const enhancedTrendingSongs = trendingSongs.map(song => ({
+            ...song,
+            analytics: {
+              ...song.analytics,
+              trends: {
+                streams: {
+                  percentage: calculatePercentageChange(
+                    song.analytics.streams.total - song.analytics.streams.recent,
+                    song.analytics.streams.recent
+                  )
+                },
+                shares: {
+                  percentage: calculatePercentageChange(
+                    song.analytics.shares.total - song.analytics.shares.recent,
+                    song.analytics.shares.recent
+                  )
+                }
+              }
+            }
+          }));
 
-      } catch (error) {
-        return res.status(500).json({
-          message: "Error fetching trending songs",
-          error: error.message
-        });
-      }
-    };
+          return res.status(200).json({
+            message: "Successfully retrieved trending songs",
+            data: enhancedTrendingSongs,
+            meta: {
+              region,
+              timeframe,
+              totalTracks: enhancedTrendingSongs.length,
+              dateRange: {
+                start: startDate,
+                end: endDate
+              }
+            }
+          });
+
+        } catch (error) {
+          console.error("Error in getTrendingSongsByRegion:", error);
+          return res.status(500).json({
+            message: "Error fetching trending songs",
+            error: error.message
+          });
+        }
+      };
 
     // Metadata Management
     const updateSongMetadata = async (req, res) => {
@@ -4158,7 +4284,7 @@ const getRelease = async (req, res) => {
 
   const getLocationBasedTracks = async (req, res) => {
     try {
-      const { countryCode, limit = 30, timeframe = '7d' } = req.query;
+      const { countryCode, limit = 50, timeframe = '7d' } = req.query;
 
       if (!countryCode) {
         return res.status(400).json({
@@ -4176,6 +4302,7 @@ const getRelease = async (req, res) => {
       }
 
       const tracks = await Track.aggregate([
+        // Join with songs collection
         {
           $lookup: {
             from: "songs",
@@ -4187,6 +4314,7 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$songData"
         },
+        // Join with releases
         {
           $lookup: {
             from: "releases",
@@ -4198,6 +4326,7 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$release"
         },
+        // Join with artists
         {
           $lookup: {
             from: "artists",
@@ -4209,47 +4338,77 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$artist"
         },
+        // Calculate regional metrics
         {
-          $match: {
-            "songData.streamHistory": {
-              $elemMatch: {
-                region: countryCode,
-                timestamp: { $gte: startDate, $lte: endDate }
+          $addFields: {
+            regionalMetrics: {
+              recentStreams: {
+                $size: {
+                  $filter: {
+                    input: "$songData.streamHistory",
+                    cond: {
+                      $and: [
+                        { $eq: ["$$this.region", countryCode] },
+                        { $gte: ["$$this.timestamp", startDate] },
+                        { $lte: ["$$this.timestamp", endDate] }
+                      ]
+                    }
+                  }
+                }
               }
             }
           }
         },
+        // Calculate comprehensive score
         {
           $addFields: {
-            regionalStreams: {
-              $size: {
-                $filter: {
-                  input: "$songData.streamHistory",
-                  cond: {
-                    $and: [
-                      { $eq: ["$$this.region", countryCode] },
-                      { $gte: ["$$this.timestamp", startDate] },
-                      { $lte: ["$$this.timestamp", endDate] }
-                    ]
+            score: {
+              $add: [
+                // Recent streams in region (highest weight)
+                { $multiply: ["$regionalMetrics.recentStreams", 4] },
+                // Total streams
+                { $multiply: ["$songData.analytics.totalStreams", 2] },
+                // Playlist additions (good indicator of popularity)
+                { $multiply: ["$songData.analytics.playlistAdditions", 3] },
+                // Shares (viral potential)
+                { $multiply: ["$songData.analytics.shares.total", 2] },
+                // Likes
+                { $multiply: ["$songData.analytics.likes", 1] },
+                // Bonus for new releases (last 30 days)
+                {
+                  $cond: {
+                    if: {
+                      $gte: [
+                        "$release.dates.release_date",
+                        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+                      ]
+                    },
+                    then: 500,
+                    else: 0
                   }
                 }
-              }
-            },
-            popularity: {
-              $add: [
-                { $multiply: ["$songData.analytics.totalStreams", 1] },
-                { $multiply: ["$songData.analytics.playlistAdditions", 2] },
-                { $multiply: ["$songData.analytics.shares.total", 3] }
               ]
             }
           }
         },
+        // Filter for minimum engagement
         {
-          $sort: { regionalStreams: -1, popularity: -1 }
+          $match: {
+            $or: [
+              { "regionalMetrics.recentStreams": { $gt: 0 } },
+              { "songData.analytics.totalStreams": { $gt: 100 } },
+              { "songData.analytics.playlistAdditions": { $gt: 5 } }
+            ]
+          }
+        },
+        // Sort by score
+        {
+          $sort: { score: -1 }
         },
         {
           $limit: parseInt(limit)
         },
+        // Project final shape
         {
           $project: {
             _id: 1,
@@ -4264,14 +4423,22 @@ const getRelease = async (req, res) => {
               _id: "$release._id",
               title: "$release.title",
               artwork: "$release.artwork.cover_image",
+              type: "$release.type",
               releaseDate: "$release.dates.release_date"
             },
             analytics: {
               totalStreams: "$songData.analytics.totalStreams",
-              regionalStreams: "$regionalStreams",
-              playlistAdditions: "$songData.analytics.playlistAdditions",
-              shares: "$songData.analytics.shares.total"
-            }
+              regionalStreams: "$regionalMetrics.recentStreams",
+              playlists: "$songData.analytics.playlistAdditions",
+              shares: "$songData.analytics.shares.total",
+              likes: "$songData.analytics.likes"
+            },
+            metadata: {
+              genre: "$metadata.genre",
+              isrc: "$metadata.isrc",
+              language: "$metadata.languageCode"
+            },
+            score: 1
           }
         }
       ]);
@@ -4282,6 +4449,10 @@ const getRelease = async (req, res) => {
         meta: {
           country: countryCode,
           timeframe,
+          dateRange: {
+            start: startDate,
+            end: endDate
+          },
           totalTracks: tracks.length
         }
       });
@@ -4298,47 +4469,35 @@ const getRelease = async (req, res) => {
   // Get worldwide top songs
   const getWorldwideTopSongs = async (req, res) => {
     try {
-      const {
-        timeframe = '24h',
-        limit = 50,
-        offset = 0,
-        includeRegionalStats = false
-      } = req.query;
+      const { timeframe = '24h', limit = 100, offset = 0 } = req.query;
 
-      // Calculate date range based on timeframe
+      // Calculate date range
       const endDate = new Date();
       const startDate = new Date();
       switch (timeframe) {
         case '24h': startDate.setDate(endDate.getDate() - 1); break;
         case '7d': startDate.setDate(endDate.getDate() - 7); break;
         case '30d': startDate.setDate(endDate.getDate() - 30); break;
-        case '90d': startDate.setDate(endDate.getDate() - 90); break;
       }
 
-      const pipeline = [
-        {
-          $match: {
-            "streamHistory.timestamp": {
-              $gte: startDate,
-              $lte: endDate
-            }
-          }
-        },
+      const tracks = await Track.aggregate([
+        // Join with songs
         {
           $lookup: {
-            from: "tracks",
-            localField: "_id",
-            foreignField: "songId",
-            as: "track"
+            from: "songs",
+            localField: "songId",
+            foreignField: "_id",
+            as: "songData"
           }
         },
         {
-          $unwind: "$track"
+          $unwind: "$songData"
         },
+        // Join with releases
         {
           $lookup: {
             from: "releases",
-            localField: "track.releaseId",
+            localField: "releaseId",
             foreignField: "_id",
             as: "release"
           }
@@ -4346,95 +4505,110 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$release"
         },
+        // Join with artists
         {
           $lookup: {
             from: "artists",
-            localField: "track.artistId",
+            localField: "artistId",
             foreignField: "_id",
             as: "artist"
           }
         },
         {
           $unwind: "$artist"
-        }
-      ];
-
-      // Add regional stats calculation if requested
-      if (includeRegionalStats === 'true') {
-        pipeline.push({
+        },
+        // Calculate recent activity metrics
+        {
           $addFields: {
-            regionalStats: {
-              $reduce: {
-                input: "$streamHistory",
-                initialValue: {},
-                in: {
-                  $mergeObjects: [
-                    "$$value",
-                    {
-                      $cond: {
-                        if: {
+            recentMetrics: {
+              streams: {
+                $size: {
+                  $filter: {
+                    input: "$songData.streamHistory",
+                    cond: {
+                      $and: [
+                        { $gte: ["$$this.timestamp", startDate] },
+                        { $lte: ["$$this.timestamp", endDate] }
+                      ]
+                    }
+                  }
+                }
+              },
+              // Calculate completion rate for recent streams
+              avgCompletion: {
+                $avg: {
+                  $map: {
+                    input: {
+                      $filter: {
+                        input: "$songData.streamHistory",
+                        cond: {
                           $and: [
                             { $gte: ["$$this.timestamp", startDate] },
                             { $lte: ["$$this.timestamp", endDate] }
                           ]
-                        },
-                        then: {
-                          $let: {
-                            vars: {
-                              region: "$$this.region"
-                            },
-                            in: {
-                              $mergeObjects: [
-                                "$$value",
-                                {
-                                  "$$region": {
-                                    streams: { $add: [{ $ifNull: ["$$value.$$region.streams", 0] }, 1] }
-                                  }
-                                }
-                              ]
-                            }
-                          }
-                        },
-                        else: "$$value"
+                        }
                       }
-                    }
-                  ]
+                    },
+                    as: "stream",
+                    in: "$$stream.completionRate"
+                  }
                 }
               }
             }
           }
-        });
-      }
-
-      // Add final aggregation stages
-      pipeline.push(
+        },
+        // Calculate comprehensive score
         {
           $addFields: {
-            recentStreams: {
-              $size: {
-                $filter: {
-                  input: "$streamHistory",
-                  cond: {
-                    $and: [
-                      { $gte: ["$$this.timestamp", startDate] },
-                      { $lte: ["$$this.timestamp", endDate] }
-                    ]
+            score: {
+              $add: [
+                // Recent streams (highest weight)
+                { $multiply: ["$recentMetrics.streams", 4] },
+                // Total streams
+                { $multiply: ["$songData.analytics.totalStreams", 2] },
+                // Playlist additions
+                { $multiply: ["$songData.analytics.playlistAdditions", 3] },
+                // Shares
+                { $multiply: ["$songData.analytics.shares.total", 2] },
+                // Likes
+                { $multiply: ["$songData.analytics.likes", 1] },
+                // Completion rate bonus
+                {
+                  $multiply: [
+                    { $ifNull: ["$recentMetrics.avgCompletion", 0] },
+                    0.5
+                  ]
+                },
+                // New release bonus
+                {
+                  $cond: {
+                    if: {
+                      $gte: [
+                        "$release.dates.release_date",
+                        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+                      ]
+                    },
+                    then: 500,
+                    else: 0
                   }
                 }
-              }
-            },
-            globalScore: {
-              $add: [
-                { $multiply: ["$analytics.totalStreams", 1] },
-                { $multiply: ["$analytics.playlistAdditions", 2] },
-                { $multiply: ["$analytics.shares.total", 3] },
-                { $multiply: ["$analytics.likes", 1.5] }
               ]
             }
           }
         },
+        // Filter for minimum engagement
         {
-          $sort: { globalScore: -1 }
+          $match: {
+            $or: [
+              { "recentMetrics.streams": { $gt: 0 } },
+              { "songData.analytics.totalStreams": { $gt: 1000 } },
+              { "songData.analytics.playlistAdditions": { $gt: 10 } }
+            ]
+          }
+        },
+        // Sort by score
+        {
+          $sort: { score: -1 }
         },
         {
           $skip: parseInt(offset)
@@ -4442,64 +4616,71 @@ const getRelease = async (req, res) => {
         {
           $limit: parseInt(limit)
         },
+        // Project final shape
         {
           $project: {
             _id: 1,
-            track: {
-              _id: "$track._id",
-              title: "$track.title",
-              duration: "$track.duration",
-              isrc: "$track.metadata.isrc"
-            },
+            title: 1,
+            duration: 1,
             artist: {
               _id: "$artist._id",
               name: "$artist.name",
-              image: "$artist.profileImage"
+              image: "$artist.profileImage",
+              verified: "$artist.verified"
             },
             release: {
               _id: "$release._id",
               title: "$release.title",
               artwork: "$release.artwork.cover_image",
+              type: "$release.type",
               releaseDate: "$release.dates.release_date"
             },
             analytics: {
-              totalStreams: "$analytics.totalStreams",
-              recentStreams: "$recentStreams",
-              playlistAdditions: "$analytics.playlistAdditions",
-              shares: "$analytics.shares.total",
-              likes: "$analytics.likes",
-              globalScore: "$globalScore"
+              streams: {
+                total: "$songData.analytics.totalStreams",
+                recent: "$recentMetrics.streams"
+              },
+              playlists: "$songData.analytics.playlistAdditions",
+              shares: "$songData.analytics.shares.total",
+              likes: "$songData.analytics.likes",
+              avgCompletion: "$recentMetrics.avgCompletion"
             },
-            ...(includeRegionalStats === 'true' && { regionalStats: 1 })
+            metadata: {
+              genre: "$metadata.genre",
+              isrc: "$metadata.isrc",
+              language: "$metadata.languageCode"
+            },
+            score: 1,
+            rank: { $add: [{ $indexOfArray: ["$score", "$score"] }, 1] }
           }
         }
-      );
-
-      const [songs, total] = await Promise.all([
-        Song.aggregate(pipeline),
-        Song.countDocuments({
-          "streamHistory.timestamp": {
-            $gte: startDate,
-            $lte: endDate
-          }
-        })
       ]);
+
+      // Get total count for pagination
+      const total = await Track.countDocuments({
+        $or: [
+          { "songData.streamHistory": { $exists: true, $ne: [] } },
+          { "songData.analytics.totalStreams": { $gt: 1000 } },
+          { "songData.analytics.playlistAdditions": { $gt: 10 } }
+        ]
+      });
 
       return res.status(200).json({
         message: "Successfully retrieved worldwide top songs",
-        data: songs,
+        data: tracks,
         pagination: {
           offset: parseInt(offset),
           limit: parseInt(limit),
           total,
-          hasMore: total > (parseInt(offset) + songs.length)
+          hasMore: total > (parseInt(offset) + tracks.length)
         },
         meta: {
           timeframe,
           dateRange: {
             start: startDate,
             end: endDate
-          }
+          },
+          totalTracks: tracks.length
         }
       });
 
