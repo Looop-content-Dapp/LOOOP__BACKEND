@@ -4284,7 +4284,7 @@ const getRelease = async (req, res) => {
 
   const getLocationBasedTracks = async (req, res) => {
     try {
-      const { countryCode, limit = 50, timeframe = '7d' } = req.query;
+      const { countryCode, limit = 30, timeframe = '30d' } = req.query;
 
       if (!countryCode) {
         return res.status(400).json({
@@ -4469,7 +4469,7 @@ const getRelease = async (req, res) => {
   // Get worldwide top songs
   const getWorldwideTopSongs = async (req, res) => {
     try {
-      const { timeframe = '24h', limit = 100, offset = 0 } = req.query;
+      const { timeframe = '24h', limit = 30, offset = 0 } = req.query;
 
       // Calculate date range
       const endDate = new Date();
@@ -4480,20 +4480,20 @@ const getRelease = async (req, res) => {
         case '30d': startDate.setDate(endDate.getDate() - 30); break;
       }
 
-      const tracks = await Track.aggregate([
-        // Join with songs
+      const pipeline = [
+        // Get all tracks
         {
           $lookup: {
             from: "songs",
             localField: "songId",
             foreignField: "_id",
-            as: "songData"
+            as: "song"
           }
         },
         {
-          $unwind: "$songData"
+          $unwind: "$song"
         },
-        // Join with releases
+        // Get release data
         {
           $lookup: {
             from: "releases",
@@ -4505,7 +4505,7 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$release"
         },
-        // Join with artists
+        // Get artist data
         {
           $lookup: {
             from: "artists",
@@ -4517,68 +4517,38 @@ const getRelease = async (req, res) => {
         {
           $unwind: "$artist"
         },
-        // Calculate recent activity metrics
+        // Calculate recent streams globally
         {
           $addFields: {
-            recentMetrics: {
-              streams: {
-                $size: {
-                  $filter: {
-                    input: "$songData.streamHistory",
-                    cond: {
-                      $and: [
-                        { $gte: ["$$this.timestamp", startDate] },
-                        { $lte: ["$$this.timestamp", endDate] }
-                      ]
-                    }
-                  }
-                }
-              },
-              // Calculate completion rate for recent streams
-              avgCompletion: {
-                $avg: {
-                  $map: {
-                    input: {
-                      $filter: {
-                        input: "$songData.streamHistory",
-                        cond: {
-                          $and: [
-                            { $gte: ["$$this.timestamp", startDate] },
-                            { $lte: ["$$this.timestamp", endDate] }
-                          ]
-                        }
-                      }
-                    },
-                    as: "stream",
-                    in: "$$stream.completionRate"
+            recentStreams: {
+              $size: {
+                $filter: {
+                  input: { $ifNull: ["$song.streamHistory", []] },
+                  as: "stream",
+                  cond: {
+                    $and: [
+                      { $gte: ["$$stream.timestamp", startDate] },
+                      { $lte: ["$$stream.timestamp", endDate] }
+                    ]
                   }
                 }
               }
             }
           }
         },
-        // Calculate comprehensive score
+        // Calculate global popularity score
         {
           $addFields: {
-            score: {
+            globalScore: {
               $add: [
                 // Recent streams (highest weight)
-                { $multiply: ["$recentMetrics.streams", 4] },
+                { $multiply: [{ $ifNull: ["$recentStreams", 0] }, 4] },
                 // Total streams
-                { $multiply: ["$songData.analytics.totalStreams", 2] },
+                { $multiply: [{ $ifNull: ["$song.analytics.totalStreams", 0] }, 2] },
                 // Playlist additions
-                { $multiply: ["$songData.analytics.playlistAdditions", 3] },
+                { $multiply: [{ $ifNull: ["$song.analytics.playlistAdditions", 0] }, 3] },
                 // Shares
-                { $multiply: ["$songData.analytics.shares.total", 2] },
-                // Likes
-                { $multiply: ["$songData.analytics.likes", 1] },
-                // Completion rate bonus
-                {
-                  $multiply: [
-                    { $ifNull: ["$recentMetrics.avgCompletion", 0] },
-                    0.5
-                  ]
-                },
+                { $multiply: [{ $ifNull: ["$song.analytics.shares.total", 0] }, 2] },
                 // New release bonus
                 {
                   $cond: {
@@ -4596,19 +4566,12 @@ const getRelease = async (req, res) => {
             }
           }
         },
-        // Filter for minimum engagement
+        // Sort by global popularity
         {
-          $match: {
-            $or: [
-              { "recentMetrics.streams": { $gt: 0 } },
-              { "songData.analytics.totalStreams": { $gt: 1000 } },
-              { "songData.analytics.playlistAdditions": { $gt: 10 } }
-            ]
+          $sort: {
+            globalScore: -1,
+            "release.dates.release_date": -1
           }
-        },
-        // Sort by score
-        {
-          $sort: { score: -1 }
         },
         {
           $skip: parseInt(offset)
@@ -4616,7 +4579,7 @@ const getRelease = async (req, res) => {
         {
           $limit: parseInt(limit)
         },
-        // Project final shape
+        // Final shape
         {
           $project: {
             _id: 1,
@@ -4625,49 +4588,44 @@ const getRelease = async (req, res) => {
             artist: {
               _id: "$artist._id",
               name: "$artist.name",
-              image: "$artist.profileImage",
-              verified: "$artist.verified"
+              image: "$artist.profileImage"
             },
             release: {
               _id: "$release._id",
               title: "$release.title",
               artwork: "$release.artwork.cover_image",
-              type: "$release.type",
               releaseDate: "$release.dates.release_date"
             },
             analytics: {
-              streams: {
-                total: "$songData.analytics.totalStreams",
-                recent: "$recentMetrics.streams"
-              },
-              playlists: "$songData.analytics.playlistAdditions",
-              shares: "$songData.analytics.shares.total",
-              likes: "$songData.analytics.likes",
-              avgCompletion: "$recentMetrics.avgCompletion"
+              totalStreams: { $ifNull: ["$song.analytics.totalStreams", 0] },
+              recentStreams: "$recentStreams",
+              shares: { $ifNull: ["$song.analytics.shares.total", 0] },
+              playlists: { $ifNull: ["$song.analytics.playlistAdditions", 0] }
             },
             metadata: {
               genre: "$metadata.genre",
               isrc: "$metadata.isrc",
               language: "$metadata.languageCode"
             },
-            score: 1,
-            rank: { $add: [{ $indexOfArray: ["$score", "$score"] }, 1] }
+            globalScore: 1
           }
         }
+      ];
+
+      const [tracks, total] = await Promise.all([
+        Track.aggregate(pipeline),
+        Track.countDocuments()
       ]);
 
-      // Get total count for pagination
-      const total = await Track.countDocuments({
-        $or: [
-          { "songData.streamHistory": { $exists: true, $ne: [] } },
-          { "songData.analytics.totalStreams": { $gt: 1000 } },
-          { "songData.analytics.playlistAdditions": { $gt: 10 } }
-        ]
-      });
+      // Add ranks after aggregation
+      const rankedTracks = tracks.map((track, index) => ({
+        ...track,
+        rank: index + 1
+      }));
 
       return res.status(200).json({
         message: "Successfully retrieved worldwide top songs",
-        data: tracks,
+        data: rankedTracks,
         pagination: {
           offset: parseInt(offset),
           limit: parseInt(limit),
