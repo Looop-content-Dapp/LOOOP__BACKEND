@@ -16,6 +16,7 @@ const {
   addFriend,
   getUserFriends,
   getUserByEmail,
+  signIn,
 } = require("../controller/user.controller");
 const isUser = require("../middlewares/isvaliduser.middleware");
 const userrouter = express.Router();
@@ -43,5 +44,6 @@ userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
 userrouter.delete("/:userId", deleteUser);
 userrouter.get("/email/:email", getUserByEmail);
+userrouter.post("/signin", signIn);
 
 module.exports = userrouter;

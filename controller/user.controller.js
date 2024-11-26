@@ -826,6 +826,164 @@ const getUserByEmail = async (req, res) => {
     }
   };
 
+  const signIn = async (req, res) => {
+    try {
+      const { email, password } = req.body;
+
+      // Validate request body
+      if (!email || !password) {
+        return res.status(400).json({
+          message: "Email and password are required"
+        });
+      }
+
+      // Find user by email
+      const user = await User.aggregate([
+        {
+          $match: { email: email }
+        },
+        {
+          $lookup: {
+            from: "preferences",
+            localField: "_id",
+            foreignField: "userId",
+            as: "preferences",
+          },
+        },
+        {
+          $lookup: {
+            from: "faveartists",
+            localField: "_id",
+            foreignField: "userId",
+            as: "faveArtists",
+          },
+        },
+        {
+          $unwind: {
+            path: "$faveArtists",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+        {
+          $lookup: {
+            from: "follows",
+            localField: "_id",
+            foreignField: "follower",
+            as: "following",
+          },
+        },
+        {
+          $lookup: {
+            from: "friends",
+            localField: "_id",
+            foreignField: "userId",
+            as: "friends",
+          },
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "faveArtists.artistId",
+            foreignField: "_id",
+            as: "faveArtists.artist",
+          },
+        },
+        {
+          $addFields: {
+            following: { $size: "$following" },
+            friendsCount: { $size: "$friends" },
+            artistPlayed: { $size: "$friends" },
+          },
+        },
+        {
+          $group: {
+            _id: "$_id",
+            faveArtist: { $push: "$faveArtists" },
+            otherFields: { $first: "$$ROOT" },
+          },
+        },
+        {
+          $replaceRoot: {
+            newRoot: {
+              $mergeObjects: ["$otherFields", { faveArtists: "$faveArtist" }],
+            },
+          },
+        },
+      ]);
+
+      if (!user || user.length === 0) {
+        return res.status(404).json({
+          message: "User not found"
+        });
+      }
+
+      // Verify password
+      const isPasswordValid = await bcrypt.compare(password, user[0].password);
+
+      if (!isPasswordValid) {
+        return res.status(401).json({
+          message: "Invalid password"
+        });
+      }
+
+      // Get artist played data
+      const artistPlayed = await LastPlayed.aggregate([
+        {
+          $match: {
+            $expr: {
+              $eq: [
+                "$userId",
+                user[0]._id
+              ],
+            },
+          },
+        },
+        {
+          $lookup: {
+            from: "tracks",
+            localField: "trackId",
+            foreignField: "_id",
+            as: "track",
+          },
+        },
+        {
+          $unwind: {
+            path: "$track",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
+      ]);
+
+      let uniqueArtists = [];
+      let uniqueTracks = [];
+      artistPlayed.forEach((val) => {
+        if (!uniqueArtists.includes(val.track.artistId.toString())) {
+          uniqueArtists.push(val.track.artistId.toString());
+          uniqueTracks.push(val.track);
+        }
+      });
+
+      // Remove sensitive data before sending response
+      const userData = { ...user[0] };
+      delete userData.password;
+
+      return res.status(200).json({
+        message: "Sign in successful",
+        data: {
+          ...userData,
+          artistPlayed: uniqueTracks.length
+        }
+      });
+
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({
+        message: "Error signing in",
+        error: error.message
+      });
+    }
+  };
+
 module.exports = {
   getAllUsers,
   getUser,
@@ -843,6 +1001,7 @@ module.exports = {
   addFriend,
   getUserFriends,
   getUserByEmail,
+  signIn
 };
 
 // "preferences": ["rock", "pop", "classical"],

@@ -3498,124 +3498,28 @@ const getRelease = async (req, res) => {
   const getFollowedArtistsReleases = async (req, res) => {
     try {
       const { userId } = req.params;
-      const { days = 30, limit = 20 } = req.query;
+      const { days = 30, limit = 10, page = 1 } = req.query;
 
-      // Get user's followed artists
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const releaseTimeframe = new Date(Date.now() - parseInt(days) * 24 * 60 * 60 * 1000);
+
+      // First get the artists that the user follows
       const followedArtists = await Follow.find({
         userId: new mongoose.Types.ObjectId(userId)
-      });
+      }).select('artistId');
 
-      let artistIds = followedArtists.map(follow => follow.artistId);
+      const artistIds = followedArtists.map(follow => follow.artistId);
 
-      // If user doesn't follow any artists, get trending artists
-      if (artistIds.length === 0) {
-        const trendingArtists = await Artist.aggregate([
-          {
-            $lookup: {
-              from: "tracks",
-              localField: "_id",
-              foreignField: "artistId",
-              as: "tracks"
-            }
-          },
-          {
-            $lookup: {
-              from: "songs",
-              localField: "tracks.songId",
-              foreignField: "_id",
-              as: "songs"
-            }
-          },
-          {
-            $addFields: {
-              totalStreams: {
-                $sum: "$songs.analytics.totalStreams"
-              }
-            }
-          },
-          {
-            $sort: { totalStreams: -1 }
-          },
-          {
-            $limit: 10
-          }
-        ]);
+      // If user follows artists, get their recent releases
+      let releases = [];
+      let source = 'followed';
 
-        artistIds = trendingArtists.map(artist => artist._id);
-      }
-
-      // Get recent releases from artists
-      const newReleases = await Release.aggregate([
-        {
-          $match: {
-            artistId: { $in: artistIds },
-            "dates.release_date": {
-              $gte: new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "artistId",
-            foreignField: "_id",
-            as: "artist"
-          }
-        },
-        {
-          $unwind: "$artist"
-        },
-        {
-          $lookup: {
-            from: "tracks",
-            localField: "_id",
-            foreignField: "releaseId",
-            as: "tracks"
-          }
-        },
-        {
-          $addFields: {
-            totalTracks: { $size: "$tracks" }
-          }
-        },
-        {
-          $sort: { "dates.release_date": -1 }
-        },
-        {
-          $limit: parseInt(limit)
-        },
-        {
-          $project: {
-            _id: 1,
-            title: 1,
-            type: 1,
-            releaseDate: "$dates.release_date",
-            artwork: "$artwork.cover_image",
-            artist: {
-              _id: "$artist._id",
-              name: "$artist.name",
-              image: "$artist.profileImage"
-            },
-            metadata: {
-              genre: 1,
-              totalTracks: "$totalTracks"
-            },
-            analytics: {
-              totalStreams: 1,
-              saves: 1
-            }
-          }
-        }
-      ]);
-
-      // If no new releases, get trending releases
-      if (newReleases.length === 0) {
-        const trendingReleases = await Release.aggregate([
+      if (artistIds.length > 0) {
+        releases = await Release.aggregate([
           {
             $match: {
-              "dates.release_date": {
-                $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-              }
+              artistId: { $in: artistIds },
+              'dates.release_date': { $gte: releaseTimeframe }
             }
           },
           {
@@ -3640,16 +3544,20 @@ const getRelease = async (req, res) => {
           {
             $addFields: {
               totalTracks: { $size: "$tracks" },
-              score: {
-                $add: [
-                  "$analytics.totalStreams",
-                  { $multiply: ["$analytics.saves", 2] }
-                ]
+              daysAgo: {
+                $dateDiff: {
+                  startDate: "$dates.release_date",
+                  endDate: "$$NOW",
+                  unit: "day"
+                }
               }
             }
           },
           {
-            $sort: { score: -1 }
+            $sort: { "dates.release_date": -1 }
+          },
+          {
+            $skip: skip
           },
           {
             $limit: parseInt(limit)
@@ -3661,6 +3569,7 @@ const getRelease = async (req, res) => {
               type: 1,
               releaseDate: "$dates.release_date",
               artwork: "$artwork.cover_image",
+              daysAgo: 1,
               artist: {
                 _id: "$artist._id",
                 name: "$artist.name",
@@ -3673,22 +3582,153 @@ const getRelease = async (req, res) => {
               analytics: {
                 totalStreams: 1,
                 saves: 1
+              },
+              commercial: {
+                label: 1
               }
             }
           }
         ]);
-
-        return res.status(200).json({
-          message: "Successfully retrieved trending releases",
-          data: trendingReleases,
-          source: "trending"
-        });
       }
 
+      // If no releases from followed artists, get trending releases
+      if (releases.length === 0) {
+        releases = await Release.aggregate([
+          {
+            $match: {
+              'dates.release_date': { $gte: releaseTimeframe }
+            }
+          },
+          {
+            $lookup: {
+              from: "artists",
+              localField: "artistId",
+              foreignField: "_id",
+              as: "artist"
+            }
+          },
+          {
+            $unwind: "$artist"
+          },
+          {
+            $lookup: {
+              from: "tracks",
+              localField: "_id",
+              foreignField: "releaseId",
+              as: "tracks"
+            }
+          },
+          {
+            $addFields: {
+              totalTracks: { $size: "$tracks" },
+              daysAgo: {
+                $dateDiff: {
+                  startDate: "$dates.release_date",
+                  endDate: "$$NOW",
+                  unit: "day"
+                }
+              },
+              score: {
+                $add: [
+                  "$analytics.totalStreams",
+                  { $multiply: ["$analytics.saves", 2] },
+                  { $multiply: ["$analytics.shares.total", 1.5] },
+                  { $multiply: ["$analytics.playlists.total", 2] }
+                ]
+              }
+            }
+          },
+          {
+            $sort: { score: -1, "dates.release_date": -1 }
+          },
+          {
+            $skip: skip
+          },
+          {
+            $limit: parseInt(limit)
+          },
+          {
+            $project: {
+              _id: 1,
+              title: 1,
+              type: 1,
+              releaseDate: "$dates.release_date",
+              artwork: "$artwork.cover_image",
+              daysAgo: 1,
+              artist: {
+                _id: "$artist._id",
+                name: "$artist.name",
+                image: "$artist.profileImage"
+              },
+              metadata: {
+                genre: 1,
+                totalTracks: "$totalTracks"
+              },
+              analytics: {
+                totalStreams: 1,
+                saves: 1
+              },
+              commercial: {
+                label: 1
+              },
+              score: 1
+            }
+          }
+        ]);
+
+        source = 'trending';
+      }
+
+      // Get total count for pagination
+      const totalCount = await Release.countDocuments(
+        source === 'followed'
+          ? {
+              artistId: { $in: artistIds },
+              'dates.release_date': { $gte: releaseTimeframe }
+            }
+          : {
+              'dates.release_date': { $gte: releaseTimeframe }
+            }
+      );
+
+      // Group releases by time period
+      const groupedReleases = {
+        today: [],
+        thisWeek: [],
+        thisMonth: []
+      };
+
+      releases.forEach(release => {
+        if (release.daysAgo === 0) {
+          groupedReleases.today.push(release);
+        } else if (release.daysAgo <= 7) {
+          groupedReleases.thisWeek.push(release);
+        } else {
+          groupedReleases.thisMonth.push(release);
+        }
+      });
+
       return res.status(200).json({
-        message: "Successfully retrieved new releases from followed artists",
-        data: newReleases,
-        source: "followed"
+        message: "Successfully retrieved releases",
+        data: {
+          releases: groupedReleases,
+          timeline: {
+            today: groupedReleases.today.length,
+            thisWeek: groupedReleases.thisWeek.length,
+            thisMonth: groupedReleases.thisMonth.length
+          }
+        },
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(totalCount / parseInt(limit)),
+          hasMore: totalCount > (skip + releases.length)
+        },
+        meta: {
+          source,
+          timeframe: `${days} days`,
+          followedArtists: artistIds.length,
+          totalReleases: releases.length
+        }
       });
 
     } catch (error) {
