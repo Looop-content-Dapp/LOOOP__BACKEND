@@ -27,7 +27,7 @@ const generateUsername = async (email) => {
       // Replace special characters with underscore
       .replace(/[^a-zA-Z0-9]/g, '_')
       // Convert to lowercase
-    //   .toLowerCase()
+      .toLowerCase()
       // Remove consecutive underscores
       .replace(/_+/g, '_')
       // Remove leading/trailing underscores

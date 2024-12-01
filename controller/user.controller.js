@@ -169,9 +169,31 @@ const getUser = async (req, res) => {
   }
 };
 
+const checkIfUserNameExist = async(req, res) => {
+    try{
+     const { username} = req.body
+
+     if(username == ""){
+        console.log("username is needed");
+        return "username is needed"
+     }
+
+     const existingUser = await User.findOne({ username })
+     return res.status(200).json({
+        message: "successfully checked if username is",
+        data: { existingUser }
+      });
+    }catch(error){
+       console.log("Error check if username exist", error.message)
+       return res
+       .status(500)
+       .json({ message: "Error checking username", error: error.message });
+    }
+}
+
 const createUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
 
     const provider = new RpcProvider({ nodeUrl: process.env.PROVIDER });
 
@@ -187,13 +209,11 @@ const createUser = async (req, res) => {
       account
     );
 
-    if (password == "" || email == "") {
+    if (password == "" || email == "" || username == "") {
       return res
         .status(401)
-        .json({ message: "Password and Email is required" });
+        .json({ message: "Password, Email and username is required" });
     }
-
-    const username = await generateUsername(email);
 
     if(username){
         let tx = await looopContract.register_account(
@@ -222,8 +242,6 @@ const createUser = async (req, res) => {
             data: { user: user, transaction: tx, reciept: reciept },
           });
     }
-
-
   } catch (error) {
     console.log(error);
     return res
@@ -1005,5 +1023,6 @@ module.exports = {
   addFriend,
   getUserFriends,
   getUserByEmail,
-  signIn
+  signIn,
+  checkIfUserNameExist
 };
