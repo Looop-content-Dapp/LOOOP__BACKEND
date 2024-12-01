@@ -195,31 +195,35 @@ const createUser = async (req, res) => {
 
     const username = await generateUsername(email);
 
-    let tx = await looopContract.register_account(
-      process.env.NFT_CONTRACT_ADDRESS,
-      process.env.NFT_TOKEN_ID,
-      process.env.IMPLEMENTATION_HASH,
-      username,
-      password
-    );
+    if(username){
+        let tx = await looopContract.register_account(
+            process.env.NFT_CONTRACT_ADDRESS,
+            process.env.NFT_TOKEN_ID,
+            process.env.IMPLEMENTATION_HASH,
+            username,
+            password
+          );
 
-    let reciept = await provider.waitForTransaction(tx.transaction_hash);
+          let reciept = await provider.waitForTransaction(tx.transaction_hash);
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(password, salt);
 
-    const user = new User({
-      email,
-      username,
-      password: hashedPassword,
-    });
+          const user = new User({
+            email,
+            username,
+            password: hashedPassword,
+          });
 
-    await user.save();
+          await user.save();
 
-    return res.status(200).json({
-      message: "successfully created a user",
-      data: { user: user, transaction: tx, reciept: reciept },
-    });
+          return res.status(200).json({
+            message: "successfully created a user",
+            data: { user: user, transaction: tx, reciept: reciept },
+          });
+    }
+
+
   } catch (error) {
     console.log(error);
     return res
@@ -1003,6 +1007,3 @@ module.exports = {
   getUserByEmail,
   signIn
 };
-
-// "preferences": ["rock", "pop", "classical"],
-// "faveArtist": ["66d98b422581893979ed2ae5", "66d98c18abb0baa9d564204b"]
