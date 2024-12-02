@@ -44,10 +44,9 @@ app.use("/api/artistclaim", artistClaimRouter)
 app.use('/api/search', searchRoutes);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
+const mongoURI = process.env["MONGODB_URI"] || "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
 
-mongoose.connect(
-  "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
-);
+mongoose.connect(mongoURI);
 
 mongoose.connection.on("open", () => {
   app.listen(port, "0.0.0.0", () => {
