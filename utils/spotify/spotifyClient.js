@@ -4,7 +4,7 @@ require('dotenv').config();
 
 const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
-  clientSecret: "cd2d24b155a943adb6b8b75ab6553fe8",
+  clientSecret: process.env["SPOTIFY_CLIENT_SECRET"].trim() || "cd2d24b155a943adb6b8b75ab6553fe8",
 });
 
 // Automatically handle token refresh
