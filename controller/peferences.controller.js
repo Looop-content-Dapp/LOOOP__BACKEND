@@ -1,4 +1,4 @@
-import { Preferences } from "../models/Preferences";
+import { Preferences } from "../models/preferences.model.js";
 
 export const getAllPreferences = async (req, res) => {
   try {

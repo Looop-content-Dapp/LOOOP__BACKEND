@@ -14,7 +14,7 @@ import {
   toggleEventAttendance,
   getUpcomingEvents,
   getActiveAnnouncements
-} from "../controller/post.controller";
+} from "../controller/post.controller.js";
 
 const postRouter = Router();
 

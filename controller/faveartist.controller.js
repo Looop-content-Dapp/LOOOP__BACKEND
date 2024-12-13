@@ -1,5 +1,5 @@
-import { FaveArtist } from "../models/faveArtist";
-// import { Preferences } from "../models/Preferences";
+import { FaveArtist } from "../models/faveartist.model.js";
+
 
 export const getAllFaveArtist = async (req, res) => {
   try {

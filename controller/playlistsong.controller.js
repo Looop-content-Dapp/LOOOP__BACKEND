@@ -1,7 +1,7 @@
 // import { Track } from "../models/track.model";
-import { PlayListName } from "../models/playlistnames.model";
-import { PlayListSongs } from "../models/playlistsongs.model";
-import { transformTrackData } from "../utils/helpers/transformData";
+import { PlayListName } from "../models/playlistnames.model.js";
+import { PlayListSongs } from "../models/playlistsongs.model.js";
+import { transformTrackData } from "../utils/helpers/transformData.js";
 
 // Helper function to generate a simple color-based cover
 const generateCoverImage = () => {
@@ -215,7 +215,7 @@ export const createPlaylist = async (req, res) => {
   }
 };
 
-// Add song(s) to playlist
+// Add song(s) to playlist.js
 export const addSongToPlaylist = async (req, res) => {
   try {
     const { tracks, playlistId, userId } = req.body;

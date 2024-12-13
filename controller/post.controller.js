@@ -1,11 +1,10 @@
 // controllers/post.controller.js
 
-import bcrypt from "bcryptjs";
-import { Post } from "../models/post.model";
-import { Artist } from "../models/artist.model";
-import { Comment } from "../models/comment.model";
-import { Like } from "../models/likes.model";
-import { Community } from "../models/community.model";
+import { Post } from "../models/post.model.js";
+import { Artist } from "../models/artist.model.js";
+import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/likes.model.js";
+import { Community } from "../models/community.model.js";
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {

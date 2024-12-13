@@ -18,8 +18,8 @@ import {
   getUserByEmail,
   signIn,
   checkIfUserNameExist,
-} from "../controller/user.controller";
-import { isUser } from "../middlewares/isvaliduser.middleware";
+} from "../controller/user.controller.js";
+import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
 const userRouter = Router();
 

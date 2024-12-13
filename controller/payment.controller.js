@@ -1,4 +1,4 @@
-import { initializePaystackTransaction } from "./paystack.controller";
+import { initializePaystackTransaction } from "./paystack.controller.js";
 
 
 // PayStack (PSTK), FlutterWave(FLTW).

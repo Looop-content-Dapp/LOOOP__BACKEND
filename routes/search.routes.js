@@ -5,7 +5,7 @@ import {
   clearRecentSearches,
   getTrendingSearches,
   searchByCategory
-} from "../controller/search.controller";
+} from "../controller/search.controller.js";
 
 const searchRoutes = Router();
 

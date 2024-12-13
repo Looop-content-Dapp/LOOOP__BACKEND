@@ -1,19 +1,17 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import looopAbi from "../Abis/looopAbi.json" assert { type: 'json' };
 import { config } from "dotenv";
 import { Account, RpcProvider, Contract, transaction } from "starknet";
-import { User } from "../models/user.model";
-import { Preferences } from "../models/Preferences";
-import { FaveArtist } from "../models/faveArtist";
-import { Genre } from "../models/genre.model";
-import { Artist } from "../models/artist.model";
-import { Subscriber } from "../models/subcriber.model";
-import { looopAbi } from "../Abis/looopAbi.json";
-import { Follow } from "../models/followers.model";
-import { Friends } from "../models/friends.model";
-import { matchUser } from "../utils/helpers/searchquery";
-import { LastPlayed } from "../models/lastplayed.model";
-import { generateUsername } from "../utils/helpers/generateUsername";
+import { User } from "../models/user.model.js";
+import { Preferences } from "../models/preferences.model.js";
+import { FaveArtist } from "../models/faveartist.model.js";
+import { Artist } from "../models/artist.model.js";
+import { Subscriber } from "../models/subcriber.model.js";
+import { Follow } from "../models/followers.model.js";
+import { Friends } from "../models/friends.model.js";
+import { matchUser } from "../utils/helpers/searchquery.js";
+import { LastPlayed } from "../models/lastplayed.model.js";
 
 // Loads .env
 config();

@@ -1,7 +1,8 @@
-import { Release } from "../models/releases.model";
-import { Track } from "../models/track.model";
-import { Song } from "../models/song.model";
-import { mongoose } from "mongoose";
+
+import moongoose from "mongoose";
+import { Release } from "../models/releases.model.js";
+import { Track } from "../models/track.model.js";
+import { Song } from "../models/song.model.js";
 
 export const getArtistAnalytics = async (req, res) => {
   try {

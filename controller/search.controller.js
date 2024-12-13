@@ -1,10 +1,8 @@
-import { Track } from "../models/track.model";
-// import { Song } from "../models/song.model";
-import { Artist } from "../models/artist.model";
-import { Release } from "../models/releases.model";
-import { PlayListName } from "../models/playlistnames.model";
-// import { PlayListSongs } from "../models/playlistsongs.model";
-import { RecentSearch } from "../models/recentSearch.model";
+import { Track } from "../models/track.model.js";
+import { Artist } from "../models/artist.model.js";
+import { Release } from "../models/releases.model.js";
+import { PlayListName } from "../models/playlistnames.model.js";
+import { RecentSearch } from "../models/recentSearch.model.js";
 
 export const searchAll = async (req, res) => {
   try {

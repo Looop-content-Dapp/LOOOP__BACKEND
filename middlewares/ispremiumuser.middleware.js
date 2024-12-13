@@ -1,4 +1,4 @@
-import { User } from "../models/user.model";
+import { User } from "../models/user.model.js";
 
 export async function isPremiumUser(req, res, next) {
   const { userId } = req.body;

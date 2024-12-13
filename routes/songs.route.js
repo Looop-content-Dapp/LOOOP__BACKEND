@@ -29,7 +29,7 @@ import {
     getLocationBasedTracks,
     getWorldwideTopSongs,
 
-} from "../controller/song.controller";
+} from "../controller/song.controller.js";
 
 const songRouter = Router();
 

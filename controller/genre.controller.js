@@ -1,6 +1,6 @@
-import { Genre } from "../models/genre.model";
-import { Preferences } from "../models/Preferences";
-import { matchUser } from "../utils/helpers/searchquery";
+import { Genre } from "../models/genre.model.js";
+import { Preferences } from "../models/preferences.model.js";
+import { matchUser } from "../utils/helpers/searchquery.js";
 
 export const getGenres = async (req, res) => {
   try {

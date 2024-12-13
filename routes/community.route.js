@@ -2,7 +2,7 @@ import { Router } from "express";
 import {
   getAllCommunity, getCommunity, joinCommunity, createCommunity, searchCommunity,
   deleteCommunity, getArtistCommunitiesByGenre, getTrendingArtistsByGenre
-} from "../controller/community.controller";
+} from "../controller/community.controller.js";
 
 const communityRouter = Router();
 

@@ -1,6 +1,6 @@
-import { Post } from "../models/post.model";
-import { Community } from "../models/community.model";
-import { Like } from "../models/likes.model";
+import { Post } from "../models/post.model.js";
+import { Community } from "../models/community.model.js";
+import { Like } from "../models/likes.model.js";
 
 export const getUserFeed = async (req, res) => {
   try {

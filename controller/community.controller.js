@@ -1,8 +1,8 @@
 import { Types } from "mongoose";
-import { Artist } from "../models/artist.model";
-import { Community } from "../models/community.model";
-import { CommunityMember } from "../models/communitymembers.mode";
-import { Preferences } from "../models/Preferences";
+import { Artist } from "../models/artist.model.js";
+import { Community } from "../models/community.model.js";
+import { CommunityMember } from "../models/communitymembers.model.js";
+import { Preferences } from "../models/preferences.model.js";
 
 export const getAllCommunity = async (req, res) => {
   try {

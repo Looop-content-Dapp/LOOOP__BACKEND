@@ -3,17 +3,17 @@ import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
 
-import userRouter from "./routes/user.route";
-import artistRouter from "./routes/artist.route";
-import artistClaimRouter from "./routes/artistClaim.route";
-import preferenceRouter from "./routes/preferences.route";
-import faveArtistRouter from "./routes/faveartist.mode";
-import songRouter from "./routes/songs.route";
-import communityRouter from "./routes/community.route";
-import genreRoute from "./routes/genres.route";
-import playlistRouter from "./routes/playlist.route";
-import postRouter from "./routes/post.route";
-import searchRoutes from "./routes/search.routes";
+import userRouter from "./routes/user.route.js";
+import artistRouter from "./routes/artist.route.js";
+import artistClaimRouter from "./routes/artistClaim.route.js";
+import preferenceRouter from "./routes/preferences.route.js";
+import faveArtistRouter from "./routes/faveArtist.route.js";
+import songRouter from "./routes/songs.route.js";
+import communityRouter from "./routes/community.route.js";
+import genreRoute from "./routes/genres.route.js";
+import playlistRouter from "./routes/playlist.route.js";
+import postRouter from "./routes/post.route.js";
+import searchRoutes from "./routes/search.routes.js";
 
 import { config } from "dotenv";
 config(); //Loads .env

@@ -1,6 +1,6 @@
 
 import { Router } from 'express';
-import { paystackWebhookHandler, verifyPaysatckTransaction } from '../controller/paystack.controller';
+import { paystackWebhookHandler, verifyPaysatckTransaction } from '../controller/paystack.controller.js';
 
 const paymentRouter = Router();
 

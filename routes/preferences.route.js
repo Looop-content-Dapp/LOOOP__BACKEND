@@ -3,7 +3,7 @@ import {
   getAllPreferences,
   getPreference,
   getUserPeferences,
-} from "../controller/peferences.controller";
+} from "../controller/peferences.controller.js";
 
 const preferenceRouter = Router();
 

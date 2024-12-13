@@ -1,13 +1,10 @@
-// import { Song } from "../models/song.model";
-// import { Release } from "../models/releases.model";
-import { Track } from "../models/track.model";
-// import { Genre } from "../models/genre.model";
-// import { Artist } from "../models/artist.model";
-import { Follow } from "../models/followers.model";
-import { LastPlayed } from "../models/lastplayed.model";
-import { LikeTracks } from "../models/liketracks.model";
-import { Playlist } from "../models/playlistnames.model";
+
 import mongoose from "mongoose";
+import { Track } from "../models/track.model.js";
+import { Follow } from "../models/followers.model.js";
+import { LastPlayed } from "../models/lastplayed.model.js";
+import { LikeTracks } from "../models/liketracks.model.js";
+import { Playlist } from "../models/playlistnames.model.js";
 
 // Get overall dashboard data
 export const getDashboardOverview = async (req, res) => {

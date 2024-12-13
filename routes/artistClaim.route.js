@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { submitClaim, getClaimStatus, getUserClaims, updateClaimStatus } from "../controller/artistClaim.controller";
+import { submitClaim, getClaimStatus, getUserClaims, updateClaimStatus } from "../controller/artistClaim.controller.js";
 
 const artistClaimRouter = Router();
 

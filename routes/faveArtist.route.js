@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getAllFaveArtist, getFaveArtist, getAllFaveArtistForUser, } from "../controller/faveartist.controller";
+import { getAllFaveArtist, getFaveArtist, getAllFaveArtistForUser, } from "../controller/faveArtist.controller.js";
 
 const faveArtistRouter = Router();
 

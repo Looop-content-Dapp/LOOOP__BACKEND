@@ -1,6 +1,6 @@
-import { Artist } from "../models/artist.model";
-import { User } from "../models/user.model";
-import { ArtistClaim } from "../models/artistClaim.model";
+import { Artist } from "../models/artist.model.js";
+import { User } from "../models/user.model.js";
+import { ArtistClaim } from "../models/artistClaim.model.js";
 
 // Submit a claim request
 export const submitClaim = async (req, res) => {

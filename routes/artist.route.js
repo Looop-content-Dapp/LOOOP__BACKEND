@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
   getAllArtists, getArtist, createArtist, getArtistSubcribers, followArtist, getFollow, getArtistPost,
-} from "../controller/artist.controller";
+} from "../controller/artist.controller.js";
 
 // import { getArtistBasedOnUserGenreExcludingWhoTheyFollow } from "../controller/song.controller";
 const artistRouter = Router();

@@ -9,9 +9,9 @@ import {
   updatePlaylist,
   deletePlayList,
   togglePinPlaylist,
-} from "../controller/playlistsong.controller";
+} from "../controller/playlistsong.controller.js";
 
-import { isUser } from "../middlewares/isUser.middleware.js";
+import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
 const playlistRouter = Router();
 

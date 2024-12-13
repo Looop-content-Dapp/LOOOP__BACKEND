@@ -1,9 +1,9 @@
-import { genSalt, hash } from "bcryptjs";
-import { Artist } from "../models/artist.model";
-import { Social } from "../models/socials.model";
-import { Subscriber } from "../models/subcriber.model";
-import { Follow } from "../models/followers.model";
-import { Post } from "../models/post.model";
+import * as bcrypt from "bcryptjs";
+import { Artist } from "../models/artist.model.js";
+import { Social } from "../models/socials.model.js";
+import { Subscriber } from "../models/subcriber.model.js";
+import { Follow } from "../models/followers.model.js";
+import { Post } from "../models/post.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -82,8 +82,8 @@ export const createArtist = async (req, res) => {
         .json({ message: "Password and Email is required" });
     }
 
-    const salt = await genSalt(10);
-    const hashedPassword = await hash(password, salt);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     const artist = new Artist({
       artistname,

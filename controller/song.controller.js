@@ -1,16 +1,16 @@
 import mongoose from "mongoose";
-import { Song } from "../models/song.model";
-import { Release } from "../models/releases.model";
-import { Track } from "../models/track.model";
-import { Genre } from "../models/genre.model";
-import { Artist } from "../models/artist.model";
-import { Follow } from "../models/followers.model";
-import { LastPlayed } from "../models/lastplayed.model";
-import { FT } from "../models/ft.model";
-import { SavedRelease } from "../models/savedalbums.model";
-import { LikeTracks } from "../models/liketracks.model";
-import { matchUser } from "../utils/helpers/searchquery";
-import { transformTrackData } from "../utils/helpers/transformData";
+import { Song } from "../models/song.model.js";
+import { Release } from "../models/releases.model.js";
+import { Track } from "../models/track.model.js";
+// import { Genre } from "../models/genre.model.js";
+import { Artist } from "../models/artist.model.js";
+import { Follow } from "../models/followers.model.js";
+import { LastPlayed } from "../models/lastplayed.model.js";
+import { FT } from "../models/ft.model.js";
+import { SavedRelease } from "../models/savedalbums.model.js";
+// import { LikeTracks } from "../models/liketracks.model.js";
+// import { matchUser } from "../utils/helpers/searchquery.js";
+import { transformTrackData } from "../utils/helpers/transformData.js";
 
 // Common aggregation pipelines
 const releaseDetailsPipeline = [
