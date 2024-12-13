@@ -172,9 +172,31 @@ const getUser = async (req, res) => {
   }
 };
 
+const checkIfUserNameExist = async(req, res) => {
+    try{
+     const { username} = req.body
+
+     if(username == ""){
+        console.log("username is needed");
+        return "username is needed"
+     }
+
+     const existingUser = await User.findOne({ username })
+     return res.status(200).json({
+        message: "successfully checked if username is",
+        data: { existingUser }
+      });
+    }catch(error){
+       console.log("Error check if username exist", error.message)
+       return res
+       .status(500)
+       .json({ message: "Error checking username", error: error.message });
+    }
+}
+
 const createUser = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, username } = req.body;
 
     const provider = new RpcProvider({ nodeUrl: process.env.PROVIDER });
 
@@ -190,39 +212,39 @@ const createUser = async (req, res) => {
       account
     );
 
-    if (password == "" || email == "") {
+    if (password == "" || email == "" || username == "") {
       return res
         .status(401)
-        .json({ message: "Password and Email is required" });
+        .json({ message: "Password, Email and username is required" });
     }
 
-    const username = await generateUsername(email);
+    if(username){
+        let tx = await looopContract.register_account(
+            process.env.NFT_CONTRACT_ADDRESS,
+            process.env.NFT_TOKEN_ID,
+            process.env.IMPLEMENTATION_HASH,
+            username,
+            password
+          );
 
-    let tx = await looopContract.register_account(
-      process.env.NFT_CONTRACT_ADDRESS,
-      process.env.NFT_TOKEN_ID,
-      process.env.IMPLEMENTATION_HASH,
-      username,
-      password
-    );
+          let reciept = await provider.waitForTransaction(tx.transaction_hash);
 
-    let reciept = await provider.waitForTransaction(tx.transaction_hash);
+          const salt = await bcrypt.genSalt(10);
+          const hashedPassword = await bcrypt.hash(password, salt);
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+          const user = new User({
+            email,
+            username,
+            password: hashedPassword,
+          });
 
-    const user = new User({
-      email,
-      username,
-      password: hashedPassword,
-    });
+          await user.save();
 
-    await user.save();
-
-    return res.status(200).json({
-      message: "successfully created a user",
-      data: { user: user, transaction: tx, reciept: reciept },
-    });
+          return res.status(200).json({
+            message: "successfully created a user",
+            data: { user: user, transaction: tx, reciept: reciept },
+          });
+    }
   } catch (error) {
     console.log(error);
     return res
@@ -1002,8 +1024,6 @@ export {
   addFriend,
   getUserFriends,
   getUserByEmail,
-  signIn
+  signIn,
+  checkIfUserNameExist
 };
-
-// "preferences": ["rock", "pop", "classical"],
-// "faveArtist": ["66d98b422581893979ed2ae5", "66d98c18abb0baa9d564204b"]

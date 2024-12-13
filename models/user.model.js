@@ -9,6 +9,11 @@ const userSchema = new Schema(
     bio: { type: String, default: "" },
     isPremium: { type: Boolean, default: false },
     tel: { type: Number },
+    role: {
+      type: String,
+      enum: ['LISTENER', 'ARTIST', 'ADMIN'],
+      default: 'LISTENER'
+    }
   },
   { timestamps: true }
 );

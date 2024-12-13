@@ -17,6 +17,7 @@ import {
   getUserFriends,
   getUserByEmail,
   signIn,
+  checkIfUserNameExist,
 } from "../controller/user.controller";
 import { isUser } from "../middlewares/isvaliduser.middleware";
 
@@ -46,5 +47,6 @@ userRouter.put("/changepremiumstate/:userId", subcribeToPremium);
 userRouter.delete("/:userId", deleteUser);
 userRouter.get("/email/:email", getUserByEmail);
 userRouter.post("/signin", signIn);
+userRouter.post("/check", checkIfUserNameExist)
 
 export default userRouter;
