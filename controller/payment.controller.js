@@ -1,7 +1,6 @@
 import { initializePaystackTransaction } from "./paystack.controller";
 
 
-
 // PayStack (PSTK), FlutterWave(FLTW).
 const PAYMENT_PROVIDERS_TAG = ["PSTK", "FLTW"]
 
@@ -9,7 +8,6 @@ const PAYMENT_PROVIDERS_TAG = ["PSTK", "FLTW"]
 export async function paymentController(req, res) {
     const { email, amount, provider } = req.body;
 
-    // Validate input
     if (!email || !amount) {
         return res.status(400).json({ message: 'Email and amount are required' });
     }
@@ -30,9 +28,4 @@ export async function paymentController(req, res) {
         default:
             return res.status(400).json({ message: "Payment Provider not specified" });
     }
-    // Respond with the transaction details
-    // res.status(200).json({
-    //     message: 'Transaction initialized successfully',
-    //     data: transaction,
-    // });
 }

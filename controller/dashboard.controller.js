@@ -1,16 +1,16 @@
-const Song = require("../models/song.model");
-const Release = require("../models/releases.model");
-const Track = require("../models/track.model");
-const Genre = require("../models/genre.model");
-const Artist = require("../models/artist.model");
-const Follow = require("../models/followers.model");
-const LastPlayed = require("../models/lastplayed.model");
-const LikeTracks = require("../models/liketracks.model");
-const Playlist = require("../models/playlistnames.model");
-const { default: mongoose } = require("mongoose");
+// import { Song } from "../models/song.model";
+// import { Release } from "../models/releases.model";
+import { Track } from "../models/track.model";
+// import { Genre } from "../models/genre.model";
+// import { Artist } from "../models/artist.model";
+import { Follow } from "../models/followers.model";
+import { LastPlayed } from "../models/lastplayed.model";
+import { LikeTracks } from "../models/liketracks.model";
+import { Playlist } from "../models/playlistnames.model";
+import mongoose from "mongoose";
 
 // Get overall dashboard data
-const getDashboardOverview = async (req, res) => {
+export const getDashboardOverview = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -137,7 +137,7 @@ const getDashboardOverview = async (req, res) => {
 };
 
 // Get personalized recommendations
-const getDashboardRecommendations = async (req, res) => {
+export const getDashboardRecommendations = async (req, res) => {
   try {
     const { userId } = req.params;
     const { limit = 20 } = req.query;
@@ -181,12 +181,12 @@ const getDashboardRecommendations = async (req, res) => {
 
     // Get top genres and artists
     const topGenres = Object.entries(favoriteGenres)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([genre]) => genre);
 
     const topArtistIds = Object.entries(favoriteArtists)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 5)
       .map(([artistId]) => new mongoose.Types.ObjectId(artistId));
 
@@ -311,7 +311,7 @@ const getDashboardRecommendations = async (req, res) => {
 };
 
 // Get weekly discovery playlist
-const getWeeklyDiscovery = async (req, res) => {
+export const getWeeklyDiscovery = async (req, res) => {
   try {
     const { userId } = req.params;
     const { limit = 30 } = req.query;
@@ -420,7 +420,7 @@ const getWeeklyDiscovery = async (req, res) => {
 };
 
 // Get recent activity feed
-const getActivityFeed = async (req, res) => {
+export const getActivityFeed = async (req, res) => {
   try {
     const { userId } = req.params;
     const { limit = 20, page = 1 } = req.query;
@@ -543,204 +543,320 @@ const getActivityFeed = async (req, res) => {
 
   } catch (error) {
     return res.status(500).json({
-        message: "Error fetching activity feed",
-        error: error.message
-      });
+      message: "Error fetching activity feed",
+      error: error.message
+    });
+  }
+};
+
+// Get user's listening habits
+export const getListeningHabits = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { timeframe = '30d' } = req.query;
+
+    // Calculate date range
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (timeframe) {
+      case '7d': startDate.setDate(endDate.getDate() - 7); break;
+      case '30d': startDate.setDate(endDate.getDate() - 30); break;
+      case '90d': startDate.setDate(endDate.getDate() - 90); break;
+      case '180d': startDate.setDate(endDate.getDate() - 180); break;
     }
-  };
 
-  // Get user's listening habits
-  const getListeningHabits = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { timeframe = '30d' } = req.query;
-
-      // Calculate date range
-      const endDate = new Date();
-      const startDate = new Date();
-      switch (timeframe) {
-        case '7d': startDate.setDate(endDate.getDate() - 7); break;
-        case '30d': startDate.setDate(endDate.getDate() - 30); break;
-        case '90d': startDate.setDate(endDate.getDate() - 90); break;
-        case '180d': startDate.setDate(endDate.getDate() - 180); break;
+    const listeningHabits = await LastPlayed.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          timestamp: { $gte: startDate, $lte: endDate }
+        }
+      },
+      {
+        $facet: {
+          // Time of day analysis
+          timeOfDay: [
+            {
+              $group: {
+                _id: { $hour: "$timestamp" },
+                count: { $sum: 1 }
+              }
+            },
+            { $sort: { _id: 1 } }
+          ],
+          // Day of week analysis
+          dayOfWeek: [
+            {
+              $group: {
+                _id: { $dayOfWeek: "$timestamp" },
+                count: { $sum: 1 }
+              }
+            },
+            { $sort: { _id: 1 } }
+          ],
+          // Session analysis (gaps > 30 min = new session)
+          sessions: [
+            { $sort: { timestamp: 1 } },
+            {
+              $group: {
+                _id: {
+                  $subtract: [
+                    { $subtract: ["$timestamp", new Date("1970-01-01")] },
+                    {
+                      $mod: [
+                        { $subtract: ["$timestamp", new Date("1970-01-01")] },
+                        1800000 // 30 minutes in milliseconds
+                      ]
+                    }
+                  ]
+                },
+                duration: {
+                  $sum: "$duration"
+                },
+                tracks: { $sum: 1 }
+              }
+            },
+            {
+              $group: {
+                _id: null,
+                averageSessionDuration: { $avg: "$duration" },
+                averageTracksPerSession: { $avg: "$tracks" },
+                totalSessions: { $sum: 1 }
+              }
+            }
+          ],
+          // Device usage
+          devices: [
+            {
+              $group: {
+                _id: "$deviceType",
+                count: { $sum: 1 },
+                duration: { $sum: "$duration" }
+              }
+            }
+          ],
+          // Audio quality preferences
+          qualityPreferences: [
+            {
+              $group: {
+                _id: "$quality",
+                count: { $sum: 1 }
+              }
+            }
+          ]
+        }
       }
+    ]);
 
-      const listeningHabits = await LastPlayed.aggregate([
-        {
-          $match: {
-            userId: new mongoose.Types.ObjectId(userId),
-            timestamp: { $gte: startDate, $lte: endDate }
-          }
-        },
-        {
-          $facet: {
-            // Time of day analysis
-            timeOfDay: [
-              {
-                $group: {
-                  _id: { $hour: "$timestamp" },
-                  count: { $sum: 1 }
-                }
-              },
-              { $sort: { _id: 1 } }
-            ],
-            // Day of week analysis
-            dayOfWeek: [
-              {
-                $group: {
-                  _id: { $dayOfWeek: "$timestamp" },
-                  count: { $sum: 1 }
-                }
-              },
-              { $sort: { _id: 1 } }
-            ],
-            // Session analysis (gaps > 30 min = new session)
-            sessions: [
-              { $sort: { timestamp: 1 } },
-              {
-                $group: {
-                  _id: {
-                    $subtract: [
-                      { $subtract: ["$timestamp", new Date("1970-01-01")] },
-                      {
-                        $mod: [
-                          { $subtract: ["$timestamp", new Date("1970-01-01")] },
-                          1800000 // 30 minutes in milliseconds
-                        ]
-                      }
-                    ]
-                  },
-                  duration: {
-                    $sum: "$duration"
-                  },
-                  tracks: { $sum: 1 }
-                }
-              },
-              {
-                $group: {
-                  _id: null,
-                  averageSessionDuration: { $avg: "$duration" },
-                  averageTracksPerSession: { $avg: "$tracks" },
-                  totalSessions: { $sum: 1 }
-                }
-              }
-            ],
-            // Device usage
-            devices: [
-              {
-                $group: {
-                  _id: "$deviceType",
-                  count: { $sum: 1 },
-                  duration: { $sum: "$duration" }
-                }
-              }
-            ],
-            // Audio quality preferences
-            qualityPreferences: [
-              {
-                $group: {
-                  _id: "$quality",
-                  count: { $sum: 1 }
-                }
-              }
-            ]
-          }
-        }
-      ]);
+    return res.status(200).json({
+      message: "Successfully retrieved listening habits",
+      data: {
+        timeframe,
+        habits: listeningHabits[0]
+      }
+    });
 
-      return res.status(200).json({
-        message: "Successfully retrieved listening habits",
-        data: {
-          timeframe,
-          habits: listeningHabits[0]
-        }
-      });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching listening habits",
+      error: error.message
+    });
+  }
+};
 
-    } catch (error) {
-      return res.status(500).json({
-        message: "Error fetching listening habits",
-        error: error.message
-      });
+// Get personalized charts
+export const getPersonalizedCharts = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { timeframe = '7d' } = req.query;
+
+    const endDate = new Date();
+    const startDate = new Date();
+    switch (timeframe) {
+      case '7d': startDate.setDate(endDate.getDate() - 7); break;
+      case '30d': startDate.setDate(endDate.getDate() - 30); break;
+      case '90d': startDate.setDate(endDate.getDate() - 90); break;
     }
-  };
 
-  // Get personalized charts
-  const getPersonalizedCharts = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { timeframe = '7d' } = req.query;
-
-      const endDate = new Date();
-      const startDate = new Date();
-      switch (timeframe) {
-        case '7d': startDate.setDate(endDate.getDate() - 7); break;
-        case '30d': startDate.setDate(endDate.getDate() - 30); break;
-        case '90d': startDate.setDate(endDate.getDate() - 90); break;
-      }
-
-      // Get user's top tracks
-      const topTracks = await LastPlayed.aggregate([
-        {
-          $match: {
-            userId: new mongoose.Types.ObjectId(userId),
-            timestamp: { $gte: startDate }
-          }
-        },
-        {
-          $group: {
-            _id: "$trackId",
-            playCount: { $sum: 1 },
-            lastPlayed: { $max: "$timestamp" },
-            avgCompletion: { $avg: "$completionRate" }
-          }
-        },
-        {
-          $lookup: {
-            from: "tracks",
-            localField: "_id",
-            foreignField: "_id",
-            as: "track"
-          }
-        },
-        {
-          $unwind: "$track"
-        },
-        {
-          $lookup: {
-            from: "releases",
-            localField: "track.releaseId",
-            foreignField: "_id",
-            as: "release"
-          }
-        },
-        {
-          $unwind: "$release"
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "track.artistId",
-            foreignField: "_id",
-            as: "artist"
-          }
-        },
-        {
-          $unwind: "$artist"
-        },
-        {
-          $sort: { playCount: -1 }
-        },
-        {
-          $limit: 50
+    // Get user's top tracks
+    const topTracks = await LastPlayed.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          timestamp: { $gte: startDate }
         }
-      ]);
+      },
+      {
+        $group: {
+          _id: "$trackId",
+          playCount: { $sum: 1 },
+          lastPlayed: { $max: "$timestamp" },
+          avgCompletion: { $avg: "$completionRate" }
+        }
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "_id",
+          foreignField: "_id",
+          as: "track"
+        }
+      },
+      {
+        $unwind: "$track"
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "track.releaseId",
+          foreignField: "_id",
+          as: "release"
+        }
+      },
+      {
+        $unwind: "$release"
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "track.artistId",
+          foreignField: "_id",
+          as: "artist"
+        }
+      },
+      {
+        $unwind: "$artist"
+      },
+      {
+        $sort: { playCount: -1 }
+      },
+      {
+        $limit: 50
+      }
+    ]);
 
-      // Get user's top artists
-      const topArtists = await LastPlayed.aggregate([
+    // Get user's top artists
+    const topArtists = await LastPlayed.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          timestamp: { $gte: startDate }
+        }
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track"
+        }
+      },
+      {
+        $unwind: "$track"
+      },
+      {
+        $group: {
+          _id: "$track.artistId",
+          playCount: { $sum: 1 },
+          tracks: { $addToSet: "$track._id" }
+        }
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "_id",
+          foreignField: "_id",
+          as: "artist"
+        }
+      },
+      {
+        $unwind: "$artist"
+      },
+      {
+        $project: {
+          _id: 1,
+          name: "$artist.name",
+          image: "$artist.profileImage",
+          playCount: 1,
+          uniqueTracks: { $size: "$tracks" }
+        }
+      },
+      {
+        $sort: { playCount: -1 }
+      },
+      {
+        $limit: 20
+      }
+    ]);
+
+    // Get genre distribution
+    const genreDistribution = await LastPlayed.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          timestamp: { $gte: startDate }
+        }
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "trackId",
+          foreignField: "_id",
+          as: "track"
+        }
+      },
+      {
+        $unwind: "$track"
+      },
+      {
+        $unwind: "$track.metadata.genre"
+      },
+      {
+        $group: {
+          _id: "$track.metadata.genre",
+          count: { $sum: 1 },
+          duration: { $sum: "$duration" }
+        }
+      },
+      {
+        $sort: { count: -1 }
+      }
+    ]);
+
+    return res.status(200).json({
+      message: "Successfully retrieved personalized charts",
+      data: {
+        timeframe,
+        charts: {
+          topTracks,
+          topArtists,
+          genreDistribution
+        }
+      }
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching personalized charts",
+      error: error.message
+    });
+  }
+};
+
+// Get mood-based recommendations
+export const getMoodBasedRecommendations = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { mood, limit = 20 } = req.query;
+
+    // If mood is not provided, analyze user's recent listening to determine current mood
+    let targetMood = mood;
+    if (!targetMood) {
+      const recentListening = await LastPlayed.aggregate([
         {
           $match: {
             userId: new mongoose.Types.ObjectId(userId),
-            timestamp: { $gte: startDate }
+            timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
           }
         },
         {
@@ -756,219 +872,93 @@ const getActivityFeed = async (req, res) => {
         },
         {
           $group: {
-            _id: "$track.artistId",
-            playCount: { $sum: 1 },
-            tracks: { $addToSet: "$track._id" }
-          }
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "_id",
-            foreignField: "_id",
-            as: "artist"
-          }
-        },
-        {
-          $unwind: "$artist"
-        },
-        {
-          $project: {
-            _id: 1,
-            name: "$artist.name",
-            image: "$artist.profileImage",
-            playCount: 1,
-            uniqueTracks: { $size: "$tracks" }
-          }
-        },
-        {
-          $sort: { playCount: -1 }
-        },
-        {
-          $limit: 20
-        }
-      ]);
-
-      // Get genre distribution
-      const genreDistribution = await LastPlayed.aggregate([
-        {
-          $match: {
-            userId: new mongoose.Types.ObjectId(userId),
-            timestamp: { $gte: startDate }
-          }
-        },
-        {
-          $lookup: {
-            from: "tracks",
-            localField: "trackId",
-            foreignField: "_id",
-            as: "track"
-          }
-        },
-        {
-          $unwind: "$track"
-        },
-        {
-          $unwind: "$track.metadata.genre"
-        },
-        {
-          $group: {
-            _id: "$track.metadata.genre",
-            count: { $sum: 1 },
-            duration: { $sum: "$duration" }
+            _id: "$track.metadata.mood",
+            count: { $sum: 1 }
           }
         },
         {
           $sort: { count: -1 }
+        },
+        {
+          $limit: 1
         }
       ]);
 
-      return res.status(200).json({
-        message: "Successfully retrieved personalized charts",
-        data: {
-          timeframe,
-          charts: {
-            topTracks,
-            topArtists,
-            genreDistribution
-          }
-        }
-      });
-
-    } catch (error) {
-      return res.status(500).json({
-        message: "Error fetching personalized charts",
-        error: error.message
-      });
+      targetMood = recentListening[0]?._id || 'energetic';
     }
-  };
 
-  // Get mood-based recommendations
-  const getMoodBasedRecommendations = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { mood, limit = 20 } = req.query;
-
-      // If mood is not provided, analyze user's recent listening to determine current mood
-      let targetMood = mood;
-      if (!targetMood) {
-        const recentListening = await LastPlayed.aggregate([
-          {
-            $match: {
+    // Get recommendations based on mood
+    const recommendations = await Track.aggregate([
+      {
+        $match: {
+          "metadata.mood": targetMood,
+          // Exclude recently played tracks
+          _id: {
+            $nin: await LastPlayed.distinct('trackId', {
               userId: new mongoose.Types.ObjectId(userId),
-              timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) }
-            }
-          },
-          {
-            $lookup: {
-              from: "tracks",
-              localField: "trackId",
-              foreignField: "_id",
-              as: "track"
-            }
-          },
-          {
-            $unwind: "$track"
-          },
-          {
-            $group: {
-              _id: "$track.metadata.mood",
-              count: { $sum: 1 }
-            }
-          },
-          {
-            $sort: { count: -1 }
-          },
-          {
-            $limit: 1
+              timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
+            })
           }
-        ]);
-
-        targetMood = recentListening[0]?._id || 'energetic';
+        }
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release"
+        }
+      },
+      {
+        $unwind: "$release"
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "artistId",
+          foreignField: "_id",
+          as: "artist"
+        }
+      },
+      {
+        $unwind: "$artist"
+      },
+      {
+        $sample: { size: parseInt(limit) }
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          duration: 1,
+          artist: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            image: "$artist.profileImage"
+          },
+          release: {
+            _id: "$release._id",
+            title: "$release.title",
+            artwork: "$release.artwork.cover_image"
+          },
+          mood: "$metadata.mood"
+        }
       }
+    ]);
 
-      // Get recommendations based on mood
-      const recommendations = await Track.aggregate([
-        {
-          $match: {
-            "metadata.mood": targetMood,
-            // Exclude recently played tracks
-            _id: {
-              $nin: await LastPlayed.distinct('trackId', {
-                userId: new mongoose.Types.ObjectId(userId),
-                timestamp: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }
-              })
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: "releases",
-            localField: "releaseId",
-            foreignField: "_id",
-            as: "release"
-          }
-        },
-        {
-          $unwind: "$release"
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "artistId",
-            foreignField: "_id",
-            as: "artist"
-          }
-        },
-        {
-          $unwind: "$artist"
-        },
-        {
-          $sample: { size: parseInt(limit) }
-        },
-        {
-          $project: {
-            _id: 1,
-            title: 1,
-            duration: 1,
-            artist: {
-              _id: "$artist._id",
-              name: "$artist.name",
-              image: "$artist.profileImage"
-            },
-            release: {
-              _id: "$release._id",
-              title: "$release.title",
-              artwork: "$release.artwork.cover_image"
-            },
-            mood: "$metadata.mood"
-          }
-        }
-      ]);
+    return res.status(200).json({
+      message: "Successfully retrieved mood-based recommendations",
+      data: {
+        mood: targetMood,
+        recommendations,
+        description: `Music to match your ${targetMood} mood`
+      }
+    });
 
-      return res.status(200).json({
-        message: "Successfully retrieved mood-based recommendations",
-        data: {
-          mood: targetMood,
-          recommendations,
-          description: `Music to match your ${targetMood} mood`
-        }
-      });
-
-    } catch (error) {
-      return res.status(500).json({
-        message: "Error fetching mood-based recommendations",
-        error: error.message
-      });
-    }
-  };
-
-  module.exports = {
-    getDashboardOverview,
-    getDashboardRecommendations,
-    getWeeklyDiscovery,
-    getActivityFeed,
-    getListeningHabits,
-    getPersonalizedCharts,
-    getMoodBasedRecommendations
-  };
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching mood-based recommendations",
+      error: error.message
+    });
+  }
+};

@@ -1,5 +1,5 @@
-const express = require("express");
-const {
+import { Router } from "express";
+import {
     getAllSongs,
     getSong,
     createRelease,
@@ -29,9 +29,9 @@ const {
     getLocationBasedTracks,
     getWorldwideTopSongs,
 
-} = require("../controller/song.controller");
+} from "../controller/song.controller";
 
-const songRouter = express.Router();
+const songRouter = Router();
 
 // Basic Song Operations
 songRouter.get("/", getAllSongs);
@@ -82,4 +82,4 @@ songRouter.get("/history/last-played/:userId", getLastPlayed);
 songRouter.get("/discover/location", getLocationBasedTracks);
 songRouter.get("/discover/worldwide", getWorldwideTopSongs);
 
-module.exports = songRouter;
+export default songRouter;

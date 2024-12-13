@@ -169,6 +169,4 @@ const TransactionsSchema = new Schema({
 //   next();
 // });
 
-const Transactions = model("transactions", TransactionsSchema);
-
-export default Transactions;
+export const Transactions = model("transactions", TransactionsSchema);

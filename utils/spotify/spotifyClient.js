@@ -1,6 +1,10 @@
-const SpotifyWebApi = require('spotify-web-api-node');
-const axios = require('axios');
-require('dotenv').config();
+
+import { config } from 'dotenv';
+import SpotifyWebApi from 'spotify-web-api-node';
+// import axios from 'axios';
+
+// Loads .env
+config()
 
 const spotifyApi = new SpotifyWebApi({
   clientId: process.env.SPOTIFY_CLIENT_ID,
@@ -85,7 +89,7 @@ const transformSpotifyAlbum = (spotifyAlbum, artistId) => ({
   }
 });
 
-module.exports = {
+export default {
   spotifyApi,
   getValidToken,
   transformSpotifyArtist,

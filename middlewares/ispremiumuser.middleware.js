@@ -1,6 +1,6 @@
-const User = require("../models/user.model");
+import { User } from "../models/user.model";
 
-async function isPremiumUser(req, res, next) {
+export async function isPremiumUser(req, res, next) {
   const { userId } = req.body;
 
   const isPremium = await User.findById(userId, "isPremium");
@@ -16,5 +16,3 @@ async function isPremiumUser(req, res, next) {
 
   next();
 }
-
-module.exports = isPremiumUser;

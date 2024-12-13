@@ -1,6 +1,6 @@
-const User = require('../models/user.model');
+import { User } from '../models/user.model';
 
-const validateUsername = async (req, res, next) => {
+export const validateUsername = async (req, res, next) => {
   try {
     const { username } = req.body;
 
@@ -23,5 +23,3 @@ const validateUsername = async (req, res, next) => {
     });
   }
 };
-
-module.exports = validateUsername;

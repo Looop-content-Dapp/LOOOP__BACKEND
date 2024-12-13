@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const friendModel = new mongoose.Schema(
+const friendModel = new Schema(
   {
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
     friendId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
@@ -18,9 +18,7 @@ const friendModel = new mongoose.Schema(
   }
 );
 
-const Friends = mongoose.model("friend", friendModel);
-
-module.exports = Friends;
+export const Friends = model("friend", friendModel);
 
 // get the following to get how many people the user is following: Get people i am following
 // count the following to get how many people are following the artist:

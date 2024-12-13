@@ -1,14 +1,13 @@
-const mongoose = require("mongoose");
+import { Schema, Types, model } from "mongoose";
 
-const playListSongSchema = new mongoose.Schema(
+const playListSongSchema = new Schema(
   {
-    trackId: { type: mongoose.Types.ObjectId, required: true, ref: "Track" },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    playlistId: { type: mongoose.Schema.Types.ObjectId, ref: "PlayListName" },
+    trackId: { type: Types.ObjectId, required: true, ref: "Track" },
+    userId: { type: Schema.Types.ObjectId, ref: "User" },
+    playlistId: { type: Schema.Types.ObjectId, ref: "PlayListName" },
   },
   { timestamps: true }
 );
 
-const PlayListSongs = mongoose.model("playListsongs", playListSongSchema);
+export const PlayListSongs = model("playListsongs", playListSongSchema);
 
-module.exports = PlayListSongs;

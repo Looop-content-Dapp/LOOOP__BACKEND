@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const GenreSchema = new mongoose.Schema(
+const GenreSchema = new Schema(
   {
     name: {
       type: String,
@@ -18,6 +18,4 @@ const GenreSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Genre = mongoose.model("genres", GenreSchema);
-
-module.exports = Genre;
+export const Genre = model("genres", GenreSchema);

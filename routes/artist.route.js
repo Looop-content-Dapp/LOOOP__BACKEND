@@ -1,31 +1,24 @@
-const express = require("express");
-const {
-  getAllArtists,
-  getArtist,
-  createArtist,
-  getArtistSubcribers,
-  followArtist,
-  getFollow,
-  getArtistPost,
-} = require("../controller/artist.controller");
-const {
-  getArtistBasedOnUserGenreExcludingWhoTheyFollow,
-} = require("../controller/song.controller");
-const artistrouter = express.Router();
+import { Router } from "express";
+import {
+  getAllArtists, getArtist, createArtist, getArtistSubcribers, followArtist, getFollow, getArtistPost,
+} from "../controller/artist.controller";
 
-artistrouter.get("/", getAllArtists);
-artistrouter.get("/:id", getArtist);
-artistrouter.get("/getartistsubcribers/:artistId", getArtistSubcribers);
-artistrouter.get("/follow/:id", getFollow);
-// artistrouter.get(
+// import { getArtistBasedOnUserGenreExcludingWhoTheyFollow } from "../controller/song.controller";
+const artistRouter = Router();
+
+artistRouter.get("/", getAllArtists);
+artistRouter.get("/:id", getArtist);
+artistRouter.get("/getartistsubcribers/:artistId", getArtistSubcribers);
+artistRouter.get("/follow/:id", getFollow);
+// artistRouter.get(
 //   "/usergenres/:userId",
 //   getArtistBasedOnUserGenreExcludingWhoTheyFollow
 // );
-artistrouter.get("/artistpost/:artistId", getArtistPost);
+artistRouter.get("/artistpost/:artistId", getArtistPost);
 
-artistrouter.post("/follow/:userId/:artistId", followArtist);
-artistrouter.post("/createartist", createArtist);
+artistRouter.post("/follow/:userId/:artistId", followArtist);
+artistRouter.post("/createartist", createArtist);
 
 // router.delete("/:id", deleteUsergetAllUsers);
 
-module.exports = artistrouter;
+export default artistRouter;

@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const faveArtistSchema = new mongoose.Schema(
+const faveArtistSchema = new Schema(
   {
     artistId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "Artist",
     },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "User",
     },
@@ -16,6 +16,4 @@ const faveArtistSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const FaveArtist = mongoose.model("faveArtists", faveArtistSchema);
-
-module.exports = FaveArtist;
+export const FaveArtist = model("faveArtists", faveArtistSchema);

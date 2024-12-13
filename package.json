@@ -7,14 +7,17 @@
     "import-spotify": "node scripts/importSpotifyData.js",
     "generate-streams": "node scripts/generateStreamHistory.js",
     "populate-db": "npm run import-spotify && npm run generate-streams",
+    "pnpm-populate-db": "pnpm run import-spotify && pnpm run generate-streams",
     "db:genres:clear": "node scripts/clearGenres.js",
     "db:genres:populate": "node scripts/populateSpotifyGenres.js",
-    "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate"
+    "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate",
+    "dev": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
+  "type": "module",
   "dependencies": {
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",

@@ -1,8 +1,8 @@
-const Post = require("../models/post.model");
-const Community = require("../models/community.model");
-const Like = require("../models/likes.model");
+import { Post } from "../models/post.model";
+import { Community } from "../models/community.model";
+import { Like } from "../models/likes.model";
 
-const getUserFeed = async (req, res) => {
+export const getUserFeed = async (req, res) => {
   try {
     const {
       page = 1,
@@ -216,7 +216,7 @@ const getUserFeed = async (req, res) => {
 };
 
 // Helper function to format numbers like 1.8k, 857, 5.2k
-const formatCount = (count) => {
+export const formatCount = (count) => {
   if (!count) return null;
 
   if (count >= 1000000) {
@@ -229,7 +229,7 @@ const formatCount = (count) => {
 };
 
 // Helper function to format time like 5h, 7h
-const formatTimeAgo = (date) => {
+export const formatTimeAgo = (date) => {
   const now = new Date();
   const hours = Math.floor((now - date) / (1000 * 60 * 60));
 
@@ -238,8 +238,4 @@ const formatTimeAgo = (date) => {
   }
   const days = Math.floor(hours / 24);
   return `${days}d`;
-};
-
-module.exports = {
-  getUserFeed
 };

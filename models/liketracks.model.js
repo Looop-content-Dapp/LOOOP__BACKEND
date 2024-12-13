@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const liketracksSchema = new mongoose.Schema(
+const liketracksSchema = new Schema(
   {
     trackId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Album",
       required: true,
     },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
@@ -16,6 +16,4 @@ const liketracksSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const LikeTracks = mongoose.model("liketracks", liketracksSchema);
-
-module.exports = LikeTracks;
+export const LikeTracks = model("liketracks", liketracksSchema);

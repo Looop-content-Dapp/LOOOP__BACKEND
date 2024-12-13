@@ -1,27 +1,27 @@
-const queueSchema = new mongoose.Schema({
-    userId: {
-      type: Schema.Types.ObjectId,
-      ref: 'users',
-      required: true
-    },
-    trackId: {
-      type: Schema.Types.ObjectId,
-      ref: 'tracks',
-      required: true
-    },
-    position: {
-      type: Number,
-      required: true
-    },
-    addedAt: {
-      type: Date,
-      default: Date.now
-    },
-    playedAt: Date
-  });
+import { Schema, model } from "mongoose";
 
-  queueSchema.index({ title: "text" });
+const queueSchema = new Schema({
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'users',
+    required: true
+  },
+  trackId: {
+    type: Schema.Types.ObjectId,
+    ref: 'tracks',
+    required: true
+  },
+  position: {
+    type: Number,
+    required: true
+  },
+  addedAt: {
+    type: Date,
+    default: Date.now
+  },
+  playedAt: Date
+});
 
-const Queue = mongoose.model("tracks", queueSchema);
+queueSchema.index({ title: "text" });
 
-module.exports = Queue;
+export const Queue = model("tracks", queueSchema);

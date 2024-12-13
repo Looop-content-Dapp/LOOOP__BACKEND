@@ -1,4 +1,4 @@
-const matchUser = ({ id, name }) => {
+export const matchUser = ({ id, name }) => {
   return {
     $match: {
       $expr: {
@@ -13,4 +13,4 @@ const matchUser = ({ id, name }) => {
   };
 };
 
-module.exports = { matchUser };
+// module.exports = { matchUser };

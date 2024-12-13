@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, Types, model } from "mongoose";
 
-const communitySchema = new mongoose.Schema({
+const communitySchema = new Schema({
   // Basic Information
   name: {
     type: String,
@@ -43,7 +43,7 @@ const communitySchema = new mongoose.Schema({
 
   // Community Status and Meta
   createdBy: {
-    type: mongoose.Types.ObjectId,
+    type: Types.ObjectId,
     ref: "artist",
     required: true
   },
@@ -66,6 +66,4 @@ const communitySchema = new mongoose.Schema({
 
 communitySchema.index({ name: "text" });
 
-const Community = mongoose.model("community", communitySchema);
-
-module.exports = Community;
+export const Community = model("community", communitySchema);

@@ -1,6 +1,6 @@
-const User = require("../models/user.model");
+import { User } from "../models/user.model";
 
-async function isUser(req, res, next) {
+export async function isUser(req, res, next) {
   const user = req.params.userId || req.body.userId;
 
   const isUser = await User.findById(user);
@@ -11,5 +11,3 @@ async function isUser(req, res, next) {
 
   next();
 }
-
-module.exports = isUser;

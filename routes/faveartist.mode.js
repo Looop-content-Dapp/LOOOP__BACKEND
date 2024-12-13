@@ -1,14 +1,10 @@
-const express = require("express");
-const {
-  getAllFaveArtist,
-  getFaveArtist,
-  getAllFaveArtistForUser,
-} = require("../controller/faveartist.controller");
+import { Router } from "express";
+import { getAllFaveArtist, getFaveArtist, getAllFaveArtistForUser, } from "../controller/faveartist.controller";
 
-const faveArtistRouter = express.Router();
+const faveArtistRouter = Router();
 
 faveArtistRouter.get("/", getAllFaveArtist);
 faveArtistRouter.get("/:id", getFaveArtist);
 faveArtistRouter.get("/getfaveartistforuser/:userid", getAllFaveArtistForUser);
 
-module.exports = faveArtistRouter;
+export default faveArtistRouter;

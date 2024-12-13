@@ -1,5 +1,5 @@
-const express = require("express");
-const {
+import { Router } from "express";
+import {
   getAllUsers,
   getUser,
   createUser,
@@ -17,33 +17,34 @@ const {
   getUserFriends,
   getUserByEmail,
   signIn,
-} = require("../controller/user.controller");
-const isUser = require("../middlewares/isvaliduser.middleware");
-const userrouter = express.Router();
+} from "../controller/user.controller";
+import { isUser } from "../middlewares/isvaliduser.middleware";
 
-userrouter.get("/isfave/:userId/:artistId", isArtistFave);
-userrouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
+const userRouter = Router();
 
-userrouter.get("/", getAllUsers);
-userrouter.get("/friend/:userId", isUser, getUserFriends);
-userrouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
-userrouter.get("/:id", getUser);
-userrouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
+userRouter.get("/isfave/:userId/:artistId", isArtistFave);
+userRouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
 
-userrouter.post("/createuser", createUser);
-userrouter.post("/friend/:userId/:friendId", isUser, addFriend);
-userrouter.post("/creategenresforuser", createGenresForUser);
-userrouter.post(
+userRouter.get("/", getAllUsers);
+userRouter.get("/friend/:userId", isUser, getUserFriends);
+userRouter.get("/getartistbasedonusergenre/:userId", getArtistBasedOnUserGenre);
+userRouter.get("/:id", getUser);
+userRouter.get("/getartistusersubcribedto/:userId", getArtistUserSubcribeTo);
+
+userRouter.post("/createuser", createUser);
+userRouter.post("/friend/:userId/:friendId", isUser, addFriend);
+userRouter.post("/creategenresforuser", createGenresForUser);
+userRouter.post(
   "/createuserfaveartistbasedongenres",
   createUserFaveArtistBasedOnGenres
 );
-userrouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
-userrouter.post("/addfave/:userId/:artistId", addToFavorite);
+userRouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
+userRouter.post("/addfave/:userId/:artistId", addToFavorite);
 
-userrouter.put("/changepremiumstate/:userId", subcribeToPremium);
+userRouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
-userrouter.delete("/:userId", deleteUser);
-userrouter.get("/email/:email", getUserByEmail);
-userrouter.post("/signin", signIn);
+userRouter.delete("/:userId", deleteUser);
+userRouter.get("/email/:email", getUserByEmail);
+userRouter.post("/signin", signIn);
 
-module.exports = userrouter;
+export default userRouter;

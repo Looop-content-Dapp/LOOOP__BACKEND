@@ -1,8 +1,8 @@
-const Genre = require("../models/genre.model");
-const Preferences = require("../models/Preferences");
-const { matchUser } = require("../utils/helpers/searchquery");
+import { Genre } from "../models/genre.model";
+import { Preferences } from "../models/Preferences";
+import { matchUser } from "../utils/helpers/searchquery";
 
-const getGenres = async (req, res) => {
+export const getGenres = async (req, res) => {
   try {
     const genre = await Genre.find({});
 
@@ -18,7 +18,7 @@ const getGenres = async (req, res) => {
   }
 };
 
-const getUserGenres = async (req, res) => {
+export const getUserGenres = async (req, res) => {
   try {
     const match = matchUser({ id: req.params.userId, name: "userId" });
 
@@ -59,7 +59,7 @@ const getUserGenres = async (req, res) => {
   }
 };
 
-const deleteGenre = async (req, res) => {
+export const deleteGenre = async (req, res) => {
   try {
     const genre = await Genre.findByIdAndDelete(req.params.genreId);
 
@@ -75,7 +75,7 @@ const deleteGenre = async (req, res) => {
   }
 };
 
-const createAGenre = async (req, res) => {
+export const createAGenre = async (req, res) => {
   try {
     const { name, description, image } = req.body;
 
@@ -108,9 +108,3 @@ const createAGenre = async (req, res) => {
   }
 };
 
-module.exports = {
-  getGenres,
-  getUserGenres,
-  deleteGenre,
-  createAGenre,
-};

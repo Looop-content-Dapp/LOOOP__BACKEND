@@ -1,8 +1,8 @@
 
 import { Router } from 'express';
 import { paystackWebhookHandler, verifyPaysatckTransaction } from '../controller/paystack.controller';
-const paymentRouter = Router();
 
+const paymentRouter = Router();
 
 // Route to initialize a transaction (called from mobile).
 paymentRouter.post('/init', paymentController);

@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const SavedReleaseSchema = new mongoose.Schema(
+const SavedReleaseSchema = new Schema(
   {
     releaseId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Album",
       required: true,
     },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
@@ -16,6 +16,4 @@ const SavedReleaseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const SavedRelease = mongoose.model("savedreleases", SavedReleaseSchema);
-
-module.exports = SavedRelease;
+export const SavedRelease = model("savedreleases", SavedReleaseSchema);

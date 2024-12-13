@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const socialLinksSchema = new mongoose.Schema({
+const socialLinksSchema = new Schema({
   spotify: String,
   instagram: String,
   twitter: String,
@@ -8,7 +8,7 @@ const socialLinksSchema = new mongoose.Schema({
   website: String
 });
 
-const artistSchema = new mongoose.Schema(
+const artistSchema = new Schema(
   {
     name: { type: String, required: true },
     artistId: { type: String, required: true, unique: true },
@@ -55,6 +55,4 @@ artistSchema.index({ verified: 1 });
 artistSchema.index({ country: 1 });
 artistSchema.index({ 'albums.releaseDate': -1 });
 
-const Artist = mongoose.model("artist", artistSchema);
-
-module.exports = Artist;
+export const Artist = model("artist", artistSchema);

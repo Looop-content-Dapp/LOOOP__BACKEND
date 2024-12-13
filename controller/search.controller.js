@@ -1,12 +1,12 @@
-const Track = require("../models/track.model");
-const Song = require("../models/song.model");
-const Artist = require("../models/artist.model");
-const Release = require("../models/releases.model");
-const PlayListName = require("../models/playlistnames.model");
-const PlayListSongs = require("../models/playlistsongs.model");
-const RecentSearch = require("../models/recentSearch.model");
+import { Track } from "../models/track.model";
+// import { Song } from "../models/song.model";
+import { Artist } from "../models/artist.model";
+import { Release } from "../models/releases.model";
+import { PlayListName } from "../models/playlistnames.model";
+// import { PlayListSongs } from "../models/playlistsongs.model";
+import { RecentSearch } from "../models/recentSearch.model";
 
-const searchAll = async (req, res) => {
+export const searchAll = async (req, res) => {
   try {
     const {
       query,
@@ -367,7 +367,7 @@ const searchAll = async (req, res) => {
   }
 };
 
-const storeRecentSearch = async (userId, query) => {
+export const storeRecentSearch = async (userId, query) => {
   try {
     await RecentSearch.create({
       userId,
@@ -390,7 +390,7 @@ const storeRecentSearch = async (userId, query) => {
   }
 };
 
-const getRecentSearches = async (req, res) => {
+export const getRecentSearches = async (req, res) => {
   try {
     const userId = req.user?._id;
 
@@ -413,7 +413,7 @@ const getRecentSearches = async (req, res) => {
   }
 };
 
-const clearRecentSearches = async (req, res) => {
+export const clearRecentSearches = async (req, res) => {
   try {
     const userId = req.user?._id;
 
@@ -433,7 +433,7 @@ const clearRecentSearches = async (req, res) => {
   }
 };
 
-const getTrendingSearches = async (req, res) => {
+export const getTrendingSearches = async (req, res) => {
   try {
     const { timeframe = '24h', limit = 10 } = req.query;
 
@@ -483,7 +483,7 @@ const getTrendingSearches = async (req, res) => {
   }
 };
 
-const searchByCategory = async (req, res) => {
+export const searchByCategory = async (req, res) => {
   try {
     const {
       query,
@@ -523,136 +523,136 @@ const searchByCategory = async (req, res) => {
 
     // Use the existing aggregate pipelines based on category
     switch (category.toLowerCase()) {
-        case 'tracks':
-          [results, total] = await Promise.all([
-            Track.aggregate([
-              {
-                $match: { title: searchRegex }
-              },
-              {
-                $lookup: {
-                  from: "releases",
-                  localField: "releaseId",
-                  foreignField: "_id",
-                  as: "release"
-                }
-              },
-              {
-                $lookup: {
-                  from: "artists",
-                  localField: "artistId",
-                  foreignField: "_id",
-                  as: "artist"
-                }
-              },
-              {
-                $lookup: {
-                  from: "songs",
-                  localField: "songId",
-                  foreignField: "_id",
-                  as: "song"
-                }
-              },
-              { $skip: skip },
-              { $limit: validatedLimit }
-            ]),
-            Track.countDocuments({ title: searchRegex })
-          ]);
-          break;
+      case 'tracks':
+        [results, total] = await Promise.all([
+          Track.aggregate([
+            {
+              $match: { title: searchRegex }
+            },
+            {
+              $lookup: {
+                from: "releases",
+                localField: "releaseId",
+                foreignField: "_id",
+                as: "release"
+              }
+            },
+            {
+              $lookup: {
+                from: "artists",
+                localField: "artistId",
+                foreignField: "_id",
+                as: "artist"
+              }
+            },
+            {
+              $lookup: {
+                from: "songs",
+                localField: "songId",
+                foreignField: "_id",
+                as: "song"
+              }
+            },
+            { $skip: skip },
+            { $limit: validatedLimit }
+          ]),
+          Track.countDocuments({ title: searchRegex })
+        ]);
+        break;
 
-        case 'artists':
-          [results, total] = await Promise.all([
-            Artist.aggregate([
-              {
-                $match: {
-                  $or: [
-                    { name: searchRegex },
-                    { genre: searchRegex }
-                  ]
-                }
-              },
-              {
-                $lookup: {
-                  from: "releases",
-                  localField: "_id",
-                  foreignField: "artistId",
-                  as: "releases"
-                }
-              },
-              { $skip: skip },
-              { $limit: validatedLimit }
-            ]),
-            Artist.countDocuments({
-              $or: [
-                { name: searchRegex },
-                { genre: searchRegex }
-              ]
-            })
-          ]);
-          break;
+      case 'artists':
+        [results, total] = await Promise.all([
+          Artist.aggregate([
+            {
+              $match: {
+                $or: [
+                  { name: searchRegex },
+                  { genre: searchRegex }
+                ]
+              }
+            },
+            {
+              $lookup: {
+                from: "releases",
+                localField: "_id",
+                foreignField: "artistId",
+                as: "releases"
+              }
+            },
+            { $skip: skip },
+            { $limit: validatedLimit }
+          ]),
+          Artist.countDocuments({
+            $or: [
+              { name: searchRegex },
+              { genre: searchRegex }
+            ]
+          })
+        ]);
+        break;
 
-        case 'releases':
-          [results, total] = await Promise.all([
-            Release.aggregate([
-              {
-                $match: {
-                  $or: [
-                    { title: searchRegex },
-                    { "metadata.genre": searchRegex }
-                  ]
-                }
-              },
-              {
-                $lookup: {
-                  from: "artists",
-                  localField: "artistId",
-                  foreignField: "_id",
-                  as: "artist"
-                }
-              },
-              { $skip: skip },
-              { $limit: validatedLimit }
-            ]),
-            Release.countDocuments({
-              $or: [
-                { title: searchRegex },
-                { "metadata.genre": searchRegex }
-              ]
-            })
-          ]);
-          break;
+      case 'releases':
+        [results, total] = await Promise.all([
+          Release.aggregate([
+            {
+              $match: {
+                $or: [
+                  { title: searchRegex },
+                  { "metadata.genre": searchRegex }
+                ]
+              }
+            },
+            {
+              $lookup: {
+                from: "artists",
+                localField: "artistId",
+                foreignField: "_id",
+                as: "artist"
+              }
+            },
+            { $skip: skip },
+            { $limit: validatedLimit }
+          ]),
+          Release.countDocuments({
+            $or: [
+              { title: searchRegex },
+              { "metadata.genre": searchRegex }
+            ]
+          })
+        ]);
+        break;
 
-        case 'playlists':
-          [results, total] = await Promise.all([
-            PlayListName.aggregate([
-              {
-                $match: {
-                  $or: [
-                    { title: searchRegex },
-                    { description: searchRegex }
-                  ]
-                }
-              },
-              {
-                $lookup: {
-                  from: "playlistsongs",
-                  localField: "_id",
-                  foreignField: "playlistId",
-                  as: "songs"
-                }
-              },
-              { $skip: skip },
-              { $limit: validatedLimit }
-            ]),
-            PlayListName.countDocuments({
-              $or: [
-                { title: searchRegex },
-                { description: searchRegex }
-              ]
-            })
-          ]);
-          break;
-      }
+      case 'playlists':
+        [results, total] = await Promise.all([
+          PlayListName.aggregate([
+            {
+              $match: {
+                $or: [
+                  { title: searchRegex },
+                  { description: searchRegex }
+                ]
+              }
+            },
+            {
+              $lookup: {
+                from: "playlistsongs",
+                localField: "_id",
+                foreignField: "playlistId",
+                as: "songs"
+              }
+            },
+            { $skip: skip },
+            { $limit: validatedLimit }
+          ]),
+          PlayListName.countDocuments({
+            $or: [
+              { title: searchRegex },
+              { description: searchRegex }
+            ]
+          })
+        ]);
+        break;
+    }
 
     return res.status(200).json({
       success: true,
@@ -682,10 +682,10 @@ const searchByCategory = async (req, res) => {
   }
 };
 
-module.exports = {
-  searchAll,
-  getRecentSearches,
-  clearRecentSearches,
-  getTrendingSearches,
-  searchByCategory
-};
+// export default {
+//   searchAll,
+//   getRecentSearches,
+//   clearRecentSearches,
+//   getTrendingSearches,
+//   searchByCategory
+// };
