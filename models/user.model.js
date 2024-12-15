@@ -1,4 +1,4 @@
-import { Schema, model } from "mongoose";
+import { Schema, SchemaTypes, model } from "mongoose";
 
 const userSchema = new Schema(
   {
@@ -13,7 +13,8 @@ const userSchema = new Schema(
       type: String,
       enum: ['LISTENER', 'ARTIST', 'ADMIN'],
       default: 'LISTENER'
-    }
+    },
+    oauthTokens: [{ type: SchemaTypes.ObjectId, ref: 'OAuthToken' }], // Reference to OAuth tokens
   },
   { timestamps: true }
 );

@@ -7,6 +7,10 @@ import { Schema, SchemaTypes, model } from "mongoose";
 // "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
 // "example_parameter": "example_value"
 const OAuthTokenObjectSchema = new Schema({
+    provider: { // 'spotify', 'instagram' etc.
+        type: SchemaTypes.String,
+        required: true
+    },
     access_token: {
         type: SchemaTypes.String,
         required: true
@@ -29,6 +33,18 @@ const OAuthTokenObjectSchema = new Schema({
         type: SchemaTypes.String,
         required: false
     },
+    userId: {
+        type: SchemaTypes.ObjectId,
+        required: true
+    },
+    user: {
+        type: SchemaTypes.ObjectId,
+        ref: "users",
+        required: true
+    }
 },
     { strict: false }   // Just in case we have providers that send custom fields in token response.
-)
+);
+
+
+export const OAuthToken = model('OAuthToken', OAuthTokenObjectSchema);
