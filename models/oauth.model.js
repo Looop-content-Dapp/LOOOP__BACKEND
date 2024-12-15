@@ -35,7 +35,8 @@ const OAuthTokenObjectSchema = new Schema({
     },
     userId: {
         type: SchemaTypes.ObjectId,
-        required: true
+        required: true,
+        index: true
     },
     user: {
         type: SchemaTypes.ObjectId,
