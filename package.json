@@ -11,7 +11,7 @@
     "db:genres:clear": "node scripts/clearGenres.js",
     "db:genres:populate": "node scripts/populateSpotifyGenres.js",
     "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate",
-    "dev": "node index.js"
+    "dev": "nodemon index.js"
   },
   "keywords": [],
   "author": "",
@@ -24,10 +24,14 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "fast-jwt": "^5.0.2",
     "mongoose": "^8.6.1",
-    "nodemon": "^3.1.4",
     "paystack-sdk": "^2.5.17",
     "spotify-web-api-node": "^5.0.2",
     "starknet": "^6.11.0"
+  },
+  "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab",
+  "devDependencies": {
+    "nodemon": "^3.1.9"
   }
 }
