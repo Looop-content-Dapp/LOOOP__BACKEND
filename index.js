@@ -14,6 +14,7 @@ import genreRoute from "./routes/genres.route.js";
 import playlistRouter from "./routes/playlist.route.js";
 import postRouter from "./routes/post.route.js";
 import searchRoutes from "./routes/search.routes.js";
+import OAuthRouter from "./routes/oauth.route.js";
 
 import { config } from "dotenv";
 config(); //Loads .env
@@ -35,6 +36,10 @@ app.get("/", (req, res) => {
   return res.send("welcome to the official looop Api");
 });
 
+app.get("/api", (req, res) => {
+  return res.send("welcome to the official looop Api");
+});
+
 
 // routes
 app.use("/api/user", userRouter);
@@ -48,6 +53,7 @@ app.use("/api/playlist", playlistRouter);
 app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter)
 app.use('/api/search', searchRoutes);
+app.use('/api/oauth', OAuthRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 const mongoURI = process.env["MONGODB_URI"] || "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
