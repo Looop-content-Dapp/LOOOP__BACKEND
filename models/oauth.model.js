@@ -7,31 +7,9 @@ import { Schema, SchemaTypes, model } from "mongoose";
 // "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
 // "example_parameter": "example_value"
 const OAuthTokenObjectSchema = new Schema({
-    provider: { // 'spotify', 'instagram' etc.
+    provider: { // 'spotify', 'instagram', 'google' etc.
         type: SchemaTypes.String,
         required: true
-    },
-    access_token: {
-        type: SchemaTypes.String,
-        required: true
-    },
-    token_type: {
-        type: String,
-        enum: ["bearer", "mac"],
-        required: true,
-        lowercase: true
-    },
-    scope: {    //  https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
-        type: SchemaTypes.String,
-        required: true
-    },
-    expires_in: {
-        type: SchemaTypes.String,
-        required: false
-    },
-    refresh_token: {
-        type: SchemaTypes.String,
-        required: false
     },
     userId: {
         type: SchemaTypes.ObjectId,
@@ -42,9 +20,33 @@ const OAuthTokenObjectSchema = new Schema({
         type: SchemaTypes.ObjectId,
         ref: "users",
         required: true
+    },
+    token: {
+        access_token: {
+            type: SchemaTypes.String,
+            required: true
+        },
+        token_type: {
+            type: String,
+            enum: ["bearer", "mac"],
+            required: true,
+            lowercase: true
+        },
+        scope: {    //  https://datatracker.ietf.org/doc/html/rfc6749#section-3.3
+            type: SchemaTypes.String,
+            required: true
+        },
+        expires_in: {
+            type: SchemaTypes.Number,
+            required: false
+        },
+        refresh_token: {
+            type: SchemaTypes.String,
+            required: false
+        },
     }
 },
-    { strict: false }   // Just in case we have providers that send custom fields in token response.
+    { strict: false,  }   // Just in case we have providers that send custom fields in token response.
 );
 
 
