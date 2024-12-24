@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const songSchema = new mongoose.Schema({
+const songSchema = new Schema({
     fileUrl: {
       type: String,
       required: true,
@@ -39,7 +39,7 @@ const songSchema = new mongoose.Schema({
     // Enhanced stream history tracking
     streamHistory: [{
       userId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         ref: 'users'
       },
       timestamp: {
@@ -66,7 +66,7 @@ const songSchema = new mongoose.Schema({
     },
     playlists: [{
       playlistId: {
-        type: mongoose.Schema.Types.ObjectId,
+        type: Schema.Types.ObjectId,
         ref: 'playlists'
       },
       addedAt: {
@@ -127,6 +127,5 @@ songSchema.index({ 'streamHistory.timestamp': -1 }); // For streaming history qu
 songSchema.index({ 'streamHistory.userId': 1, 'streamHistory.timestamp': -1 }); // For user history
 songSchema.index({ 'playlists.playlistId': 1 }); // For playlist queries
 
-const Song = mongoose.model("songs", songSchema);
+export const Song = model("songs", songSchema);
 
-module.exports = Song;

@@ -1,7 +1,7 @@
-const PlayListName = require("../models/playlistnames.model");
-const PlayListSongs = require("../models/playlistsongs.model");
-const Track = require("../models/track.model");
-const { transformTrackData } = require("../utils/helpers/transformData");
+// import { Track } from "../models/track.model";
+import { PlayListName } from "../models/playlistnames.model.js";
+import { PlayListSongs } from "../models/playlistsongs.model.js";
+import { transformTrackData } from "../utils/helpers/transformData.js";
 
 // Helper function to generate a simple color-based cover
 const generateCoverImage = () => {
@@ -13,11 +13,10 @@ const generateCoverImage = () => {
 };
 
 // Get all playlists (public)
-const getAllPlayList = async (req, res) => {
+export const getAllPlayList = async (req, res) => {
   try {
-    const playLists = await PlayListName.find({ isPublic: true })
-      .sort({ createdDate: -1 });
 
+    PlayListName
     return res.status(200).json({
       message: "Successfully retrieved public playlists",
       data: playLists,
@@ -30,82 +29,82 @@ const getAllPlayList = async (req, res) => {
   }
 };
 
-const getAllPlayListForUser = async (req, res) => {
-    try {
-      const { userId } = req.params;
+export const getAllPlayListForUser = async (req, res) => {
+  try {
+    const { userId } = req.params;
 
-      if (!userId) {
-        return res.status(400).json({
-          message: "User ID is required"
-        });
-      }
-
-      const playlists = await PlayListName.aggregate([
-        {
-          $match: {
-            userId: userId
-          }
-        },
-        {
-          $lookup: {
-            from: "playlistsongs",
-            localField: "_id",
-            foreignField: "playlistId",
-            as: "songs"
-          }
-        },
-        {
-          $lookup: {
-            from: "tracks",
-            localField: "songs.trackId",
-            foreignField: "_id",
-            as: "trackDetails"
-          }
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "trackDetails.artistId",
-            foreignField: "_id",
-            as: "artistData"
-          }
-        },
-        {
-          $lookup: {
-            from: "releases",
-            localField: "trackDetails.releaseId",
-            foreignField: "_id",
-            as: "releaseData"
-          }
-        },
-        {
-          $sort: {
-            isPinned: -1,
-            lastModified: -1
-          }
-        }
-      ]).then(playlists => {
-        return playlists.map(playlist => ({
-          ...playlist,
-          songs: playlist.songs.map(transformTrackData)
-        }));
-      });
-
-      return res.status(200).json({
-        message: "Successfully retrieved user playlists",
-        data: playlists,
-        totalPlaylists: playlists.length
-      });
-    } catch (error) {
-      return res.status(500).json({
-        message: "Error fetching user playlists",
-        error: error.message
+    if (!userId) {
+      return res.status(400).json({
+        message: "User ID is required"
       });
     }
-  };
+
+    const playlists = await PlayListName.aggregate([
+      {
+        $match: {
+          userId: userId
+        }
+      },
+      {
+        $lookup: {
+          from: "playlistsongs",
+          localField: "_id",
+          foreignField: "playlistId",
+          as: "songs"
+        }
+      },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "songs.trackId",
+          foreignField: "_id",
+          as: "trackDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "trackDetails.artistId",
+          foreignField: "_id",
+          as: "artistData"
+        }
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "trackDetails.releaseId",
+          foreignField: "_id",
+          as: "releaseData"
+        }
+      },
+      {
+        $sort: {
+          isPinned: -1,
+          lastModified: -1
+        }
+      }
+    ]).then(playlists => {
+      return playlists.map(playlist => ({
+        ...playlist,
+        songs: playlist.songs.map(transformTrackData)
+      }));
+    });
+
+    return res.status(200).json({
+      message: "Successfully retrieved user playlists",
+      data: playlists,
+      totalPlaylists: playlists.length
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching user playlists",
+      error: error.message
+    });
+  }
+};
 
 // Get a specific playlist with its songs
-const getPlayListSongs = async (req, res) => {
+export const getPlayListSongs = async (req, res) => {
   try {
     const { playlistId } = req.params;
 
@@ -171,7 +170,7 @@ const getPlayListSongs = async (req, res) => {
 };
 
 // Create a new playlist
-const createPlaylist = async (req, res) => {
+export const createPlaylist = async (req, res) => {
   try {
     const { title, userId, description, isPublic, isCollaborative } = req.body;
 
@@ -216,8 +215,8 @@ const createPlaylist = async (req, res) => {
   }
 };
 
-// Add song(s) to playlist
-const addSongToPlaylist = async (req, res) => {
+// Add song(s) to playlist.js
+export const addSongToPlaylist = async (req, res) => {
   try {
     const { tracks, playlistId, userId } = req.body;
 
@@ -283,7 +282,7 @@ const addSongToPlaylist = async (req, res) => {
 };
 
 // Remove song from playlist
-const removeSongFromPlaylist = async (req, res) => {
+export const removeSongFromPlaylist = async (req, res) => {
   try {
     const { playlistId, trackId, userId } = req.body;
 
@@ -324,7 +323,7 @@ const removeSongFromPlaylist = async (req, res) => {
 };
 
 // Update playlist details
-const updatePlaylist = async (req, res) => {
+export const updatePlaylist = async (req, res) => {
   try {
     const { playlistId } = req.params;
     const { title, description, isPublic, isCollaborative, userId } = req.body;
@@ -365,7 +364,7 @@ const updatePlaylist = async (req, res) => {
 };
 
 // Delete playlist
-const deletePlayList = async (req, res) => {
+export const deletePlayList = async (req, res) => {
   try {
     const { playlistId, userId } = req.body;
 
@@ -401,7 +400,7 @@ const deletePlayList = async (req, res) => {
 };
 
 // Toggle playlist pin status
-const togglePinPlaylist = async (req, res) => {
+export const togglePinPlaylist = async (req, res) => {
   try {
     const { playlistId } = req.params;
     const { userId } = req.body;
@@ -438,16 +437,4 @@ const togglePinPlaylist = async (req, res) => {
       error: error.message
     });
   }
-};
-
-module.exports = {
-  getAllPlayList,
-  getAllPlayListForUser,
-  getPlayListSongs,
-  createPlaylist,
-  addSongToPlaylist,
-  removeSongFromPlaylist,
-  updatePlaylist,
-  deletePlayList,
-  togglePinPlaylist,
 };

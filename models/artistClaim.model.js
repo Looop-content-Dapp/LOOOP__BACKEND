@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const artistClaimSchema = new mongoose.Schema(
+const artistClaimSchema = new Schema(
   {
     artistId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "artist",
       required: true
     },
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "users",
       required: true
     },
@@ -41,7 +41,7 @@ const artistClaimSchema = new mongoose.Schema(
     websiteUrl: String,
     rejectionReason: String,
     verifiedBy: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "admin"
     },
     verifiedAt: Date,
@@ -53,5 +53,4 @@ const artistClaimSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const ArtistClaim = mongoose.model("artistClaim", artistClaimSchema);
-module.exports = ArtistClaim;
+export const ArtistClaim = model("artistClaim", artistClaimSchema);

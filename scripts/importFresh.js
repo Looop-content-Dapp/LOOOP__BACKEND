@@ -1,13 +1,13 @@
 // scripts/importFresh.js
-const clearDatabase = require('./clearDatabase');
-const { importSpotifyData } = require('./importSpotifyData');
+import { clearAllData } from './clearDatabase';
+import { importSpotifyData } from './importSpotifyData';
 
 const importFresh = async () => {
   try {
     console.log('Starting fresh import process...');
 
     // Clear the database first
-    await clearDatabase();
+    await clearAllData();
     console.log('Database cleared successfully');
 
     // Then import new data
@@ -22,6 +22,7 @@ const importFresh = async () => {
   }
 };
 
-if (require.main === module) {
+// Check if this module is being run directly
+if (import.meta.url === new URL(import.meta.resolve('./scripts/importFresh.js'))) {
   importFresh();
 }

@@ -1,9 +1,13 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
+import { connect, connection } from 'mongoose';
+import { config } from 'dotenv';
+
+// Loads .env
+config();
+
 
 const clearAllData = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     // Clear artists
@@ -36,12 +40,15 @@ const clearAllData = async () => {
     console.error('Error clearing data:', error);
     process.exit(1);
   } finally {
-    await mongoose.connection.close();
+    await connection.close();
   }
 };
 
-if (require.main === module) {
+
+// Check if this module is being run directly
+if (import.meta.url === new URL(import.meta.resolve('./scripts/clearDatabase.js'))) {
   clearAllData();
 }
 
-module.exports = clearAllData;
+
+export { clearAllData };

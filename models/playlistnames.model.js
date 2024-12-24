@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, Types, model } from "mongoose";
 
-const playListNameSchema = new mongoose.Schema(
+const playListNameSchema = new Schema(
   {
     title: { type: String, required: true },
     description: { type: String },
@@ -10,7 +10,7 @@ const playListNameSchema = new mongoose.Schema(
       default: null, // Will be auto-generated based on songs
     },
     dominantGenre: {
-      type: mongoose.Types.ObjectId,
+      type: Types.ObjectId,
       ref: "Genre",
       default: null, // Will be calculated from songs
     },
@@ -26,7 +26,7 @@ const playListNameSchema = new mongoose.Schema(
     totalDuration: { type: Number, default: 0 },
     totalTracks: { type: Number, default: 0 },
     lastModified: { type: Date, default: Date.now() },
-    collaborators: [{ type: mongoose.Types.ObjectId, ref: "User" }],
+    collaborators: [{ type: Types.ObjectId, ref: "User" }],
     isCollaborative: { type: Boolean, default: false },
     likeCount: { type: Number, default: 0 },
   },
@@ -36,6 +36,4 @@ const playListNameSchema = new mongoose.Schema(
 playListNameSchema.index({ title: 1 });
 playListNameSchema.index({ description: 1 });
 
-const PlayListName = mongoose.model("playListname", playListNameSchema);
-
-module.exports = PlayListName;
+export const PlayListName = model("playListname", playListNameSchema);

@@ -1,8 +1,8 @@
 // models/post.model.js
 
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const EventSchema = new mongoose.Schema({
+const EventSchema = new Schema({
   startDate: {
     type: Date,
     required: true
@@ -32,7 +32,7 @@ const EventSchema = new mongoose.Schema({
     default: 'other'
   },
   attendees: [{
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'users'
   }],
   isFullyBooked: {
@@ -41,7 +41,7 @@ const EventSchema = new mongoose.Schema({
   }
 });
 
-const AnnouncementSchema = new mongoose.Schema({
+const AnnouncementSchema = new Schema({
   importance: {
     type: String,
     enum: ['high', 'medium', 'low'],
@@ -63,7 +63,7 @@ const AnnouncementSchema = new mongoose.Schema({
   }
 });
 
-const MediaSchema = new mongoose.Schema({
+const MediaSchema = new Schema({
   type: {
     type: String,
     required: true,
@@ -81,7 +81,7 @@ const MediaSchema = new mongoose.Schema({
   height: Number,
 });
 
-const PostSchema = new mongoose.Schema(
+const PostSchema = new Schema(
   {
     content: {
       type: String,
@@ -109,12 +109,12 @@ const PostSchema = new mongoose.Schema(
     },
     media: [MediaSchema],
     artistId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "artist",
     },
     communityId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "community"
     },
@@ -192,6 +192,4 @@ PostSchema.pre('save', function(next) {
   next();
 });
 
-const Post = mongoose.model("posts", PostSchema);
-
-module.exports = Post;
+export const Post = model("posts", PostSchema);

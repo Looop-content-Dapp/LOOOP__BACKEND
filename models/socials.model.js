@@ -1,9 +1,9 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const socialSchema = new mongoose.Schema(
+const socialSchema = new Schema(
   {
     artistId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       required: true,
       ref: "Artist",
     },
@@ -14,6 +14,4 @@ const socialSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const Social = mongoose.model("socials", socialSchema);
-
-module.exports = Social;
+export const Social = model("socials", socialSchema);

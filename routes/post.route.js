@@ -1,5 +1,5 @@
-const express = require("express");
-const {
+import { Router } from "express";
+import {
   getAllPosts,
   getPost,
   getAllPostByArtist,
@@ -14,9 +14,9 @@ const {
   toggleEventAttendance,
   getUpcomingEvents,
   getActiveAnnouncements
-} = require("../controller/post.controller");
+} from "../controller/post.controller.js";
 
-const postRouter = express.Router();
+const postRouter = Router();
 
 // General post routes
 postRouter.get("/", getAllPosts);
@@ -42,4 +42,4 @@ postRouter.post("/events/attend", toggleEventAttendance);
 // Announcement routes
 postRouter.get("/announcements/active", getActiveAnnouncements);
 
-module.exports = postRouter;
+export default postRouter;

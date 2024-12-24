@@ -1,15 +1,15 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const LastPlayedSchema = new mongoose.Schema(
+const LastPlayedSchema = new Schema(
   {
     trackId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Track",
       required: true,
     },
 
     userId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
     },
@@ -17,6 +17,5 @@ const LastPlayedSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-const LastPlayed = mongoose.model("lastPlayyed", LastPlayedSchema);
+export const LastPlayed = model("lastPlayyed", LastPlayedSchema);
 
-module.exports = LastPlayed;

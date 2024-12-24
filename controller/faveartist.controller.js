@@ -1,7 +1,7 @@
-const FaveArtist = require("../models/faveArtist");
-const Preferences = require("../models/Preferences");
+import { FaveArtist } from "../models/faveartist.model.js";
 
-const getAllFaveArtist = async (req, res) => {
+
+export const getAllFaveArtist = async (req, res) => {
   try {
     const faveArtist = await FaveArtist.find({});
 
@@ -16,7 +16,7 @@ const getAllFaveArtist = async (req, res) => {
   }
 };
 
-const getFaveArtist = async (req, res) => {
+export const getFaveArtist = async (req, res) => {
   try {
     const faveArtist = await FaveArtist.aggregate([
       {
@@ -50,7 +50,7 @@ const getFaveArtist = async (req, res) => {
   1``;
 };
 
-const getAllFaveArtistForUser = async (req, res) => {
+export const getAllFaveArtistForUser = async (req, res) => {
   try {
     const faveArtistForUser = await FaveArtist.aggregate([
       {
@@ -78,10 +78,4 @@ const getAllFaveArtistForUser = async (req, res) => {
       error: error.message,
     });
   }
-};
-
-module.exports = {
-  getAllFaveArtist,
-  getFaveArtist,
-  getAllFaveArtistForUser,
 };

@@ -11,7 +11,7 @@ import {
   RpcProvider,
 } from "starknet";
 
-const createWallet = () => {
+export const createWallet = () => {
   try {
     const provider = new RpcProvider({ nodeUrl: `${"myNodeUrl"}` });
 
@@ -25,7 +25,7 @@ const createWallet = () => {
   }
 };
 
-const connectToExistingContract = () => {
+export const connectToExistingContract = () => {
   try {
     // initialize provider
     const provider = new RpcProvider({
@@ -43,4 +43,5 @@ const connectToExistingContract = () => {
   }
 };
 
-module.exports = { createWallet, connectToExistingContract };
+
+// module.exports = { createWallet, connectToExistingContract };

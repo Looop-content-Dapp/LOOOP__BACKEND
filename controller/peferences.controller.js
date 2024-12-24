@@ -1,6 +1,6 @@
-const Preferences = require("../models/Preferences");
+import { Preferences } from "../models/preferences.model.js";
 
-const getAllPreferences = async (req, res) => {
+export const getAllPreferences = async (req, res) => {
   try {
     const preferences = await Preferences.find({});
 
@@ -15,7 +15,7 @@ const getAllPreferences = async (req, res) => {
   }
 };
 
-const getPreference = async (req, res) => {
+export const getPreference = async (req, res) => {
   try {
     const preference = await Preferences.aggregate([
       {
@@ -48,7 +48,7 @@ const getPreference = async (req, res) => {
   }
 };
 
-const getUserPeferences = async (req, res) => {
+export const getUserPeferences = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -91,10 +91,4 @@ const getUserPeferences = async (req, res) => {
       .status(500)
       .json({ message: "Error fetching preference", error: error.message });
   }
-};
-
-module.exports = {
-  getAllPreferences,
-  getPreference,
-  getUserPeferences,
 };

@@ -1,8 +1,12 @@
-// utils/generateStreamHistory.js
+// scripts/generateStreamHistory.js
 
-const mongoose = require('mongoose');
-const Song = require('../models/song.model');
-require('dotenv').config();
+import mongoose from 'mongoose';
+import { config } from 'dotenv';
+import { Song } from '../models/song.model';
+
+// Loads .env
+config();
+
 
 const countries = ['US', 'GB', 'NG', 'GH', 'ZA', 'KE', 'CA', 'FR', 'DE', 'JP'];
 const devices = ['iPhone', 'Android', 'Desktop', 'Tablet', 'Web'];
@@ -57,7 +61,7 @@ const populateStreamHistory = async () => {
   }
 };
 
-module.exports = {
+export {
   generateRandomStreamHistory,
   populateStreamHistory
 };

@@ -1,9 +1,9 @@
-const Artist = require("../models/artist.model");
-const User = require("../models/user.model");
-const ArtistClaim = require("../models/artistClaim.model");
+import { Artist } from "../models/artist.model.js";
+import { User } from "../models/user.model.js";
+import { ArtistClaim } from "../models/artistClaim.model.js";
 
 // Submit a claim request
-const submitClaim = async (req, res) => {
+export const submitClaim = async (req, res) => {
   try {
     const {
       userId,
@@ -81,7 +81,7 @@ const submitClaim = async (req, res) => {
 };
 
 // Get claim status
-const getClaimStatus = async (req, res) => {
+export const getClaimStatus = async (req, res) => {
   try {
     const { claimId } = req.params;
 
@@ -109,7 +109,7 @@ const getClaimStatus = async (req, res) => {
 };
 
 // Get all claims by user
-const getUserClaims = async (req, res) => {
+export const getUserClaims = async (req, res) => {
   try {
     const { userId } = req.params;
 
@@ -131,7 +131,7 @@ const getUserClaims = async (req, res) => {
 };
 
 // Update claim (for admin)
-const updateClaimStatus = async (req, res) => {
+export const updateClaimStatus = async (req, res) => {
   try {
     const { claimId } = req.params;
     const { status, rejectionReason, adminId } = req.body;
@@ -196,11 +196,4 @@ const updateClaimStatus = async (req, res) => {
       error: error.message
     });
   }
-};
-
-module.exports = {
-  submitClaim,
-  getClaimStatus,
-  getUserClaims,
-  updateClaimStatus
 };

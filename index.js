@@ -1,25 +1,31 @@
-const mongoose = require("mongoose");
-const userrouter = require("./routes/user.route");
-const artistrouter = require("./routes/artist.route");
-const preferenceRouter = require("./routes/preferences.route");
-const faveArtistRouter = require("./routes/faveartist.mode");
-const songRouter = require("./routes/songs.route");
-const communityRouter = require("./routes/community.route");
-const genreRoute = require("./routes/genres.route");
-const playlistRouter = require("./routes/playlist.route");
-const postRouter = require("./routes/post.route");
-const artistClaimRouter = require("./routes/artistClaim.route");
-const searchRoutes = require("./routes/search.routes");
 
-require("dotenv").config();
-const express = require("express"),
-  app = express(),
-  cors = require("cors");
+import mongoose from "mongoose";
+import cors from "cors";
+import express, { urlencoded, json } from "express";
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+import userRouter from "./routes/user.route.js";
+import artistRouter from "./routes/artist.route.js";
+import artistClaimRouter from "./routes/artistClaim.route.js";
+import preferenceRouter from "./routes/preferences.route.js";
+import faveArtistRouter from "./routes/faveArtist.route.js";
+import songRouter from "./routes/songs.route.js";
+import communityRouter from "./routes/community.route.js";
+import genreRoute from "./routes/genres.route.js";
+import playlistRouter from "./routes/playlist.route.js";
+import postRouter from "./routes/post.route.js";
+import searchRoutes from "./routes/search.routes.js";
+import OAuthRouter from "./routes/oauth.route.js";
 
+import { config } from "dotenv";
+config(); //Loads .env
+
+
+const app = express();
+
+app.use(urlencoded({ extended: true }));
+app.use(json());
 app.use(cors());
+
 
 app.use((req, res, next) => {
   console.log(req.path, req.method);
@@ -30,9 +36,14 @@ app.get("/", (req, res) => {
   return res.send("welcome to the official looop Api");
 });
 
+app.get("/api", (req, res) => {
+  return res.send("welcome to the official looop Api");
+});
+
+
 // routes
-app.use("/api/user", userrouter);
-app.use("/api/artist", artistrouter);
+app.use("/api/user", userRouter);
+app.use("/api/artist", artistRouter);
 app.use("/api/preference", preferenceRouter);
 app.use("/api/faveartist", faveArtistRouter);
 app.use("/api/song", songRouter);
@@ -42,12 +53,12 @@ app.use("/api/playlist", playlistRouter);
 app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter)
 app.use('/api/search', searchRoutes);
+app.use('/api/oauth', OAuthRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
+const mongoURI = process.env["MONGODB_URI"] || "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
 
-mongoose.connect(
-  "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
-);
+mongoose.connect(mongoURI);
 
 mongoose.connection.on("open", () => {
   app.listen(port, "0.0.0.0", () => {

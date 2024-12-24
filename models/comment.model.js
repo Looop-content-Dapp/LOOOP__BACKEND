@@ -1,14 +1,14 @@
-const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
+import { Schema as _Schema, model } from "mongoose";
+const Schema = _Schema;
 
 const commentSchema = new Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: _Schema.Types.ObjectId,
     ref: "users",
     required: true,
   },
   postId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: _Schema.Types.ObjectId,
     refPath: "Post",
     required: true,
   },
@@ -28,6 +28,4 @@ const commentSchema = new Schema({
   },
 });
 
-const Comment = mongoose.model("Comment", commentSchema);
-
-module.exports = Comment;
+export const Comment = model("Comment", commentSchema);

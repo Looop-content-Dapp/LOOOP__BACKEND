@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import { Schema, SchemaTypes, model } from "mongoose";
 
-const userSchema = new mongoose.Schema(
+const userSchema = new Schema(
   {
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true, unique: true },
@@ -13,11 +13,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       enum: ['LISTENER', 'ARTIST', 'ADMIN'],
       default: 'LISTENER'
-    }
+    },
+    oauthTokens: [{ type: SchemaTypes.ObjectId, ref: 'OAuthToken' }], // Reference to OAuth tokens
   },
   { timestamps: true }
 );
 
-const User = mongoose.model("users", userSchema);
-
-module.exports = User;
+export const User = model("users", userSchema);

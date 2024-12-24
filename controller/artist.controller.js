@@ -1,11 +1,11 @@
-const bcrypt = require("bcryptjs");
-const Artist = require("../models/artist.model");
-const Social = require("../models/socials.model");
-const Subscriber = require("../models/subcriber.model");
-const Follow = require("../models/followers.model");
-const Post = require("../models/post.model");
+import * as bcrypt from "bcryptjs";
+import { Artist } from "../models/artist.model.js";
+import { Social } from "../models/socials.model.js";
+import { Subscriber } from "../models/subcriber.model.js";
+import { Follow } from "../models/followers.model.js";
+import { Post } from "../models/post.model.js";
 
-const getAllArtists = async (req, res) => {
+export const getAllArtists = async (req, res) => {
   try {
     const Artists = await Artist.find({}, "-password");
 
@@ -20,7 +20,7 @@ const getAllArtists = async (req, res) => {
   }
 };
 
-const getArtist = async (req, res) => {
+export const getArtist = async (req, res) => {
   try {
     const artist = await Artist.aggregate([
       {
@@ -61,7 +61,7 @@ const getArtist = async (req, res) => {
   }
 };
 
-const createArtist = async (req, res) => {
+export const createArtist = async (req, res) => {
   try {
     const {
       artistname,
@@ -117,7 +117,7 @@ const createArtist = async (req, res) => {
   }
 };
 
-const getArtistSubcribers = async (req, res) => {
+export const getArtistSubcribers = async (req, res) => {
   try {
     const { artistId } = req.params;
 
@@ -138,7 +138,7 @@ const getArtistSubcribers = async (req, res) => {
   }
 };
 
-const followArtist = async (req, res) => {
+export const followArtist = async (req, res) => {
   try {
     const { userId, artistId } = req.params;
 
@@ -162,9 +162,8 @@ const followArtist = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `successfully ${
-        alreadySubcribed ? "unfollowed" : "followed"
-      } artist`,
+      message: `successfully ${alreadySubcribed ? "unfollowed" : "followed"
+        } artist`,
     });
   } catch (error) {
     console.log(error);
@@ -175,7 +174,7 @@ const followArtist = async (req, res) => {
   }
 };
 
-const getFollow = async (req, res) => {
+export const getFollow = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -246,9 +245,8 @@ const getFollow = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `successfully ${
-        isArtist ? "gotten artist followers" : "gotten user following"
-      } `,
+      message: `successfully ${isArtist ? "gotten artist followers" : "gotten user following"
+        } `,
       data: follow,
     });
   } catch (error) {
@@ -260,7 +258,7 @@ const getFollow = async (req, res) => {
   }
 };
 
-const getArtistPost = async (req, res) => {
+export const getArtistPost = async (req, res) => {
   try {
     const { artistId } = req.params;
 
@@ -277,14 +275,4 @@ const getArtistPost = async (req, res) => {
       error: error.message,
     });
   }
-};
-
-module.exports = {
-  getAllArtists,
-  getArtist,
-  createArtist,
-  getArtistSubcribers,
-  followArtist,
-  getFollow,
-  getArtistPost,
 };

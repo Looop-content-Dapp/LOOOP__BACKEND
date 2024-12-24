@@ -1,8 +1,8 @@
-const mongoose = require('mongoose');
+import { Schema, model } from 'mongoose';
 
-const recentSearchSchema = new mongoose.Schema({
+const recentSearchSchema = new Schema({
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
+    type: Schema.Types.ObjectId,
     ref: 'User',
     required: true,
     index: true
@@ -22,4 +22,4 @@ const recentSearchSchema = new mongoose.Schema({
 // Create compound index for efficient querying
 recentSearchSchema.index({ userId: 1, timestamp: -1 });
 
-module.exports = mongoose.model('RecentSearch', recentSearchSchema);
+export const RecentSearch = model('RecentSearch', recentSearchSchema);

@@ -1,12 +1,7 @@
-const express = require("express");
-const {
-  deleteGenre,
-  createAGenre,
-  getGenres,
-  getUserGenres,
-} = require("../controller/genre.controller");
+import { Router } from "express";
+import { deleteGenre, createAGenre, getGenres, getUserGenres, } from "../controller/genre.controller.js";
 
-const genreRoute = express.Router();
+const genreRoute = Router();
 
 genreRoute.get("/usergenre/:userId", getUserGenres);
 genreRoute.get("/getgenres", getGenres);
@@ -14,4 +9,4 @@ genreRoute.get("/getgenres", getGenres);
 genreRoute.post("/creategenre", createAGenre);
 genreRoute.delete("/:genreId", deleteGenre);
 
-module.exports = genreRoute;
+export default genreRoute;

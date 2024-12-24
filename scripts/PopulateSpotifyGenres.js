@@ -1,7 +1,10 @@
-const mongoose = require('mongoose');
-const { spotifyApi, getValidToken } = require('../utils/spotify/spotifyClient');
-const Genre = require('../models/genre.model');
-require('dotenv').config();
+import mongoose from "mongoose";
+import { config } from "dotenv";
+import { spotifyApi, getValidToken } from "../utils/spotify/spotifyClient";
+import { Genre } from "../models/genre.model";
+
+// Loads .env
+config();
 
 const SEED_GENRES = [
   'pop', 'hip-hop', 'rock', 'electronic', 'classical', 'jazz',
@@ -65,7 +68,7 @@ const fetchSpotifyGenres = async () => {
   }
 };
 
-const populateSpotifyGenres = async () => {
+export const populateSpotifyGenres = async () => {
   try {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
@@ -100,8 +103,9 @@ const populateSpotifyGenres = async () => {
   }
 };
 
-if (require.main === module) {
+// Check if this module is being run directly
+if (import.meta.url === new URL(import.meta.resolve('./scripts/PopulateSpotifyGenres.js'))) {
   populateSpotifyGenres();
 }
 
-module.exports = { populateSpotifyGenres };
+// module.exports = { populateSpotifyGenres };

@@ -1,11 +1,11 @@
 // utils/helpers/generateUsername.js
-const User = require('../../models/user.model');
+import { User } from "./../models/user.model";
 
 /**
  * Generates a unique username from any email address format
  * Handles various email patterns and ensures uniqueness
  */
-const generateUsername = async (email) => {
+export const generateUsername = async (email) => {
   try {
     // Enhanced email validation
     if (!email || typeof email !== 'string') {
@@ -120,11 +120,11 @@ const generateUsername = async (email) => {
     // Log success for debugging (remove in production)
     console.log(`Generated username '${username}' from email '${email}'`);
 
-    return username.slice(0,  10);
+    return username.slice(0, 10);
   } catch (error) {
     console.error('Username generation error:', error);
     throw new Error(`Failed to generate username: ${error.message}`);
   }
 };
 
-module.exports = generateUsername;
+// module.exports = generateUsername;

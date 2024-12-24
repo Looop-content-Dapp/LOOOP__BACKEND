@@ -1,16 +1,21 @@
-const mongoose = require('mongoose');
-const Genre = require('../models/genre.model');
-require('dotenv').config();
+import { connect, connection } from 'mongoose';
+import { Genre } from '../models/genre.model';
+
+import { config } from 'dotenv';
+
+// Loads .env
+config();
+
 
 const clearGenres = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI);
+    await connect(process.env.MONGODB_URI);
     console.log('Connected to MongoDB');
 
     const result = await Genre.deleteMany({});
     console.log(`Cleared ${result.deletedCount} genres from the database`);
 
-    await mongoose.connection.close();
+    await connection.close();
     console.log('Database connection closed');
     process.exit(0);
   } catch (error) {
@@ -19,8 +24,10 @@ const clearGenres = async () => {
   }
 };
 
-if (require.main === module) {
+// Check if this module is being run directly
+if (import.meta.url === new URL(import.meta.resolve('./scripts/clearGenres.js'))) {
   clearGenres();
 }
 
-module.exports = { clearGenres };
+
+export { clearGenres };

@@ -1,16 +1,10 @@
-const express = require("express");
-const {
-  getAllCommunity,
-  getCommunity,
-  joinCommunity,
-  createCommunity,
-  searchCommunity,
-  deleteCommunity,
-  getArtistCommunitiesByGenre,
-  getTrendingArtistsByGenre
-} = require("../controller/community.controller");
+import { Router } from "express";
+import {
+  getAllCommunity, getCommunity, joinCommunity, createCommunity, searchCommunity,
+  deleteCommunity, getArtistCommunitiesByGenre, getTrendingArtistsByGenre
+} from "../controller/community.controller.js";
 
-const communityRouter = express.Router();
+const communityRouter = Router();
 
 // Basic community routes
 communityRouter.get("/search", searchCommunity);
@@ -26,4 +20,4 @@ communityRouter.delete("/deletecommunity/:communityId", deleteCommunity);
 communityRouter.get("/artists-by-genre/:userId", getArtistCommunitiesByGenre);
 communityRouter.get("/trending-artists/:userId", getTrendingArtistsByGenre);
 
-module.exports = communityRouter;
+export default communityRouter;

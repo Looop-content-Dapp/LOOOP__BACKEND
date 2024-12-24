@@ -1,13 +1,13 @@
-const mongoose = require("mongoose");
+import { Schema, model } from "mongoose";
 
-const ftSchema = new mongoose.Schema({
+const ftSchema = new Schema({
     trackId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Track",
       required: true,
     },
     artistId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: Schema.Types.ObjectId,
       ref: "Artist",
       required: true,
     },
@@ -94,6 +94,4 @@ ftSchema.virtual('featureImpact').get(function() {
     );
 });
 
-const FT = mongoose.model("ft", ftSchema);
-
-module.exports = FT;
+export const FT = model("ft", ftSchema);

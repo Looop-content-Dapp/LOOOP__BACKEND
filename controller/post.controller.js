@@ -1,11 +1,10 @@
 // controllers/post.controller.js
 
-const bcrypt = require("bcryptjs");
-const Post = require("../models/post.model");
-const Artist = require("../models/artist.model");
-const Comment = require("../models/comment.model");
-const Like = require("../models/likes.model");
-const Community = require("../models/community.model");
+import { Post } from "../models/post.model.js";
+import { Artist } from "../models/artist.model.js";
+import { Comment } from "../models/comment.model.js";
+import { Like } from "../models/likes.model.js";
+import { Community } from "../models/community.model.js";
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {
@@ -71,7 +70,7 @@ const populatePostDetails = async (post) => {
 };
 
 // Get all posts with filters
-const getAllPosts = async (req, res) => {
+export const getAllPosts = async (req, res) => {
   try {
     const {
       page = 1,
@@ -125,7 +124,7 @@ const getAllPosts = async (req, res) => {
 };
 
 // Get single post
-const getPost = async (req, res) => {
+export const getPost = async (req, res) => {
   try {
     const post = await Post.findById(req.params.id)
       .populate('artistId', 'name email profileImage genre verified')
@@ -151,7 +150,7 @@ const getPost = async (req, res) => {
 };
 
 // Get posts by artist
-const getAllPostByArtist = async (req, res) => {
+export const getAllPostByArtist = async (req, res) => {
   try {
     const { page = 1, limit = 10, postType } = req.query;
     const query = {
@@ -191,7 +190,7 @@ const getAllPostByArtist = async (req, res) => {
 };
 
 // Get posts by community
-const getAllPostsByCommunity = async (req, res) => {
+export const getAllPostsByCommunity = async (req, res) => {
   try {
     const { page = 1, limit = 10, postType } = req.query;
     const query = {
@@ -231,7 +230,7 @@ const getAllPostsByCommunity = async (req, res) => {
 };
 
 // Create post
-const createPost = async (req, res) => {
+export const createPost = async (req, res) => {
   try {
     const {
       content,
@@ -378,7 +377,7 @@ const createPost = async (req, res) => {
 };
 
 // Update post
-const updatePost = async (req, res) => {
+export const updatePost = async (req, res) => {
   try {
     const { id } = req.params;
     const updateData = req.body;
@@ -393,8 +392,8 @@ const updatePost = async (req, res) => {
       updateData,
       { new: true, runValidators: true }
     )
-    .populate('artistId', 'name email profileImage genre verified')
-    .populate('communityId', 'name description coverImage');
+      .populate('artistId', 'name email profileImage genre verified')
+      .populate('communityId', 'name description coverImage');
 
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
@@ -414,7 +413,7 @@ const updatePost = async (req, res) => {
 };
 
 // Delete post
-const deletePost = async (req, res) => {
+export const deletePost = async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -443,7 +442,7 @@ const deletePost = async (req, res) => {
 };
 
 // Like/Unlike post
-const likePost = async (req, res) => {
+export const likePost = async (req, res) => {
   try {
     const { userId, postId } = req.body;
 
@@ -483,7 +482,7 @@ const likePost = async (req, res) => {
 };
 
 // Add comment
-const commentOnPost = async (req, res) => {
+export const commentOnPost = async (req, res) => {
   try {
     const { userId, postId, content, parentCommentId } = req.body;
 
@@ -511,302 +510,302 @@ const commentOnPost = async (req, res) => {
     await Post.findByIdAndUpdate(postId, { $inc: { commentCount: 1 } });
 
     const populatedComment = await Comment.findById(comment._id)
-          .populate('userId', 'email profileImage bio')
-          .populate('parentCommentId');
+      .populate('userId', 'email profileImage bio')
+      .populate('parentCommentId');
 
-        return res.status(201).json({
-          message: "Comment added successfully",
-          data: populatedComment
-        });
-      } catch (error) {
-        console.error("Error in commentOnPost:", error);
-        return res.status(500).json({
-          message: "Error adding comment",
-          error: error.message
+    return res.status(201).json({
+      message: "Comment added successfully",
+      data: populatedComment
+    });
+  } catch (error) {
+    console.error("Error in commentOnPost:", error);
+    return res.status(500).json({
+      message: "Error adding comment",
+      error: error.message
+    });
+  }
+};
+
+// Get post comments
+export const getPostComments = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const comments = await Comment.find({
+      postId,
+      itemType: 'comment'
+    })
+      .populate('userId', 'email profileImage bio')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    // Get replies for each comment
+    const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
+      const replies = await Comment.find({
+        postId,
+        itemType: 'reply',
+        parentCommentId: comment._id
+      })
+        .populate('userId', 'email profileImage bio')
+        .sort({ createdAt: -1 })
+        .limit(5);
+
+      return {
+        ...comment.toObject(),
+        replies
+      };
+    }));
+
+    const total = await Comment.countDocuments({
+      postId,
+      itemType: 'comment'
+    });
+
+    return res.status(200).json({
+      message: "Successfully retrieved comments",
+      data: {
+        comments: commentsWithReplies,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalComments: total
+      }
+    });
+  } catch (error) {
+    console.error("Error in getPostComments:", error);
+    return res.status(500).json({
+      message: "Error fetching comments",
+      error: error.message
+    });
+  }
+};
+
+// Get event attendees
+export const getEventAttendees = async (req, res) => {
+  try {
+    const { postId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    const post = await Post.findById(postId);
+
+    if (!post || post.postType !== 'event') {
+      return res.status(404).json({
+        message: "Event post not found"
+      });
+    }
+
+    const attendees = await User.find({
+      _id: { $in: post.eventDetails.attendees }
+    })
+      .select('email profileImage bio')
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const total = post.eventDetails.attendees.length;
+
+    return res.status(200).json({
+      message: "Successfully retrieved attendees",
+      data: {
+        attendees,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalAttendees: total,
+        maxAttendees: post.eventDetails.maxAttendees,
+        isFullyBooked: post.eventDetails.isFullyBooked
+      }
+    });
+  } catch (error) {
+    console.error("Error in getEventAttendees:", error);
+    return res.status(500).json({
+      message: "Error fetching attendees",
+      error: error.message
+    });
+  }
+};
+
+// Join/Leave event
+export const toggleEventAttendance = async (req, res) => {
+  try {
+    const { postId, userId } = req.body;
+
+    if (!postId || !userId) {
+      return res.status(400).json({
+        message: "Missing required fields",
+        required: ['postId', 'userId']
+      });
+    }
+
+    const post = await Post.findById(postId);
+
+    if (!post || post.postType !== 'event') {
+      return res.status(404).json({
+        message: "Event post not found"
+      });
+    }
+
+    const isAttending = post.eventDetails.attendees.includes(userId);
+
+    if (isAttending) {
+      // Leave event
+      post.eventDetails.attendees = post.eventDetails.attendees.filter(
+        id => id.toString() !== userId
+      );
+      post.eventDetails.isFullyBooked = false;
+    } else {
+      // Join event
+      if (post.eventDetails.maxAttendees &&
+        post.eventDetails.attendees.length >= post.eventDetails.maxAttendees) {
+        return res.status(400).json({
+          message: "Event is fully booked"
         });
       }
-    };
 
-    // Get post comments
-    const getPostComments = async (req, res) => {
-      try {
-        const { postId } = req.params;
-        const { page = 1, limit = 10 } = req.query;
+      post.eventDetails.attendees.push(userId);
 
-        const comments = await Comment.find({
-          postId,
-          itemType: 'comment'
-        })
-          .populate('userId', 'email profileImage bio')
-          .sort({ createdAt: -1 })
-          .skip((page - 1) * limit)
-          .limit(limit);
-
-        // Get replies for each comment
-        const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
-          const replies = await Comment.find({
-            postId,
-            itemType: 'reply',
-            parentCommentId: comment._id
-          })
-            .populate('userId', 'email profileImage bio')
-            .sort({ createdAt: -1 })
-            .limit(5);
-
-          return {
-            ...comment.toObject(),
-            replies
-          };
-        }));
-
-        const total = await Comment.countDocuments({
-          postId,
-          itemType: 'comment'
-        });
-
-        return res.status(200).json({
-          message: "Successfully retrieved comments",
-          data: {
-            comments: commentsWithReplies,
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(total / limit),
-            totalComments: total
-          }
-        });
-      } catch (error) {
-        console.error("Error in getPostComments:", error);
-        return res.status(500).json({
-          message: "Error fetching comments",
-          error: error.message
-        });
+      if (post.eventDetails.maxAttendees &&
+        post.eventDetails.attendees.length >= post.eventDetails.maxAttendees) {
+        post.eventDetails.isFullyBooked = true;
       }
-    };
+    }
 
-    // Get event attendees
-    const getEventAttendees = async (req, res) => {
-      try {
-        const { postId } = req.params;
-        const { page = 1, limit = 10 } = req.query;
+    await post.save();
 
-        const post = await Post.findById(postId);
-
-        if (!post || post.postType !== 'event') {
-          return res.status(404).json({
-            message: "Event post not found"
-          });
-        }
-
-        const attendees = await User.find({
-          _id: { $in: post.eventDetails.attendees }
-        })
-          .select('email profileImage bio')
-          .skip((page - 1) * limit)
-          .limit(limit);
-
-        const total = post.eventDetails.attendees.length;
-
-        return res.status(200).json({
-          message: "Successfully retrieved attendees",
-          data: {
-            attendees,
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(total / limit),
-            totalAttendees: total,
-            maxAttendees: post.eventDetails.maxAttendees,
-            isFullyBooked: post.eventDetails.isFullyBooked
-          }
-        });
-      } catch (error) {
-        console.error("Error in getEventAttendees:", error);
-        return res.status(500).json({
-          message: "Error fetching attendees",
-          error: error.message
-        });
+    return res.status(200).json({
+      message: isAttending ? "Left event successfully" : "Joined event successfully",
+      data: {
+        isAttending: !isAttending,
+        attendeeCount: post.eventDetails.attendees.length,
+        isFullyBooked: post.eventDetails.isFullyBooked
       }
+    });
+  } catch (error) {
+    console.error("Error in toggleEventAttendance:", error);
+    return res.status(500).json({
+      message: "Error updating event attendance",
+      error: error.message
+    });
+  }
+};
+
+// Get upcoming events
+export const getUpcomingEvents = async (req, res) => {
+  try {
+    const {
+      communityId,
+      page = 1,
+      limit = 10,
+      eventType,
+      isVirtual,
+      minDate = new Date(),
+      maxDate
+    } = req.query;
+
+    const query = {
+      postType: 'event',
+      'eventDetails.startDate': {
+        $gt: new Date(minDate),
+        ...(maxDate && { $lt: new Date(maxDate) })
+      },
+      ...(communityId && { communityId }),
+      ...(eventType && { 'eventDetails.eventType': eventType }),
+      ...(isVirtual !== undefined && { 'eventDetails.isVirtual': isVirtual })
     };
 
-    // Join/Leave event
-    const toggleEventAttendance = async (req, res) => {
-      try {
-        const { postId, userId } = req.body;
+    const events = await Post.find(query)
+      .populate('artistId', 'name email profileImage genre verified')
+      .populate('communityId', 'name description coverImage')
+      .sort({ 'eventDetails.startDate': 1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
-        if (!postId || !userId) {
-          return res.status(400).json({
-            message: "Missing required fields",
-            required: ['postId', 'userId']
-          });
-        }
+    const total = await Post.countDocuments(query);
 
-        const post = await Post.findById(postId);
-
-        if (!post || post.postType !== 'event') {
-          return res.status(404).json({
-            message: "Event post not found"
-          });
-        }
-
-        const isAttending = post.eventDetails.attendees.includes(userId);
-
-        if (isAttending) {
-          // Leave event
-          post.eventDetails.attendees = post.eventDetails.attendees.filter(
-            id => id.toString() !== userId
-          );
-          post.eventDetails.isFullyBooked = false;
-        } else {
-          // Join event
-          if (post.eventDetails.maxAttendees &&
-              post.eventDetails.attendees.length >= post.eventDetails.maxAttendees) {
-            return res.status(400).json({
-              message: "Event is fully booked"
-            });
-          }
-
-          post.eventDetails.attendees.push(userId);
-
-          if (post.eventDetails.maxAttendees &&
-              post.eventDetails.attendees.length >= post.eventDetails.maxAttendees) {
-            post.eventDetails.isFullyBooked = true;
-          }
-        }
-
-        await post.save();
-
-        return res.status(200).json({
-          message: isAttending ? "Left event successfully" : "Joined event successfully",
-          data: {
-            isAttending: !isAttending,
-            attendeeCount: post.eventDetails.attendees.length,
-            isFullyBooked: post.eventDetails.isFullyBooked
-          }
-        });
-      } catch (error) {
-        console.error("Error in toggleEventAttendance:", error);
-        return res.status(500).json({
-          message: "Error updating event attendance",
-          error: error.message
-        });
+    return res.status(200).json({
+      message: "Successfully retrieved upcoming events",
+      data: {
+        events,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalEvents: total
       }
+    });
+  } catch (error) {
+    console.error("Error in getUpcomingEvents:", error);
+    return res.status(500).json({
+      message: "Error fetching upcoming events",
+      error: error.message
+    });
+  }
+};
+
+// Get active announcements
+export const getActiveAnnouncements = async (req, res) => {
+  try {
+    const {
+      communityId,
+      importance,
+      page = 1,
+      limit = 10,
+      targetAudience
+    } = req.query;
+
+    const query = {
+      postType: 'announcement',
+      $or: [
+        { 'announcementDetails.expiryDate': { $gt: new Date() } },
+        { 'announcementDetails.expiryDate': null }
+      ],
+      ...(communityId && { communityId }),
+      ...(importance && { 'announcementDetails.importance': importance }),
+      ...(targetAudience && { 'announcementDetails.targetAudience': targetAudience })
     };
 
-    // Get upcoming events
-    const getUpcomingEvents = async (req, res) => {
-      try {
-        const {
-          communityId,
-          page = 1,
-          limit = 10,
-          eventType,
-          isVirtual,
-          minDate = new Date(),
-          maxDate
-        } = req.query;
+    const announcements = await Post.find(query)
+      .populate('artistId', 'name email profileImage genre verified')
+      .populate('communityId', 'name description coverImage')
+      .sort({
+        'announcementDetails.isPinned': -1,
+        'announcementDetails.importance': -1,
+        createdAt: -1
+      })
+      .skip((page - 1) * limit)
+      .limit(limit);
 
-        const query = {
-          postType: 'event',
-          'eventDetails.startDate': {
-            $gt: new Date(minDate),
-            ...(maxDate && { $lt: new Date(maxDate) })
-          },
-          ...(communityId && { communityId }),
-          ...(eventType && { 'eventDetails.eventType': eventType }),
-          ...(isVirtual !== undefined && { 'eventDetails.isVirtual': isVirtual })
-        };
+    const total = await Post.countDocuments(query);
 
-        const events = await Post.find(query)
-          .populate('artistId', 'name email profileImage genre verified')
-          .populate('communityId', 'name description coverImage')
-          .sort({ 'eventDetails.startDate': 1 })
-          .skip((page - 1) * limit)
-          .limit(limit);
-
-        const total = await Post.countDocuments(query);
-
-        return res.status(200).json({
-          message: "Successfully retrieved upcoming events",
-          data: {
-            events,
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(total / limit),
-            totalEvents: total
-          }
-        });
-      } catch (error) {
-        console.error("Error in getUpcomingEvents:", error);
-        return res.status(500).json({
-          message: "Error fetching upcoming events",
-          error: error.message
-        });
+    return res.status(200).json({
+      message: "Successfully retrieved active announcements",
+      data: {
+        announcements,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalAnnouncements: total
       }
-    };
+    });
+  } catch (error) {
+    console.error("Error in getActiveAnnouncements:", error);
+    return res.status(500).json({
+      message: "Error fetching announcements",
+      error: error.message
+    });
+  }
+};
 
-    // Get active announcements
-    const getActiveAnnouncements = async (req, res) => {
-      try {
-        const {
-          communityId,
-          importance,
-          page = 1,
-          limit = 10,
-          targetAudience
-        } = req.query;
-
-        const query = {
-          postType: 'announcement',
-          $or: [
-            { 'announcementDetails.expiryDate': { $gt: new Date() } },
-            { 'announcementDetails.expiryDate': null }
-          ],
-          ...(communityId && { communityId }),
-          ...(importance && { 'announcementDetails.importance': importance }),
-          ...(targetAudience && { 'announcementDetails.targetAudience': targetAudience })
-        };
-
-        const announcements = await Post.find(query)
-          .populate('artistId', 'name email profileImage genre verified')
-          .populate('communityId', 'name description coverImage')
-          .sort({
-            'announcementDetails.isPinned': -1,
-            'announcementDetails.importance': -1,
-            createdAt: -1
-          })
-          .skip((page - 1) * limit)
-          .limit(limit);
-
-        const total = await Post.countDocuments(query);
-
-        return res.status(200).json({
-          message: "Successfully retrieved active announcements",
-          data: {
-            announcements,
-            currentPage: parseInt(page),
-            totalPages: Math.ceil(total / limit),
-            totalAnnouncements: total
-          }
-        });
-      } catch (error) {
-        console.error("Error in getActiveAnnouncements:", error);
-        return res.status(500).json({
-          message: "Error fetching announcements",
-          error: error.message
-        });
-      }
-    };
-
-    // Export all controllers
-    module.exports = {
-      getAllPosts,
-      getPost,
-      getAllPostByArtist,
-      getAllPostsByCommunity,
-      createPost,
-      updatePost,
-      deletePost,
-      likePost,
-      commentOnPost,
-      getPostComments,
-      getEventAttendees,
-      toggleEventAttendance,
-      getUpcomingEvents,
-      getActiveAnnouncements
-    };
+// Export all controllers
+// export default {
+//   getAllPosts,
+//   getPost,
+//   getAllPostByArtist,
+//   getAllPostsByCommunity,
+//   createPost,
+//   updatePost,
+//   deletePost,
+//   likePost,
+//   commentOnPost,
+//   getPostComments,
+//   getEventAttendees,
+//   toggleEventAttendance,
+//   getUpcomingEvents,
+//   getActiveAnnouncements
+// };
