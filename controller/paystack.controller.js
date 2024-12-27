@@ -3,8 +3,8 @@ import assert from 'assert'
 import crypto from 'crypto';
 import { config } from 'dotenv';
 import { Paystack } from 'paystack-sdk';
-import Transactions from '../models/payment.model.js';
-import User from '../models/user.model.js';
+import { Transactions } from '../models/payment.model.js';
+import { User } from '../models/user.model.js';
 
 // load .env file
 config();
