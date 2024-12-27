@@ -15,6 +15,7 @@ import playlistRouter from "./routes/playlist.route.js";
 import postRouter from "./routes/post.route.js";
 import searchRoutes from "./routes/search.routes.js";
 import OAuthRouter from "./routes/oauth.route.js";
+import paymentRouter from "./routes/payment.route.js";
 
 import { config } from "dotenv";
 config(); //Loads .env
@@ -54,6 +55,7 @@ app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter)
 app.use('/api/search', searchRoutes);
 app.use('/api/oauth', OAuthRouter);
+app.use('/api/payments/', paymentRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 const mongoURI = process.env["MONGODB_URI"] || "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
