@@ -3,12 +3,14 @@ import assert from 'assert'
 import crypto from 'crypto';
 import { config } from 'dotenv';
 import { Paystack } from 'paystack-sdk';
-import User from '../models/user.model';
+import Transactions from '../models/payment.model.js';
+import User from '../models/user.model.js';
 
 // load .env file
 config();
 
-const BASE_URL = 'https://api.paystack.co'
+const BASE_URL = 'https://api.paystack.co';
+const TRANSACTION_STATUS_END_STATE = ['sucess', 'failed'];
 // const SUBSCRIPTION_PLANS = {
 //     "SILVER": "PLN_32480",
 //     "GOLD": "PLN_86D63"
@@ -18,21 +20,90 @@ const paystackClient = initializePaystack();
 
 
 export async function initializePaystackTransaction(req, res, email, amount) {
-    const body = {
-        email,
-        amount
-        // Might need to generate trnx reference ourselves if need be.
-        // but can use the auto-generated one from paystack for now.
-    }
+    try {
+        const user = await User.findOne({ email: apiRes.data.customer.email });
+        if (!user) {
+            // Reaching this code branch would indicate something funny amiss, which is that:
+            // we tried initializing a transaction for an email not in our DB.
+            console.log(`[Edge Case]: User with email ${apiRes.data.customer.email} does not exist!! `);
+            return res.status(500).json({ message: "User not recognized", error: "Fatal! Error!" });
+        }
 
-    const apiRes = await paystackClient.transaction.initialize({ email, amount });
-    if (!apiRes.status) {
-        // This is a strange one indeed
-        console.log("[Paystack Transaction Init Error]", apiRes);
-        return res.status(500).json({ message: "Failed to create transaction", error: apiRes.message });
+        const apiRes = await paystackClient.transaction.initialize({ email, amount });
+        if (apiRes.status != true || !apiRes.data) {
+            console.log("[Paystack Transaction Init Error]", apiRes);
+            return res.status(400).json({ message: "Failed to create transaction", error: apiRes.message });
+        }
+        else if (apiRes.status === true) {
+            return res.status(200).json({ status: apiRes.status, message: apiRes.message, data: apiRes.data });
+        }
     }
+    catch (error) {
+        console.log("[Paystack Fatal Error]: ", error);
+        return res.status(500).json({ message: "Failed to create transaction", error: "Service Unavailable" });
+    }
+}
 
-    // TODO: Update DB to store payment information.
+
+
+export async function verifyPaysatckTransaction(res, referenceId) {
+    // const DBSession = await mongoose.startSession();
+    try {
+        let trnx = await Transactions.findOne({
+            referenceId: referenceId,
+            processedBy: "PSTK"
+        });
+        // Webhoooks notifs only sent for successfully completed payment flows,
+        // we need to actively query paystack to get intermediate payment flow status,
+        // So to avoid stale & incorrect "status" state, paystack is always actively queried
+        // exccept when "status" is in a state that signifies end of payment flow.
+        if (trnx && TRANSACTION_STATUS_END_STATE.includes(trnx.status)) {
+            return res.status(200).json({ message: trnx.rawTransactionData.message, transactionStatus: trnx.status });
+        }
+
+        // If doc not found (webhook not received yet), most likely due to reasons
+        // outlined here: https://paystack.com/docs/payments/verify-payments/#transaction-statuses,
+        // we make a request to the endpoint to request for the current (intermediate) status.
+        const apiRes = await paystackClient.transaction.verify(referenceId);
+        if (apiRes.status != true || !apiRes.data) {
+            console.log("[Paystack Transaction Verification Error]", apiRes);
+            return res.status(400).json({ message: "Failed to verify transaction", error: apiRes.message });
+        }
+        // At this point we have a valid transaction object.
+
+        // verify that we actually know who this customer is.
+        const user = await User.findOne({ email: apiRes.data.customer.email });
+        if (!user) {
+            // Reaching this code branch would indicate something funny happened, which is that:
+            // we tried verifying transaction status of a transaction initiated by an email not in our DB.
+            console.log(`[Edge Case]: User with email ${apiRes.data.customer.email} does not exist!! `);
+            return res.status(403).json({ message: "User not recognized", error: "Fatal! Error!" });
+        }
+
+        // // Atomically create & update DB documents.
+        // DBSession.startTransaction();
+        trnx = await Transactions.create({
+            transactionId: BigInt(apiRes.data.id),
+            referenceId: apiRes.data.reference,
+            email: apiRes.data.customer.email,
+            user: user.id,
+            amount: apiRes.data.amount,
+            rawTransactionData: apiRes,
+            description: apiRes.data.customer.metadata?.description || "",
+            transactionDate: apiRes.data.transaction_date,
+            status: apiRes.data.status,
+            processedBy: "PSTK",
+        }, { timestamp: true });
+
+        await trnx.save();
+
+        return res.status(200).json({ message: apiRes.message, transactionStatus: trnx.status });
+    }
+    catch (error) {
+        console.log("[Paystack Transaction Verification Error]", error);
+        // await DBSession.abortTransaction(); // Abort on error
+        res.status(500).json({ message: "Something went wrong, try again", error: String(error) })
+    }
 }
 
 
@@ -163,7 +234,6 @@ function chargeSuccessEventHandler(event) {
 // 
 // <<========================== (private) UnExported Functions Stay Below ================================>>
 // 
-
 // Load Paystack keys & Initialize SDK
 function initializePaystack() {
     const envStr = process.env.NODE_ENV === "production" ? "PAYSTACK_SECRET_KEY" : "PAYSTACK_SECRET_KEY_TEST";
