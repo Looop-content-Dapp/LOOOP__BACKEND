@@ -1,8 +1,12 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
-import looopAbi from "../Abis/looopAbi.json" assert { type: 'json' };
 import { config } from "dotenv";
-import { Account, RpcProvider, Contract, transaction } from "starknet";
+import { RpcProvider } from "starknet";
+import {
+  TokenboundClient,
+  TBAVersion,
+  TBAChainID,
+} from "starknet-tokenbound-sdk";
 import { User } from "../models/user.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { FaveArtist } from "../models/faveartist.model.js";
@@ -12,6 +16,8 @@ import { Follow } from "../models/followers.model.js";
 import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
+import { createWalletViaAPI } from "../xion/createXionWallet.js";
+import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
 
 // Loads .env
 config();
@@ -170,45 +176,52 @@ const getUser = async (req, res) => {
   }
 };
 
-const checkIfUserNameExist = async(req, res) => {
-    try{
-     const { username} = req.body
+const checkIfUserNameExist = async (req, res) => {
+  try {
+    const { username } = req.body;
 
-     if(username == ""){
-        console.log("username is needed");
-        return "username is needed"
-     }
-
-     const existingUser = await User.findOne({ username })
-     return res.status(200).json({
-        message: "successfully checked if username is",
-        data: { existingUser }
-      });
-    }catch(error){
-       console.log("Error check if username exist", error.message)
-       return res
-       .status(500)
-       .json({ message: "Error checking username", error: error.message });
+    if (username == "") {
+      console.log("username is needed");
+      return "username is needed";
     }
-}
+
+    const existingUser = await User.findOne({ username });
+    return res.status(200).json({
+      message: "successfully checked if username is",
+      data: { existingUser },
+    });
+  } catch (error) {
+    console.log("Error check if username exist", error.message);
+    return res
+      .status(500)
+      .json({ message: "Error checking username", error: error.message });
+  }
+};
 
 const createUser = async (req, res) => {
   try {
     const { email, password, username } = req.body;
 
-    const provider = new RpcProvider({ nodeUrl: process.env.PROVIDER });
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    const generateSimpleSalt = () => {
+      return Math.random().toString(36).substring(2, 10);
+    };
 
-    const account = new Account(
-      provider,
-      process.env.ACCT_ADDRESS,
-      process.env.PRIVATE_KEY
-    );
+    const account = {
+      address: process.env.ACCT_ADDRESS,
+      privateKey: process.env.PRIVATE_KEY,
+    };
 
-    const looopContract = new Contract(
-      looopAbi,
-      process.env.LOOOP_CONTRACT,
-      account
-    );
+    const options = {
+      walletClient: account,
+      version: TBAVersion.V3,
+      chain_id: TBAChainID.sepolia,
+      jsonRPC:
+        "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/SJrfoNSORPvz7PkhNneqhqTpnielFNxS",
+    };
+
+    const tokenbound = new TokenboundClient(options);
 
     if (password == "" || email == "" || username == "") {
       return res
@@ -216,35 +229,47 @@ const createUser = async (req, res) => {
         .json({ message: "Password, Email and username is required" });
     }
 
-    if(username){
-        let tx = await looopContract.register_account(
-            process.env.NFT_CONTRACT_ADDRESS,
-            process.env.NFT_TOKEN_ID,
-            process.env.IMPLEMENTATION_HASH,
-            username,
-            password
-          );
+    if (username) {
+      const shortSalt = generateSimpleSalt();
 
-          let reciept = await provider.waitForTransaction(tx.transaction_hash);
+      let starknetTokenBoundAccount = await tokenbound.createAccount({
+        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
+        tokenId: process.env.NFT_TOKEN_ID,
+        salt: shortSalt,
+      });
 
-          const salt = await bcrypt.genSalt(10);
-          const hashedPassword = await bcrypt.hash(password, salt);
+      const xionWallet = await createWalletViaAPI();
 
-          const user = new User({
-            email,
-            username,
-            password: hashedPassword,
-          });
+      if (xionWallet) {
+        const encryptedKey = encryptPrivateKey(xionWallet.privateKey, password);
 
-          await user.save();
+        const user = new User({
+          email,
+          username,
+          password: hashedPassword,
+          wallets: {
+            starknet: starknetTokenBoundAccount.account,
+            xion: xionWallet.address,
+          },
+        });
 
-          return res.status(200).json({
-            message: "successfully created a user",
-            data: { user: user, transaction: tx, reciept: reciept },
-          });
+        await user.save();
+
+        res.cookie("encryptedKey", JSON.stringify(encryptedKey), {
+          httpOnly: true,
+          secure: true,
+          sameSite: "Strict",
+          maxAge: 24 * 60 * 60 * 1000,
+        });
+
+        return res.status(200).json({
+          message: "successfully created a user",
+          data: { user: user },
+        });
+      }
     }
   } catch (error) {
-    console.log(error);
+    console.log(error, "error");
     return res
       .status(500)
       .json({ message: "Error creating user", error: error.message });
@@ -292,8 +317,8 @@ const getArtistBasedOnUserGenre = async (req, res) => {
     const userGenres = await Preferences.aggregate([
       {
         $match: {
-          userId: new mongoose.Types.ObjectId(userId)
-        }
+          userId: new mongoose.Types.ObjectId(userId),
+        },
       },
       {
         $lookup: {
@@ -303,31 +328,31 @@ const getArtistBasedOnUserGenre = async (req, res) => {
             {
               $match: {
                 $expr: {
-                  $eq: ["$_id", "$$genreId"]
-                }
-              }
-            }
+                  $eq: ["$_id", "$$genreId"],
+                },
+              },
+            },
           ],
-          as: "genre"
-        }
+          as: "genre",
+        },
       },
       {
-        $unwind: "$genre"
+        $unwind: "$genre",
       },
       // Group to get array of genre names and convert to lowercase
       {
         $group: {
           _id: null,
           genres: { $push: { $toLower: "$genre.name" } },
-          originalGenres: { $push: "$genre.name" }
-        }
-      }
+          originalGenres: { $push: "$genre.name" },
+        },
+      },
     ]);
 
     if (!userGenres.length) {
       return res.status(200).json({
         message: "No genres found for user",
-        data: []
+        data: [],
       });
     }
 
@@ -341,37 +366,37 @@ const getArtistBasedOnUserGenre = async (req, res) => {
             $map: {
               input: "$genres",
               as: "genre",
-              in: { $toLower: "$$genre" }
-            }
-          }
-        }
+              in: { $toLower: "$$genre" },
+            },
+          },
+        },
       },
       {
         $match: {
           lowercaseGenres: {
-            $in: lowercaseGenres
-          }
-        }
+            $in: lowercaseGenres,
+          },
+        },
       },
       // Calculate matching genres count using lowercase comparison
       {
         $addFields: {
           matchingGenresCount: {
             $size: {
-              $setIntersection: ["$lowercaseGenres", lowercaseGenres]
-            }
-          }
-        }
+              $setIntersection: ["$lowercaseGenres", lowercaseGenres],
+            },
+          },
+        },
       },
       // Sort by matching genres count and popularity
       {
         $sort: {
           matchingGenresCount: -1,
-          popularity: -1
-        }
+          popularity: -1,
+        },
       },
       {
-        $limit: 50
+        $limit: 50,
       },
       // Only include the fields we want (inclusion-only projection)
       {
@@ -384,9 +409,9 @@ const getArtistBasedOnUserGenre = async (req, res) => {
           monthlyListeners: 1,
           verified: 1,
           matchingGenresCount: 1,
-          artistId: 1
-        }
-      }
+          artistId: 1,
+        },
+      },
     ]);
 
     return res.status(200).json({
@@ -394,14 +419,14 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       data: {
         artists,
         userGenres: userGenres[0].originalGenres,
-        totalMatches: artists.length
-      }
+        totalMatches: artists.length,
+      },
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
       message: "Error fetching artists based on genre of user",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -460,8 +485,9 @@ const subcribeToPremium = async (req, res) => {
     );
 
     return res.status(200).json({
-      message: `successfully ${user.isPremium == true ? "unsubcribe from" : "subcribe to"
-        } premium`,
+      message: `successfully ${
+        user.isPremium == true ? "unsubcribe from" : "subcribe to"
+      } premium`,
     });
   } catch (error) {
     console.log(error);
@@ -495,8 +521,9 @@ const subcribeToArtist = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `successfully ${alreadyFriends ? "unsubcribed" : "subcribed"
-        } to artist`,
+      message: `successfully ${
+        alreadyFriends ? "unsubcribed" : "subcribed"
+      } to artist`,
     });
   } catch (error) {
     console.log(error);
@@ -717,7 +744,7 @@ const getUserByEmail = async (req, res) => {
 
     const user = await User.aggregate([
       {
-        $match: { email: email }
+        $match: { email: email },
       },
       {
         $lookup: {
@@ -802,10 +829,7 @@ const getUserByEmail = async (req, res) => {
       {
         $match: {
           $expr: {
-            $eq: [
-              "$userId",
-              user[0]._id
-            ],
+            $eq: ["$userId", user[0]._id],
           },
         },
       },
@@ -842,7 +866,7 @@ const getUserByEmail = async (req, res) => {
     console.log(error);
     return res.status(500).json({
       message: "Error fetching user by email",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -854,14 +878,14 @@ const signIn = async (req, res) => {
     // Validate request body
     if (!email || !password) {
       return res.status(400).json({
-        message: "Email and password are required"
+        message: "Email and password are required",
       });
     }
 
     // Find user by email
     const user = await User.aggregate([
       {
-        $match: { email: email }
+        $match: { email: email },
       },
       {
         $lookup: {
@@ -934,7 +958,7 @@ const signIn = async (req, res) => {
 
     if (!user || user.length === 0) {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
 
@@ -943,7 +967,7 @@ const signIn = async (req, res) => {
 
     if (!isPasswordValid) {
       return res.status(401).json({
-        message: "Invalid password"
+        message: "Invalid password",
       });
     }
 
@@ -952,10 +976,7 @@ const signIn = async (req, res) => {
       {
         $match: {
           $expr: {
-            $eq: [
-              "$userId",
-              user[0]._id
-            ],
+            $eq: ["$userId", user[0]._id],
           },
         },
       },
@@ -992,15 +1013,14 @@ const signIn = async (req, res) => {
       message: "Sign in successful",
       data: {
         ...userData,
-        artistPlayed: uniqueTracks.length
-      }
+        artistPlayed: uniqueTracks.length,
+      },
     });
-
   } catch (error) {
     console.log(error);
     return res.status(500).json({
       message: "Error signing in",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -1023,5 +1043,5 @@ export {
   getUserFriends,
   getUserByEmail,
   signIn,
-  checkIfUserNameExist
+  checkIfUserNameExist,
 };

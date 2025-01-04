@@ -19,6 +19,7 @@
   "description": "",
   "type": "module",
   "dependencies": {
+    "@google-cloud/kms": "^4.5.0",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -28,7 +29,8 @@
     "mongoose": "^8.6.1",
     "paystack-sdk": "^2.5.17",
     "spotify-web-api-node": "^5.0.2",
-    "starknet": "^6.11.0"
+    "starknet": "^6.11.0",
+    "starknet-tokenbound-sdk": "^0.3.9"
   },
   "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab",
   "devDependencies": {
