@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
@@ -19,13 +18,11 @@ import OAuthRouter from "./routes/oauth.route.js";
 import { config } from "dotenv";
 config(); //Loads .env
 
-
 const app = express();
 
 app.use(urlencoded({ extended: true }));
 app.use(json());
 app.use(cors());
-
 
 app.use((req, res, next) => {
   console.log(req.path, req.method);
@@ -40,7 +37,6 @@ app.get("/api", (req, res) => {
   return res.send("welcome to the official looop Api");
 });
 
-
 // routes
 app.use("/api/user", userRouter);
 app.use("/api/artist", artistRouter);
@@ -51,12 +47,14 @@ app.use("/api/community", communityRouter);
 app.use("/api/genre", genreRoute);
 app.use("/api/playlist", playlistRouter);
 app.use("/api/post", postRouter);
-app.use("/api/artistclaim", artistClaimRouter)
-app.use('/api/search', searchRoutes);
-app.use('/api/oauth', OAuthRouter);
+app.use("/api/artistclaim", artistClaimRouter);
+app.use("/api/search", searchRoutes);
+app.use("/api/oauth", OAuthRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
-const mongoURI = process.env["MONGODB_URI"] || "mongodb+srv://Looopmobiledapp:LooopDev@looopcluster0.ptr07.mongodb.net/"
+const mongoURI =
+  process.env["MONGODB_URI"] ||
+  "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
 mongoose.connect(mongoURI);
 
