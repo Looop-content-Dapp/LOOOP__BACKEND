@@ -8,10 +8,10 @@ config();
 const JWT_ISS = "com.looopmusic";
 const JWT_AUD = "looopmusic-v1-api-service";
 
-if (!process.env['JWT_SECRET']) throw "[JWT_SECRET_ERROR]: Key Not Found!"
+if (!process.env['DWT_SECRET']) throw "[JWT_SECRET_ERROR]: Key Not Found!"
 
 export const createAuthToken = createSigner({
-    key: process.env['JWT_SECRET'].trim(),
+    key: process.env['DWT_SECRET'].trim(),
     algorithm: 'HS512',
     iss: JWT_ISS,
     aud: JWT_AUD,
@@ -19,7 +19,7 @@ export const createAuthToken = createSigner({
 
 
 export const verifyAuthToken = createVerifier({
-    key: async () => process.env['JWT_SECRET'].trim(),
+    key: async () => process.env['DWT_SECRET'].trim(),
     algorithms: ["HS512"],
     allowedIss: JWT_ISS,
     requiredClaims: ["iss", "aud"],

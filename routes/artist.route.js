@@ -1,6 +1,14 @@
 import { Router } from "express";
 import {
-  getAllArtists, getArtist, createArtist, getArtistSubcribers, followArtist, getFollow, getArtistPost,
+  getAllArtists,
+  getArtist,
+  createArtist,
+  getArtistSubcribers,
+  followArtist,
+  getFollow,
+  getArtistPost,
+  applyArtist,
+  signContract,
 } from "../controller/artist.controller.js";
 
 // import { getArtistBasedOnUserGenreExcludingWhoTheyFollow } from "../controller/song.controller";
@@ -17,7 +25,9 @@ artistRouter.get("/follow/:id", getFollow);
 artistRouter.get("/artistpost/:artistId", getArtistPost);
 
 artistRouter.post("/follow/:userId/:artistId", followArtist);
+artistRouter.patch("/apply-as-artist/", applyArtist);
 artistRouter.post("/createartist", createArtist);
+artistRouter.post("/sign-contract", signContract);
 
 // router.delete("/:id", deleteUsergetAllUsers);
 
