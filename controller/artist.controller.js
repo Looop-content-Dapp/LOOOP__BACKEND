@@ -67,47 +67,148 @@ export const createArtist = async (req, res) => {
       artistname,
       email,
       profileImage,
-      password,
       bio,
-      genre,
-      addinationalInfo,
+      genres,
       twitter,
-      linkedin,
+      tiktok,
       instagram,
+      address1,
+      address2,
+      country,
+      city,
+      postalcode,
+      websiteurl,
     } = req.body;
 
-    if (password == "" || email == "") {
-      return res
-        .status(401)
-        .json({ message: "Password and Email is required" });
+    const requiredFields = {
+      artistname: "Artist name is required",
+      email: "Email is required",
+      profileImage: "Profile image is required",
+      bio: "Bio is required",
+      address1: "Address 1 is required",
+      country: "Country is required",
+      city: "City is required",
+      postalcode: "Postal code is required",
+      websiteurl: "Website URL is required",
+    };
+
+    const requiredSocial = {
+      tiktok: "Tiktok social is required",
+      instagram: "Instagram social is required",
+      twitter: "Twitter social is required",
+    };
+
+    const missingFields = Object.entries({
+      ...requiredFields,
+      ...requiredSocial,
+    })
+      .filter(([field]) => !req.body[field])
+      .map(([, message]) => message);
+
+    if (missingFields.length) {
+      return res.status(401).json({
+        message: "Missing required fields",
+        errors: missingFields,
+      });
     }
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(401).json({ message: "invalid email" });
+    }
+
+    if (!genres || !Array.isArray(genres) || genres.length === 0) {
+      return res.status(401).json({
+        message: "Error",
+        errors: "At least one genre must be specified",
+      });
+    }
 
     const artist = new Artist({
-      artistname,
+      name: artistname,
       email,
       profileImage,
-      password: hashedPassword,
-      bio,
-      genre,
-      addinationalInfo,
-      addinationalInfo: addinationalInfo ? addinationalInfo : "",
+      biography: bio,
+      genres,
+      address1: address1,
+      address2,
+      country,
+      city,
+      postalcode,
+      websiteurl,
     });
 
     const socials = await Social({
       artistId: artist._id,
       twitter,
-      linkedin,
+      tiktok,
       instagram,
     });
 
     await Promise.all([await artist.save(), await socials.save()]);
 
     return res.status(200).json({
-      message: "successfully created an artist",
+      status: "success",
+      message: "Artist created successfully",
       data: artist,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error creating artist", error: error.message });
+  }
+};
+
+export const signContract = async (req, res) => {
+  try {
+    const { artistname } = req.body;
+
+    const requiredFields = {
+      artistname: "Artist name is required",
+    };
+
+    const missingFields = Object.entries({
+      ...requiredFields,
+    })
+      .filter(([field]) => !req.body[field])
+      .map(([, message]) => message);
+
+    if (missingFields.length) {
+      return res.status(401).json({
+        message: "Missing required fields",
+        errors: missingFields,
+      });
+    }
+
+    console.log(
+      artistname,
+      "call a function to execute a blockchain contract save"
+    );
+
+    return res.status(200).json({
+      status: "success",
+      message: "Contract created & signed successfully",
+      data: null,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error creating artist", error: error.message });
+  }
+};
+
+export const applyArtist = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(401).json({ message: "invalid email" });
+    }
+
+    return res.status(200).json({
+      message: "Success, your application is in review",
+      data: `${email}`,
     });
   } catch (error) {
     console.log(error);
@@ -162,8 +263,9 @@ export const followArtist = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `successfully ${alreadySubcribed ? "unfollowed" : "followed"
-        } artist`,
+      message: `successfully ${
+        alreadySubcribed ? "unfollowed" : "followed"
+      } artist`,
     });
   } catch (error) {
     console.log(error);
@@ -245,8 +347,9 @@ export const getFollow = async (req, res) => {
     }
 
     return res.status(200).json({
-      message: `successfully ${isArtist ? "gotten artist followers" : "gotten user following"
-        } `,
+      message: `successfully ${
+        isArtist ? "gotten artist followers" : "gotten user following"
+      } `,
       data: follow,
     });
   } catch (error) {
