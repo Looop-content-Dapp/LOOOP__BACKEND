@@ -1,4 +1,6 @@
 import { Types } from "mongoose";
+import validator from "validator";
+
 import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
@@ -63,69 +65,137 @@ export const getCommunity = async (req, res) => {
 export const createCommunity = async (req, res) => {
   try {
     const {
-      name,
+      communityName,
       description,
       coverImage,
       collectibleName,
       collectibleDescription,
       collectibleImage,
       collectibleType,
-      artistId
+      artistId,
     } = req.body;
 
-    if (!name || !description || !coverImage || !collectibleName || !collectibleImage || !artistId) {
-      return res.status(400).json({
+    function isValidImageType(type) {
+      const validTypes = [
+        "PNG",
+        "JPG",
+        "WEBP",
+        "png",
+        "jpg",
+        "webp",
+        "GIF",
+        "gif",
+      ];
+      return validTypes.includes(type.toUpperCase());
+    }
+
+    const requiredFields = {
+      communityName: "Community name is required",
+      description: "Description is required",
+      coverImage: "Cover image is required",
+      collectibleName: "Collectible name is required",
+      collectibleImage: "Collectible image is required",
+      collectibleDescription: "Collectible description is required",
+      collectibleType: "Collectible type is required",
+      artistId: "Artist ID is required",
+    };
+    const missingFields = Object.entries(requiredFields)
+      .filter(([field]) => !req.body[field])
+      .map(([, message]) => message);
+
+    if (missingFields.length) {
+      return res.status(401).json({
         message: "Missing required fields",
-        required: [
-          'name',
-          'description',
-          'coverImage',
-          'collectibleName',
-          'collectibleImage',
-          'artistId'
-        ]
+        errors: missingFields,
       });
     }
 
-    if (collectibleImage) {
-      const maxSize = 50 * 1024 * 1024; // 50MB
-      if (collectibleImage.size > maxSize) {
-        return res.status(400).json({
-          message: "Collectible image must be less than 50MB"
-        });
+    if (!validator.isURL(coverImage)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid cover image URL" });
+    }
+
+    if (!validator.isURL(collectibleImage)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid collectible image URL" });
+    }
+
+    if (!validator.isMongoId(artistId)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid artist ID" });
+    }
+
+    if (collectibleImage.size && collectibleImage.size > 50 * 1024 * 1024) {
+      return res.status(400).json({
+        message: "Collectible image must be less than 50MB",
+      });
+    }
+
+    const existingCommunity = await Community.findOne({ communityName });
+    if (existingCommunity) {
+      return res.status(400).json({
+        status: "failed",
+        message: "A community with this name already exists",
+      });
+    }
+
+    const existingArtistCommunity = await Community.findOne({
+      createdBy: artistId,
+    });
+    if (existingArtistCommunity) {
+      return res.status(400).json({
+        status: "failed",
+        message: "This artist already has a community",
+      });
+    }
+
+    const validateImageType = isValidImageType(collectibleType);
+
+    if (validateImageType) {
+      const artist = await Artist.findById(artistId);
+      if (!artist) {
+        return res.status(404).json({ message: "Artist not found" });
       }
+
+      const community = new Community({
+        communityName,
+        description,
+        coverImage,
+        tribePass: {
+          collectibleName,
+          collectibleDescription,
+          collectibleImage,
+          collectibleType,
+        },
+        createdBy: artistId,
+      });
+
+      await community.save();
+      await community.populate(
+        "createdBy",
+        "name email profileImage genre verified"
+      );
+
+      return res.status(201).json({
+        status: "success",
+        message: "Successfully created tribe",
+        data: community,
+      });
+    } else {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid image type",
+      });
     }
-
-    const artist = await Artist.findById(artistId);
-    if (!artist) {
-      return res.status(404).json({ message: "Artist not found" });
-    }
-
-    const community = new Community({
-      name,
-      description,
-      coverImage,
-      tribePass: {
-        collectibleName,
-        collectibleDescription,
-        collectibleImage,
-        collectibleType
-      },
-      createdBy: artistId
-    });
-
-    await community.save();
-    await community.populate('createdBy', 'name email profileImage genre verified');
-
-    return res.status(201).json({
-      message: "Successfully created tribe",
-      data: community
-    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({
+      status: "failed",
       message: "Error creating tribe",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -138,13 +208,13 @@ export const deleteCommunity = async (req, res) => {
     const community = await Community.findById(communityId);
     if (!community) {
       return res.status(404).json({
-        message: "Community not found"
+        message: "Community not found",
       });
     }
 
     if (community.createdBy.toString() !== artistId) {
       return res.status(403).json({
-        message: "Only the community creator can delete the community"
+        message: "Only the community creator can delete the community",
       });
     }
 
@@ -155,14 +225,14 @@ export const deleteCommunity = async (req, res) => {
       message: "Community successfully deleted",
       data: {
         communityId,
-        name: community.name
-      }
+        name: community.name,
+      },
     });
   } catch (error) {
     console.error("Error in deleteCommunity:", error);
     return res.status(500).json({
       message: "Error deleting community",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -206,7 +276,9 @@ export const joinCommunity = async (req, res) => {
     ]);
 
     if (userAlreadyExistinCommunity.length > 0) {
-      return res.status(400).json({ message: "User already exist in community" });
+      return res
+        .status(400)
+        .json({ message: "User already exist in community" });
     }
 
     const communitymember = new CommunityMember({
@@ -260,33 +332,35 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
     const userPreferences = await Preferences.aggregate([
       {
         $match: {
-          userId: new Types.ObjectId(userId)
-        }
+          userId: new Types.ObjectId(userId),
+        },
       },
       {
         $lookup: {
           from: "genres",
           localField: "genreId",
           foreignField: "_id",
-          as: "genre"
-        }
+          as: "genre",
+        },
       },
       {
-        $unwind: "$genre"
-      }
+        $unwind: "$genre",
+      },
     ]);
 
     if (!userPreferences || userPreferences.length === 0) {
       return res.status(404).json({
-        message: "No preferences found for this user"
+        message: "No preferences found for this user",
       });
     }
 
     // Get genre names since Artist.genre is stored as string
-    const genreNames = userPreferences.map(pref => pref.genre.name);
+    const genreNames = userPreferences.map((pref) => pref.genre.name);
 
     // Create regex patterns for each genre name
-    const genrePatterns = genreNames.map(name => new RegExp(name.trim(), 'i'));
+    const genrePatterns = genreNames.map(
+      (name) => new RegExp(name.trim(), "i")
+    );
 
     // Create a mapping of genre names to complete genre info
     const genreMap = userPreferences.reduce((acc, pref) => {
@@ -294,14 +368,14 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
         id: pref.genreId,
         name: pref.genre.name,
         image: pref.genre.image,
-        description: pref.genre.description
+        description: pref.genre.description,
       };
       return acc;
     }, {});
 
     // Create a response object to group communities by genre
     const genreBasedResults = {};
-    genreNames.forEach(genreName => {
+    genreNames.forEach((genreName) => {
       genreBasedResults[genreName] = [];
     });
 
@@ -309,18 +383,18 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
     const artists = await Artist.aggregate([
       {
         $match: {
-          $or: genrePatterns.map(pattern => ({
-            genre: pattern
-          }))
-        }
+          $or: genrePatterns.map((pattern) => ({
+            genre: pattern,
+          })),
+        },
       },
       {
         $addFields: {
           // Split the genre string into an array
           genreArray: {
-            $split: ["$genre", ","]
-          }
-        }
+            $split: ["$genre", ","],
+          },
+        },
       },
       {
         $lookup: {
@@ -329,26 +403,26 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
           pipeline: [
             {
               $match: {
-                $expr: { $eq: ["$createdBy", "$$artistId"] }
-              }
+                $expr: { $eq: ["$createdBy", "$$artistId"] },
+              },
             },
             {
               $lookup: {
                 from: "communitymembers",
                 localField: "_id",
                 foreignField: "communityId",
-                as: "members"
-              }
+                as: "members",
+              },
             },
             {
               $addFields: {
-                memberCount: { $size: "$members" }
-              }
+                memberCount: { $size: "$members" },
+              },
             },
             {
               $match: {
-                status: "active"
-              }
+                status: "active",
+              },
             },
             {
               $project: {
@@ -359,12 +433,12 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
                 tribePass: 1,
                 memberCount: 1,
                 createdAt: 1,
-                status: 1
-              }
-            }
+                status: 1,
+              },
+            },
           ],
-          as: "communities"
-        }
+          as: "communities",
+        },
       },
       {
         $project: {
@@ -377,28 +451,30 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
           verified: 1,
           bio: 1,
           communities: 1,
-          communityCount: { $size: "$communities" }
-        }
+          communityCount: { $size: "$communities" },
+        },
       },
       {
-        $sort: { communityCount: -1, name: 1 }
-      }
+        $sort: { communityCount: -1, name: 1 },
+      },
     ]);
 
     // Organize artists by genre, handling multiple genres per artist
-    artists.forEach(artist => {
+    artists.forEach((artist) => {
       if (artist.communities.length > 0) {
         // Get array of trimmed genres
-        const artistGenres = artist.genre.split(',').map(g => g.trim());
+        const artistGenres = artist.genre.split(",").map((g) => g.trim());
 
         // Add artist to each matching genre category
-        artistGenres.forEach(artistGenre => {
-          genreNames.forEach(preferenceName => {
-            if (artistGenre.toLowerCase() === preferenceName.toLowerCase() &&
-              genreBasedResults[preferenceName]) {
+        artistGenres.forEach((artistGenre) => {
+          genreNames.forEach((preferenceName) => {
+            if (
+              artistGenre.toLowerCase() === preferenceName.toLowerCase() &&
+              genreBasedResults[preferenceName]
+            ) {
               genreBasedResults[preferenceName].push({
                 ...artist,
-                communities: artist.communities
+                communities: artist.communities,
               });
             }
           });
@@ -407,30 +483,32 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
     });
 
     // Format the response with complete genre information
-    const formattedResponse = Object.entries(genreBasedResults).map(([genreName, artists]) => ({
-      ...genreMap[genreName],
-      artists: Array.from(new Set(artists.map(a => a._id))).map(id =>
-        artists.find(a => a._id.toString() === id.toString())
-      ) // Remove duplicate artists within each genre
-    }));
+    const formattedResponse = Object.entries(genreBasedResults).map(
+      ([genreName, artists]) => ({
+        ...genreMap[genreName],
+        artists: Array.from(new Set(artists.map((a) => a._id))).map((id) =>
+          artists.find((a) => a._id.toString() === id.toString())
+        ), // Remove duplicate artists within each genre
+      })
+    );
 
     return res.status(200).json({
       message: "Successfully retrieved artists and their communities by genre",
       data: {
-        preferences: userPreferences.map(pref => ({
+        preferences: userPreferences.map((pref) => ({
           genreId: pref.genreId,
           genreName: pref.genre.name,
           genreImage: pref.genre.image,
-          genreDescription: pref.genre.description
+          genreDescription: pref.genre.description,
         })),
-        genreBasedCommunities: formattedResponse
-      }
+        genreBasedCommunities: formattedResponse,
+      },
     });
   } catch (error) {
     console.error("Error in getArtistCommunitiesByGenre:", error);
     return res.status(500).json({
       message: "Error fetching artists and their communities",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -438,16 +516,16 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
 export const getTrendingArtistsByGenre = async (req, res) => {
   try {
     const { userId } = req.params;
-    const timeframe = req.query.timeframe || '7d';
+    const timeframe = req.query.timeframe || "7d";
 
     const getDateThreshold = () => {
       const now = new Date();
       switch (timeframe) {
-        case '24h':
+        case "24h":
           return new Date(now.setDate(now.getDate() - 1));
-        case '7d':
+        case "7d":
           return new Date(now.setDate(now.getDate() - 7));
-        case '30d':
+        case "30d":
           return new Date(now.setDate(now.getDate() - 30));
         default:
           return new Date(now.setDate(now.getDate() - 7));
@@ -460,31 +538,33 @@ export const getTrendingArtistsByGenre = async (req, res) => {
     const userPreferences = await Preferences.aggregate([
       {
         $match: {
-          userId: new Types.ObjectId(userId)
-        }
+          userId: new Types.ObjectId(userId),
+        },
       },
       {
         $lookup: {
           from: "genres",
           localField: "genreId",
           foreignField: "_id",
-          as: "genre"
-        }
+          as: "genre",
+        },
       },
       {
-        $unwind: "$genre"
-      }
+        $unwind: "$genre",
+      },
     ]);
 
     if (!userPreferences || userPreferences.length === 0) {
       return res.status(404).json({
-        message: "No preferences found for this user"
+        message: "No preferences found for this user",
       });
     }
 
     // Get genre names and create regex patterns
-    const genreNames = userPreferences.map(pref => pref.genre.name);
-    const genrePatterns = genreNames.map(name => new RegExp(name.trim(), 'i'));
+    const genreNames = userPreferences.map((pref) => pref.genre.name);
+    const genrePatterns = genreNames.map(
+      (name) => new RegExp(name.trim(), "i")
+    );
 
     // Create genre mapping for response
     const genreMap = userPreferences.reduce((acc, pref) => {
@@ -492,7 +572,7 @@ export const getTrendingArtistsByGenre = async (req, res) => {
         id: pref.genreId,
         name: pref.genre.name,
         image: pref.genre.image,
-        description: pref.genre.description
+        description: pref.genre.description,
       };
       return acc;
     }, {});
@@ -500,17 +580,17 @@ export const getTrendingArtistsByGenre = async (req, res) => {
     const trendingArtists = await Artist.aggregate([
       {
         $match: {
-          $or: genrePatterns.map(pattern => ({
-            genre: pattern
-          }))
-        }
+          $or: genrePatterns.map((pattern) => ({
+            genre: pattern,
+          })),
+        },
       },
       {
         $addFields: {
           genreArray: {
-            $split: ["$genre", ","]
-          }
-        }
+            $split: ["$genre", ","],
+          },
+        },
       },
       {
         $lookup: {
@@ -520,16 +600,16 @@ export const getTrendingArtistsByGenre = async (req, res) => {
             {
               $match: {
                 $expr: { $eq: ["$createdBy", "$$artistId"] },
-                status: "active"
-              }
+                status: "active",
+              },
             },
             {
               $lookup: {
                 from: "communitymembers",
                 localField: "_id",
                 foreignField: "communityId",
-                as: "members"
-              }
+                as: "members",
+              },
             },
             {
               $addFields: {
@@ -539,20 +619,20 @@ export const getTrendingArtistsByGenre = async (req, res) => {
                     $filter: {
                       input: "$members",
                       as: "member",
-                      cond: { $gte: ["$$member.createdAt", dateThreshold] }
-                    }
-                  }
-                }
-              }
-            }
+                      cond: { $gte: ["$$member.createdAt", dateThreshold] },
+                    },
+                  },
+                },
+              },
+            },
           ],
-          as: "communities"
-        }
+          as: "communities",
+        },
       },
       {
         $match: {
-          "communities.0": { $exists: true }
-        }
+          "communities.0": { $exists: true },
+        },
       },
       {
         $addFields: {
@@ -560,30 +640,27 @@ export const getTrendingArtistsByGenre = async (req, res) => {
             $reduce: {
               input: "$communities",
               initialValue: 0,
-              in: { $add: ["$$value", "$$this.memberCount"] }
-            }
+              in: { $add: ["$$value", "$$this.memberCount"] },
+            },
           },
           totalRecentMembers: {
             $reduce: {
               input: "$communities",
               initialValue: 0,
-              in: { $add: ["$$value", "$$this.recentMembers"] }
-            }
-          }
-        }
+              in: { $add: ["$$value", "$$this.recentMembers"] },
+            },
+          },
+        },
       },
       {
         $addFields: {
           trendingScore: {
-            $add: [
-              "$totalMembers",
-              { $multiply: ["$totalRecentMembers", 2] }
-            ]
-          }
-        }
+            $add: ["$totalMembers", { $multiply: ["$totalRecentMembers", 2] }],
+          },
+        },
       },
       {
-        $sort: { trendingScore: -1 }
+        $sort: { trendingScore: -1 },
       },
       {
         $project: {
@@ -606,30 +683,32 @@ export const getTrendingArtistsByGenre = async (req, res) => {
                 tribePass: "$$community.tribePass",
                 memberCount: "$$community.memberCount",
                 recentMembers: "$$community.recentMembers",
-                createdAt: "$$community.createdAt"
-              }
-            }
+                createdAt: "$$community.createdAt",
+              },
+            },
           },
           totalMembers: 1,
           totalRecentMembers: 1,
-          trendingScore: 1
-        }
-      }
+          trendingScore: 1,
+        },
+      },
     ]);
 
     // Organize artists by genre
     const genreBasedResults = {};
-    genreNames.forEach(genre => {
+    genreNames.forEach((genre) => {
       genreBasedResults[genre] = [];
     });
 
-    trendingArtists.forEach(artist => {
-      const artistGenres = artist.genre.split(',').map(g => g.trim());
+    trendingArtists.forEach((artist) => {
+      const artistGenres = artist.genre.split(",").map((g) => g.trim());
 
-      artistGenres.forEach(artistGenre => {
-        genreNames.forEach(preferenceName => {
-          if (artistGenre.toLowerCase() === preferenceName.toLowerCase() &&
-            genreBasedResults[preferenceName]) {
+      artistGenres.forEach((artistGenre) => {
+        genreNames.forEach((preferenceName) => {
+          if (
+            artistGenre.toLowerCase() === preferenceName.toLowerCase() &&
+            genreBasedResults[preferenceName]
+          ) {
             genreBasedResults[preferenceName].push(artist);
           }
         });
@@ -637,31 +716,33 @@ export const getTrendingArtistsByGenre = async (req, res) => {
     });
 
     // Format response with trending artists for each genre
-    const formattedResponse = Object.entries(genreBasedResults).map(([genreName, artists]) => ({
-      ...genreMap[genreName],
-      artists: Array.from(new Set(artists.map(a => a._id))).map(id =>
-        artists.find(a => a._id.toString() === id.toString())
-      ).slice(0, 10) // Get top 10 trending artists per genre after deduplication
-    }));
+    const formattedResponse = Object.entries(genreBasedResults).map(
+      ([genreName, artists]) => ({
+        ...genreMap[genreName],
+        artists: Array.from(new Set(artists.map((a) => a._id)))
+          .map((id) => artists.find((a) => a._id.toString() === id.toString()))
+          .slice(0, 10), // Get top 10 trending artists per genre after deduplication
+      })
+    );
 
     return res.status(200).json({
       message: "Successfully retrieved trending artists and their communities",
       data: {
         timeframe,
-        preferences: userPreferences.map(pref => ({
+        preferences: userPreferences.map((pref) => ({
           genreId: pref.genreId,
           genreName: pref.genre.name,
           genreImage: pref.genre.image,
-          genreDescription: pref.genre.description
+          genreDescription: pref.genre.description,
         })),
-        trendingByGenre: formattedResponse
-      }
+        trendingByGenre: formattedResponse,
+      },
     });
   } catch (error) {
     console.error("Error in getTrendingArtistsByGenre:", error);
     return res.status(500).json({
       message: "Error fetching trending artists",
-      error: error.message
+      error: error.message,
     });
   }
 };
