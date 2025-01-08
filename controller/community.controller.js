@@ -5,6 +5,7 @@ import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
+import { User } from "../models/user.model.js";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -239,48 +240,62 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const { userId, communityId } = req.body;
+    const { userId, communityId, recipientAddress, type } = req.body;
+
+    if (!["starknet", "xion"].includes(type)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Type must be either 'starknet' or 'xion'",
+      });
+    }
+
+    if (!validator.isLength(recipientAddress, { min: 1 })) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Recipient address is required",
+      });
+    }
+
+    const user = await User.findById(userId);
+
+    if (!validator.isMongoId(userId) || user === null) {
+      return res.status(400).json({
+        status: "failed",
+        message: user === null ? "user not found" : "Invalid userID",
+      });
+    }
+
+    if (!validator.isMongoId(communityId)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid communityID" });
+    }
+
+    if (type === "starknet") {
+      console.log("do something for starknet");
+    }
+
+    if (type === "xion") {
+      console.log("do something for xion");
+    }
 
     const community = await Community.findById(communityId);
     if (!community) {
-      return res.status(400).json({ message: "community doesn't exist" });
-    }
-
-    const userAlreadyExistinCommunity = await CommunityMember.aggregate([
-      {
-        $match: {
-          $and: [
-            {
-              $expr: {
-                $eq: [
-                  {
-                    $toObjectId: userId,
-                  },
-                  "$userId",
-                ],
-              },
-            },
-            {
-              $expr: {
-                $eq: [
-                  {
-                    $toObjectId: communityId,
-                  },
-                  "$communityId",
-                ],
-              },
-            },
-          ],
-        },
-      },
-    ]);
-
-    if (userAlreadyExistinCommunity.length > 0) {
       return res
         .status(400)
-        .json({ message: "User already exist in community" });
+        .json({ status: "failed", message: "community doesn't exist" });
     }
 
+    const userAlreadyExistinCommunity = await CommunityMember.findOne({
+      userId: userId,
+      communityId: communityId,
+    });
+
+    if (userAlreadyExistinCommunity) {
+      return res
+        .status(400)
+        .json({ message: "User already exists in community" });
+    }
     const communitymember = new CommunityMember({
       userId,
       communityId,
@@ -289,7 +304,8 @@ export const joinCommunity = async (req, res) => {
     await communitymember.save();
 
     return res.status(200).json({
-      message: "successfully joined a community",
+      status: "success",
+      message: "Successfully minted community",
     });
   } catch (error) {
     console.log(error);
