@@ -1,6 +1,6 @@
 import { Types } from "mongoose";
 import validator from "validator";
-import Flutterwave from "flutterwave-node-v3";
+// import Flutterwave from "flutterwave-node-v3";
 
 // import needed deps for nft/contract connection and minting
 import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
