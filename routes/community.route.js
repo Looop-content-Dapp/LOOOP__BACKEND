@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
-  getAllCommunity,
-  getCommunity,
+  // getAllCommunity,
+  // getCommunity,
   joinCommunity,
   createCommunity,
   searchCommunity,
@@ -14,8 +14,8 @@ const communityRouter = Router();
 
 // Basic community routes
 communityRouter.get("/search", searchCommunity);
-communityRouter.get("/", getAllCommunity);
-communityRouter.get("/:communityid", getCommunity);
+// communityRouter.get("/", getAllCommunity);
+// communityRouter.get("/:communityid", getCommunity);
 
 // Community management routes
 communityRouter.post("/createcommunity", createCommunity);
