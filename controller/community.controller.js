@@ -1,5 +1,13 @@
 import { Types } from "mongoose";
 import validator from "validator";
+import Flutterwave from "flutterwave-node-v3";
+
+// import needed deps for nft/contract connection and minting
+import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
+// import { Coin } from "@cosmjs/stargate";
+import dotenv from 'dotenv';
+import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+
 
 import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";

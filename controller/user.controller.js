@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { config } from "dotenv";
-import { RpcProvider } from "starknet";
 import {
   TokenboundClient,
   TBAVersion,
@@ -16,9 +15,10 @@ import { Follow } from "../models/followers.model.js";
 import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
-import { createWalletViaAPI } from "../xion/createXionWallet.js";
+import { walletService } from "../xion/walletservice.js";
+import { ApiError } from "../utils/helpers/ApiError.js";
 import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
-
+import crypto from "crypto";
 // Loads .env
 config();
 
@@ -198,6 +198,76 @@ const checkIfUserNameExist = async (req, res) => {
   }
 };
 
+// create user account block
+
+// class UserController {
+//   async createUser(req, res) {
+//     try {
+//       const { email, password, username } = req.body;
+
+//       // Input validation
+//       if (!password || !email || !username) {
+//         throw new ApiError(401, "Password, Email and username are required");
+//       }
+
+//       // Hash password
+//       const salt = await bcrypt.genSalt(10);
+//       const hashedPassword = await bcrypt.hash(password, salt);
+
+//       // Create Xion wallet
+//       const xionWallet = await walletService.createXionWallet();
+
+//       if (!xionWallet) {
+//         throw new ApiError(500, "Failed to create Xion wallet");
+//       }
+
+//       // Encrypt the private key with user's password
+//       const encryptedKey = walletService.encryptPrivateKey(xionWallet.privateKey, password);
+
+//       // Create new user with wallet
+//       const user = new User({
+//         email,
+//         username,
+//         password: hashedPassword,
+//         wallets: {
+//           xion: xionWallet.address
+//         }
+//       });
+
+//       await user.save();
+
+//       // Set encrypted key in secure cookie
+//       res.cookie("encryptedKey", JSON.stringify(encryptedKey), {
+//         httpOnly: true,
+//         secure: true,
+//         sameSite: "Strict",
+//         maxAge: 24 * 60 * 60 * 1000, // 24 hours
+//       });
+
+//       return res.status(200).json({
+//         message: "Successfully created user",
+//         data: { user }
+//       });
+
+//     } catch (error) {
+//       if (error instanceof ApiError) {
+//         return res.status(error.statusCode).json({
+//           message: error.message
+//         });
+//       }
+
+//       console.error("Error in createUser:", error);
+//       return res.status(500).json({
+//         message: "Error creating user",
+//         error: error.message
+//       });
+//     }
+//   }
+
+// }
+
+// export const userController = new UserController();
+
 const createUser = async (req, res) => {
   try {
     const { email, password, username } = req.body;
@@ -222,6 +292,7 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
+    const xion = await walletService.createXionWallet();
 
     if (password == "" || email == "" || username == "") {
       return res
@@ -238,10 +309,8 @@ const createUser = async (req, res) => {
         salt: shortSalt,
       });
 
-      const xionWallet = await createWalletViaAPI();
-
-      if (xionWallet) {
-        const encryptedKey = encryptPrivateKey(xionWallet.privateKey, password);
+      if (xion || starknetTokenBoundAccount) {
+        const encryptedKey = encryptPrivateKey(xion.privateKey, password);
 
         const user = new User({
           email,
@@ -249,7 +318,7 @@ const createUser = async (req, res) => {
           password: hashedPassword,
           wallets: {
             starknet: starknetTokenBoundAccount.account,
-            xion: xionWallet.address,
+            xion: xion.address,
           },
         });
 
