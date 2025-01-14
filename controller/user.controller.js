@@ -16,7 +16,7 @@ import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
 import { walletService } from "../xion/walletservice.js";
-import { ApiError } from "../utils/helpers/ApiError.js";
+// import { ApiError } from "../utils/helpers/ApiError.js";
 import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
 import crypto from "crypto";
 // Loads .env
