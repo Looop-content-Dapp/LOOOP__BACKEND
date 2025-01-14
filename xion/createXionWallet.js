@@ -1,4 +1,4 @@
-import axios from "axios";
+// import axios from "axios";
 
 // export const createWalletViaAPI = async () => {
 //   try {
@@ -11,12 +11,12 @@ import axios from "axios";
 //       `${process.env.XION_BASE_URL}/auth/login`
 //     );
 
-    if (response.data.success === true) {
+//     if (response.data.success === true) {
 
-      return response.data.walletInfo;
-    }
-  } catch (error) {
-    console.error("Error creating wallet:", error);
-    throw error;
-  }
-};
+//       return response.data.walletInfo;
+//     }
+//   } catch (error) {
+//     console.error("Error creating wallet:", error);
+//     throw error;
+//   }
+// };
