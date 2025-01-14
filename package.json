@@ -1,0 +1,42 @@
+{
+  "name": "looopbackend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "import-spotify": "node scripts/importSpotifyData.js",
+    "generate-streams": "node scripts/generateStreamHistory.js",
+    "populate-db": "npm run import-spotify && npm run generate-streams",
+    "pnpm-populate-db": "pnpm run import-spotify && pnpm run generate-streams",
+    "db:genres:clear": "node scripts/clearGenres.js",
+    "db:genres:populate": "node scripts/populateSpotifyGenres.js",
+    "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate",
+    "dev": "nodemon index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "dependencies": {
+    "@cosmjs/stargate": "^0.32.4",
+    "@google-cloud/kms": "^4.5.0",
+    "axios": "^1.7.7",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "fast-jwt": "^5.0.2",
+    "flutterwave-node-v3": "^1.1.14",
+    "mongoose": "^8.6.1",
+    "paystack-sdk": "^2.5.17",
+    "spotify-web-api-node": "^5.0.2",
+    "starknet": "^6.11.0",
+    "starknet-tokenbound-sdk": "^0.3.9",
+    "validator": "^13.12.0"
+  },
+  "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab",
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  }
+}
