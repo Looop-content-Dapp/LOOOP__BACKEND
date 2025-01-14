@@ -45,7 +45,7 @@ app.get("/api", (req, res) => {
 app.use("/api/user", userRouter);
 app.use("/api/artist", artistRouter);
 app.use("/api/preference", preferenceRouter);
-app.use("/api/faveartist", faveArtistRouter);
+// app.use("/api/faveartist", faveArtistRouter);
 app.use("/api/song", songRouter);
 app.use("/api/community", communityRouter);
 app.use("/api/genre", genreRoute);
