@@ -1,9 +1,9 @@
-import * as bcrypt from "bcryptjs";
 import { Artist } from "../models/artist.model.js";
 import { Social } from "../models/socials.model.js";
 import { Subscriber } from "../models/subcriber.model.js";
 import { Follow } from "../models/followers.model.js";
 import { Post } from "../models/post.model.js";
+import validator from "validator";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -112,7 +112,7 @@ export const createArtist = async (req, res) => {
       });
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!validator.isEmail(email)) {
       return res.status(401).json({ message: "invalid email" });
     }
 
@@ -121,6 +121,27 @@ export const createArtist = async (req, res) => {
         message: "Error",
         errors: "At least one genre must be specified",
       });
+    }
+
+    // Validate all URLs
+    if (!validator.isURL(profileImage)) {
+      return res.status(400).json({ message: "Invalid profile image URL" });
+    }
+
+    if (!validator.isURL(websiteurl)) {
+      return res.status(400).json({ message: "Invalid website URL" });
+    }
+
+    if (!validator.isURL(twitter)) {
+      return res.status(400).json({ message: "Invalid Twitter URL" });
+    }
+
+    if (!validator.isURL(tiktok)) {
+      return res.status(400).json({ message: "Invalid TikTok URL" });
+    }
+
+    if (!validator.isURL(instagram)) {
+      return res.status(400).json({ message: "Invalid Instagram URL" });
     }
 
     const artist = new Artist({
