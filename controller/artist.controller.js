@@ -112,12 +112,19 @@ export const createArtist = async (req, res) => {
       });
     }
 
+    const existingArtist = await Artist.findOne({ email });
+    if (existingArtist) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Email already exists" });
+    }
+
     if (!validator.isEmail(email)) {
-      return res.status(401).json({ message: "invalid email" });
+      return res.status(400).json({ message: "invalid email" });
     }
 
     if (!genres || !Array.isArray(genres) || genres.length === 0) {
-      return res.status(401).json({
+      return res.status(400).json({
         message: "Error",
         errors: "At least one genre must be specified",
       });
