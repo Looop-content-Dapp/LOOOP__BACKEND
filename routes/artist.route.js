@@ -7,7 +7,7 @@ import {
   followArtist,
   getFollow,
   getArtistPost,
-  applyArtist,
+  verifyArtistEmail,
   signContract,
 } from "../controller/artist.controller.js";
 
@@ -25,7 +25,7 @@ artistRouter.get("/follow/:id", getFollow);
 artistRouter.get("/artistpost/:artistId", getArtistPost);
 
 artistRouter.post("/follow/:userId/:artistId", followArtist);
-artistRouter.patch("/apply-as-artist/", applyArtist);
+artistRouter.patch("/verify-artist-email", verifyArtistEmail);
 artistRouter.post("/createartist", createArtist);
 artistRouter.post("/sign-contract", signContract);
 
