@@ -1,9 +1,14 @@
 import { Router } from "express";
-import { submitClaim, getClaimStatus, getUserClaims, updateClaimStatus } from "../controller/artistClaim.controller.js";
+import {
+  getClaimStatus,
+  getUserClaims,
+  updateClaimStatus,
+  submitArtistClaim,
+} from "../controller/artistClaim.controller.js";
 
 const artistClaimRouter = Router();
 
-artistClaimRouter.post("/submit", submitClaim);
+artistClaimRouter.post("/submit", submitArtistClaim);
 artistClaimRouter.get("/status/:claimId", getClaimStatus);
 artistClaimRouter.get("/user/:userId", getUserClaims);
 artistClaimRouter.put("/update/:claimId", updateClaimStatus);

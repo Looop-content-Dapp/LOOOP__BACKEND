@@ -4,6 +4,8 @@ import { Subscriber } from "../models/subcriber.model.js";
 import { Follow } from "../models/followers.model.js";
 import { Post } from "../models/post.model.js";
 import validator from "validator";
+import { submitClaim } from "./artistClaim.controller.js";
+import { User } from "../models/user.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -78,6 +80,7 @@ export const createArtist = async (req, res) => {
       city,
       postalcode,
       websiteurl,
+      id,
     } = req.body;
 
     const requiredFields = {
@@ -90,6 +93,7 @@ export const createArtist = async (req, res) => {
       city: "City is required",
       postalcode: "Postal code is required",
       websiteurl: "Website URL is required",
+      id: "User ID is required",
     };
 
     const requiredSocial = {
@@ -109,6 +113,14 @@ export const createArtist = async (req, res) => {
       return res.status(401).json({
         message: "Missing required fields",
         errors: missingFields,
+      });
+    }
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found",
       });
     }
 
@@ -132,24 +144,53 @@ export const createArtist = async (req, res) => {
 
     // Validate all URLs
     if (!validator.isURL(profileImage)) {
-      return res.status(400).json({ message: "Invalid profile image URL" });
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid profile image URL" });
     }
 
     if (!validator.isURL(websiteurl)) {
-      return res.status(400).json({ message: "Invalid website URL" });
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid website URL" });
     }
 
     if (!validator.isURL(twitter)) {
-      return res.status(400).json({ message: "Invalid Twitter URL" });
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid Twitter URL" });
     }
 
     if (!validator.isURL(tiktok)) {
-      return res.status(400).json({ message: "Invalid TikTok URL" });
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid TikTok URL" });
     }
 
     if (!validator.isURL(instagram)) {
-      return res.status(400).json({ message: "Invalid Instagram URL" });
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid Instagram URL" });
     }
+
+    const claimresult = await submitClaim({
+      verificationDocuments: {
+        email,
+        profileImage,
+        genres,
+        address1,
+        country,
+        city,
+        postalcode,
+        websiteurl,
+      },
+      userId: user.id,
+      socialMediaHandles: {
+        tiktok: tiktok,
+        instagram: instagram,
+        twitter: twitter,
+      },
+    });
 
     const artist = new Artist({
       name: artistname,
@@ -177,7 +218,7 @@ export const createArtist = async (req, res) => {
     return res.status(200).json({
       status: "success",
       message: "Artist created successfully",
-      data: artist,
+      data: { artist, claimresult },
     });
   } catch (error) {
     console.log(error);
