@@ -112,12 +112,19 @@ export const createArtist = async (req, res) => {
       });
     }
 
+    const existingArtist = await Artist.findOne({ email });
+    if (existingArtist) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Email already exists" });
+    }
+
     if (!validator.isEmail(email)) {
-      return res.status(401).json({ message: "invalid email" });
+      return res.status(400).json({ message: "invalid email" });
     }
 
     if (!genres || !Array.isArray(genres) || genres.length === 0) {
-      return res.status(401).json({
+      return res.status(400).json({
         message: "Error",
         errors: "At least one genre must be specified",
       });
@@ -219,17 +226,29 @@ export const signContract = async (req, res) => {
   }
 };
 
-export const applyArtist = async (req, res) => {
+export const verifyArtistEmail = async (req, res) => {
   try {
     const { email } = req.body;
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!validator.isEmail(email)) {
       return res.status(401).json({ message: "invalid email" });
     }
 
+    const existingArtist = await Artist.findOne({ email: email.toLowerCase() });
+
+    if (existingArtist) {
+      return res.status(409).json({
+        status: "failed",
+        message: "This email is already registered as an artist",
+        exists: true,
+      });
+    }
+
     return res.status(200).json({
-      message: "Success, your application is in review",
-      data: `${email}`,
+      status: "success",
+      message: "Email is available",
+      exists: false,
+      data: email,
     });
   } catch (error) {
     console.log(error);
