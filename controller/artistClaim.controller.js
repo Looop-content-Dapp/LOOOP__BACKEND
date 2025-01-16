@@ -3,21 +3,21 @@ import { User } from "../models/user.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
 // Submit a claim request
-export const submitClaim = async (req, res) => {
+export const submitArtistClaim = async (req, res) => {
   try {
     const {
       userId,
       artistId,
       verificationDocuments,
       socialMediaHandles,
-      websiteUrl
+      websiteUrl,
     } = req.body;
 
     // Validate required fields
     if (!userId || !artistId || !verificationDocuments) {
       return res.status(400).json({
         message: "Missing required fields",
-        required: ["userId", "artistId", "verificationDocuments"]
+        required: ["userId", "artistId", "verificationDocuments"],
       });
     }
 
@@ -25,7 +25,7 @@ export const submitClaim = async (req, res) => {
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
-        message: "User not found"
+        message: "User not found",
       });
     }
 
@@ -33,26 +33,26 @@ export const submitClaim = async (req, res) => {
     const artist = await Artist.findById(artistId);
     if (!artist) {
       return res.status(404).json({
-        message: "Artist profile not found"
+        message: "Artist profile not found",
       });
     }
 
     // Check if artist is already verified
     if (artist.verified) {
       return res.status(400).json({
-        message: "This artist profile is already verified"
+        message: "This artist profile is already verified",
       });
     }
 
     // Check if there's already a pending claim
     const existingClaim = await ArtistClaim.findOne({
       artistId,
-      status: "pending"
+      status: "pending",
     });
 
     if (existingClaim) {
       return res.status(400).json({
-        message: "A claim request is already pending for this artist profile"
+        message: "A claim request is already pending for this artist profile",
       });
     }
 
@@ -62,21 +62,70 @@ export const submitClaim = async (req, res) => {
       artistId,
       verificationDocuments,
       socialMediaHandles,
-      websiteUrl
+      websiteUrl,
     });
 
     await claim.save();
 
     return res.status(201).json({
       message: "Claim request submitted successfully",
-      data: claim
+      data: claim,
     });
   } catch (error) {
     console.error("Error in submitClaim:", error);
     return res.status(500).json({
       message: "Error submitting claim",
-      error: error.message
+      error: error.message,
     });
+  }
+};
+
+export const submitClaim = async ({
+  userId,
+  verificationDocuments,
+  socialMediaHandles,
+}) => {
+  try {
+    if (!userId || !verificationDocuments) {
+      return {
+        message: "Missing required fields",
+        required: ["userId", "artistId", "verificationDocuments"],
+      };
+    }
+
+    const existingClaim = await ArtistClaim.findOne({
+      userId,
+      status: "pending",
+    });
+
+    if (existingClaim) {
+      return {
+        message: "A claim request is already pending for this artist profile",
+      };
+    }
+
+    // Create new claim
+    const claim = new ArtistClaim({
+      userId,
+      verificationDocuments,
+      socialMediaHandles,
+      websiteUrl: verificationDocuments.websiteurl,
+    });
+
+    await claim.save();
+
+    if (claim) {
+      return {
+        message: "Claim request submitted successfully",
+        data: { id: claim.id, status: claim.status },
+      };
+    }
+  } catch (error) {
+    console.error("Error in submitClaim:", error);
+    return {
+      message: "Error submitting claim",
+      error: error.message,
+    };
   }
 };
 
@@ -86,24 +135,28 @@ export const getClaimStatus = async (req, res) => {
     const { claimId } = req.params;
 
     const claim = await ArtistClaim.findById(claimId)
-      .populate('artistId', 'name email profileImage genre')
-      .populate('userId', 'email profileImage');
+      .populate("artistId", "name email profileImage genre")
+      .populate("userId", "email profileImage");
 
     if (!claim) {
       return res.status(404).json({
-        message: "Claim request not found"
+        status: "failed",
+        message: "Claim request not found",
       });
     }
 
     return res.status(200).json({
+      status: "success",
       message: "Successfully retrieved claim status",
-      data: claim
+      data: {
+        status: claim.status,
+      },
     });
   } catch (error) {
     console.error("Error in getClaimStatus:", error);
     return res.status(500).json({
       message: "Error fetching claim status",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -114,18 +167,18 @@ export const getUserClaims = async (req, res) => {
     const { userId } = req.params;
 
     const claims = await ArtistClaim.find({ userId })
-      .populate('artistId', 'name email profileImage genre')
+      .populate("artistId", "name email profileImage genre")
       .sort({ createdAt: -1 });
 
     return res.status(200).json({
       message: "Successfully retrieved user claims",
-      data: claims
+      data: claims,
     });
   } catch (error) {
     console.error("Error in getUserClaims:", error);
     return res.status(500).json({
       message: "Error fetching user claims",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -138,14 +191,14 @@ export const updateClaimStatus = async (req, res) => {
 
     if (!["approved", "rejected"].includes(status)) {
       return res.status(400).json({
-        message: "Invalid status. Must be 'approved' or 'rejected'"
+        message: "Invalid status. Must be 'approved' or 'rejected'",
       });
     }
 
     const claim = await ArtistClaim.findById(claimId);
     if (!claim) {
       return res.status(404).json({
-        message: "Claim request not found"
+        message: "Claim request not found",
       });
     }
 
@@ -170,7 +223,7 @@ export const updateClaimStatus = async (req, res) => {
             verified: true,
             verifiedAt: new Date(),
             ...claim.socialMediaHandles,
-            websiteUrl: claim.websiteUrl
+            websiteUrl: claim.websiteUrl,
           },
           { session }
         );
@@ -187,13 +240,13 @@ export const updateClaimStatus = async (req, res) => {
 
     return res.status(200).json({
       message: `Claim ${status} successfully`,
-      data: claim
+      data: claim,
     });
   } catch (error) {
     console.error("Error in updateClaimStatus:", error);
     return res.status(500).json({
       message: "Error updating claim status",
-      error: error.message
+      error: error.message,
     });
   }
 };

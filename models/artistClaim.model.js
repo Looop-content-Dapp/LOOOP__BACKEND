@@ -5,50 +5,49 @@ const artistClaimSchema = new Schema(
     artistId: {
       type: Schema.Types.ObjectId,
       ref: "artist",
-      required: true
+      required: false,
     },
     userId: {
       type: Schema.Types.ObjectId,
       ref: "users",
-      required: true
+      required: true,
     },
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
-      default: "pending"
+      default: "pending",
     },
-    verificationDocuments: [{
-      type: {
-        type: String,
-        required: true,
-        enum: ["id", "socialMedia", "website", "pressKit", "other"]
-      },
-      url: {
-        type: String,
-        required: true
-      },
-      description: String
-    }],
+    verificationDocuments: {
+      type: Object,
+      required: true,
+      enum: [
+        "email",
+        "profileImage",
+        "genres",
+        "address1",
+        "country",
+        "city",
+        "postalcode",
+        "websiteurl",
+      ],
+    },
+
     socialMediaHandles: {
       instagram: String,
       twitter: String,
-      facebook: String,
-      spotify: String,
-      appleMusic: String,
-      soundcloud: String,
-      youtube: String
+      tiktok: String,
     },
     websiteUrl: String,
     rejectionReason: String,
     verifiedBy: {
       type: Schema.Types.ObjectId,
-      ref: "admin"
+      ref: "admin",
     },
     verifiedAt: Date,
     submittedAt: {
       type: Date,
-      default: Date.now
-    }
+      default: Date.now,
+    },
   },
   { timestamps: true }
 );
