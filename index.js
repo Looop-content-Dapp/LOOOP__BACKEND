@@ -16,6 +16,7 @@ import searchRoutes from "./routes/search.routes.js";
 // import OAuthRouter from "./routes/oauth.route.js";
 
 import { config } from "dotenv";
+import adminRouter from "./routes/admin-route/admin.route.js";
 config(); //Loads .env
 
 const app = express();
@@ -49,6 +50,7 @@ app.use("/api/playlist", playlistRouter);
 app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter);
 app.use("/api/search", searchRoutes);
+app.use("/api/admin", adminRouter);
 // app.use('/api/oauth', OAuthRouter);
 
 const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
