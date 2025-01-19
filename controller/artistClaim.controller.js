@@ -1,6 +1,7 @@
 import { Artist } from "../models/artist.model.js";
 import { User } from "../models/user.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
+import mongoose from "mongoose";
 
 // Submit a claim request
 export const submitArtistClaim = async (req, res) => {
@@ -183,7 +184,6 @@ export const getUserClaims = async (req, res) => {
   }
 };
 
-// Update claim (for admin)
 export const updateClaimStatus = async (req, res) => {
   try {
     const { claimId } = req.params;
@@ -195,6 +195,12 @@ export const updateClaimStatus = async (req, res) => {
       });
     }
 
+    if (!["admin", "superAdmin"].includes(adminId)) {
+      return res.status(400).json({
+        message: "Invalid admin. Must be 'admin' or 'superAdmin'",
+      });
+    }
+
     const claim = await ArtistClaim.findById(claimId);
     if (!claim) {
       return res.status(404).json({
@@ -202,12 +208,10 @@ export const updateClaimStatus = async (req, res) => {
       });
     }
 
-    // Start a session for transaction
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-      // Update claim status
       claim.status = status;
       claim.verifiedBy = adminId;
       claim.verifiedAt = new Date();
@@ -215,7 +219,6 @@ export const updateClaimStatus = async (req, res) => {
         claim.rejectionReason = rejectionReason;
       }
 
-      // If approved, update artist verification status
       if (status === "approved") {
         await Artist.findByIdAndUpdate(
           claim.artistId,
@@ -239,6 +242,7 @@ export const updateClaimStatus = async (req, res) => {
     }
 
     return res.status(200).json({
+      status: "success",
       message: `Claim ${status} successfully`,
       data: claim,
     });
