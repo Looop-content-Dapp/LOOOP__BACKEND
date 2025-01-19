@@ -40,8 +40,13 @@ const artistClaimSchema = new Schema(
     websiteUrl: String,
     rejectionReason: String,
     verifiedBy: {
-      type: Schema.Types.ObjectId,
-      ref: "admin",
+      type: String,
+      default: "admin",
+      enum: ["admin", "superAdmin"],
+      required: false,
+      // type: Schema.Types.ObjectId,
+      // type: Schema.Types.ObjectId,
+      // ref: "admin",
     },
     verifiedAt: Date,
     submittedAt: {
