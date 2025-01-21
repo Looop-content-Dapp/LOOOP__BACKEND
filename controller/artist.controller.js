@@ -269,33 +269,52 @@ export const signContract = async (req, res) => {
 
 export const verifyArtistEmail = async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email = "", name = "" } = req.body;
 
-    if (!validator.isEmail(email)) {
-      return res.status(401).json({ message: "invalid email" });
-    }
+    if (email) {
+      if (!validator.isEmail(email)) {
+        return res.status(401).json({ message: "invalid email" });
+      }
 
-    const existingArtist = await Artist.findOne({ email: email.toLowerCase() });
-
-    if (existingArtist) {
-      return res.status(409).json({
-        status: "failed",
-        message: "This email is already registered as an artist",
-        exists: true,
+      const existingEmail = await Artist.findOne({
+        email: email.toLowerCase(),
       });
+      if (existingEmail) {
+        return res.status(409).json({
+          status: "failed",
+          message: "This email is already registered as an artist",
+          exist: true,
+        });
+      } else {
+        return res.status(200).json({
+          status: "success",
+          message: "Email is available",
+          exists: false,
+        });
+      }
     }
 
-    return res.status(200).json({
-      status: "success",
-      message: "Email is available",
-      exists: false,
-      data: email,
-    });
+    if (name) {
+      const existingName = await Artist.findOne({ name });
+      if (existingName) {
+        return res.status(409).json({
+          status: "failed",
+          message: "This name is already registered as an artist",
+          exist: true,
+        });
+      } else {
+        return res.status(200).json({
+          status: "success",
+          message: "Name is available",
+          exists: false,
+        });
+      }
+    }
   } catch (error) {
     console.log(error);
     return res
       .status(500)
-      .json({ message: "Error creating artist", error: error.message });
+      .json({ message: "Error verifying artist", error: error.message });
   }
 };
 

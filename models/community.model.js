@@ -55,6 +55,9 @@ const communitySchema = new Schema(
         enum: ["PNG", "JPG", "WEBP", "png", "jpg", "webp", "GIF", "gif"],
         required: false,
       },
+      contractAddress: { type: String, default: null },
+      communitySymbol: { type: String, default: null },
+      transactionHash: { type: String, default: null },
     },
 
     createdBy: {
