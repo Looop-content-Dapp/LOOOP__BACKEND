@@ -283,7 +283,7 @@ export const verifyArtistEmail = async (req, res) => {
         return res.status(409).json({
           status: "failed",
           message: "This email is already registered as an artist",
-          exist: true,
+          exists: true,
         });
       } else {
         return res.status(200).json({
