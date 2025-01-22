@@ -101,26 +101,28 @@ export const submitClaim = async ({
 
     if (existingClaim) {
       return {
+        isPending: true,
         message: "A claim request is already pending for this artist profile",
       };
-    }
+    } else {
+      // Create new claim
+      const claim = new ArtistClaim({
+        userId,
+        verificationDocuments,
+        socialMediaHandles,
+        websiteUrl: verificationDocuments.websiteurl,
+        status: "pending",
+      });
 
-    // Create new claim
-    const claim = new ArtistClaim({
-      userId,
-      verificationDocuments,
-      socialMediaHandles,
-      websiteUrl: verificationDocuments.websiteurl,
-      status: "pending",
-    });
+      await claim.save();
 
-    await claim.save();
-
-    if (claim) {
-      return {
-        message: "Claim request submitted successfully",
-        data: { id: claim.id, status: claim.status },
-      };
+      if (claim) {
+        return {
+          message: "Claim request submitted successfully",
+          data: { id: claim.id, status: claim.status },
+          isPending: false,
+        };
+      }
     }
   } catch (error) {
     console.error("Error in submitClaim:", error);
