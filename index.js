@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
+import { config } from "dotenv";
 
 import userRouter from "./routes/user.route.js";
 import artistRouter from "./routes/artist.route.js";
@@ -14,10 +15,10 @@ import playlistRouter from "./routes/playlist.route.js";
 import postRouter from "./routes/post.route.js";
 import searchRoutes from "./routes/search.routes.js";
 // import OAuthRouter from "./routes/oauth.route.js";
-
-import { config } from "dotenv";
 import adminRouter from "./routes/admin-route/admin.route.js";
-config(); //Loads .env
+import contractHelper from "./xion/contractConfig.js";
+
+config();
 
 const app = express();
 
@@ -26,19 +27,13 @@ app.use(json());
 app.use(cors());
 
 app.use((req, res, next) => {
-  console.log(req.path, req.method);
+  console.log(`${req.method} ${req.path}`);
   next();
 });
 
-app.get("/", (req, res) => {
-  return res.send("welcome to the official looop Api");
-});
+app.get("/", (req, res) => res.send("Welcome to the official Looop API!"));
+app.get("/api", (req, res) => res.send("Welcome to the official Looop API!"));
 
-app.get("/api", (req, res) => {
-  return res.send("welcome to the official looop Api");
-});
-
-// routes
 app.use("/api/user", userRouter);
 app.use("/api/artist", artistRouter);
 app.use("/api/preference", preferenceRouter);
@@ -51,22 +46,37 @@ app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter);
 app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRouter);
-// app.use('/api/oauth', OAuthRouter);
+// app.use("/api/oauth", OAuthRouter);
 
-const port = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
+const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 const mongoURI =
-  process.env["MONGODB_URI"] ||
+  process.env.MONGODB_URI ||
   "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
-mongoose.connect(mongoURI);
+(async () => {
+  try {
+    console.log("Initializing admin wallet...");
+    await contractHelper.initializeAdminWallet();
+    console.log("Admin wallet successfully initialized.");
 
-mongoose.connection.on("open", () => {
-  app.listen(port, "0.0.0.0", () => {
-    console.log("Loop backend running on:", port);
-  });
-});
+    mongoose.connect(mongoURI, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true,
+    });
 
-mongoose.connection.on("error", (err) => {
-  console.error(`MongoDB connection error: ${err}`);
-  process.exit(1);
-});
+    mongoose.connection.on("open", () => {
+      console.log("Connected to MongoDB successfully.");
+      app.listen(PORT, () => {
+        console.log(`Server is running on http://localhost:${PORT}`);
+      });
+    });
+
+    mongoose.connection.on("error", (err) => {
+      console.error(`MongoDB connection error: ${err}`);
+      process.exit(1);
+    });
+  } catch (error) {
+    console.error("Failed to initialize admin wallet or MongoDB:", error);
+    process.exit(1);
+  }
+})();
