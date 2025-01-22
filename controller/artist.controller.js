@@ -295,7 +295,9 @@ export const verifyArtistEmail = async (req, res) => {
     }
 
     if (name) {
-      const existingName = await Artist.findOne({ name });
+      const existingName = await Artist.findOne({
+        name: { $regex: `^${name}$`, $options: "i" },
+      });
       if (existingName) {
         return res.status(409).json({
           status: "failed",
