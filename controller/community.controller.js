@@ -1,12 +1,5 @@
 import { Types } from "mongoose";
 import validator from "validator";
-// import Flutterwave from "flutterwave-node-v3";
-
-// import needed deps for nft/contract connection and minting
-import { SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
-// import { Coin } from "@cosmjs/stargate";
-import dotenv from "dotenv";
-import { DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
 
 import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";
@@ -18,7 +11,6 @@ import contractHelper from "../xion/contractConfig.js";
 export const getAllCommunity = async (req, res) => {
   try {
     const communities = await Community.find({});
-
     return res.status(200).json({
       message: "successfully get all communities",
       data: communities,
@@ -30,38 +22,29 @@ export const getAllCommunity = async (req, res) => {
   }
 };
 
-export const getCommunity = async (req, res) => {
+export const getCommunityByArtistId = async (req, res) => {
   try {
-    const community = await Community.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$_id",
-              {
-                $toObjectId: req.params.communityid,
-              },
-            ],
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "communitymembers",
-          localField: "_id",
-          foreignField: "communityId",
-          as: "members",
-        },
-      },
-    ]);
+    const { artistid } = req.params;
+    if (!validator.isMongoId(artistid)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "invalid artist id format" });
+    }
 
-    if (!community) {
-      return res.status(404).json({ message: "community not found" });
+    const communities = await Community.find({
+      createdBy: new Types.ObjectId(artistid),
+    });
+
+    if (communities.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "community not found" });
     }
 
     return res.status(200).json({
+      status: "success",
       message: "successfully gotten a community",
-      data: community[0],
+      data: communities[0],
     });
   } catch (error) {
     console.log(error);
