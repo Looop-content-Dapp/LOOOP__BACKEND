@@ -111,6 +111,7 @@ export const submitClaim = async ({
       verificationDocuments,
       socialMediaHandles,
       websiteUrl: verificationDocuments.websiteurl,
+      status: "pending",
     });
 
     await claim.save();
