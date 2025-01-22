@@ -212,7 +212,13 @@ export const createCommunity = async (req, res) => {
     return res.status(500).json({
       status: "failed",
       message: "Error creating tribe",
-      error: error.message,
+      error: error
+        ? error.message.includes(
+            `Query failed with (6): rpc error: code = Unknown desc = failed to execute message; message index: 0: Symbol is already taken: execute wasm contract failed [CosmWasm/wasmd@v0.53.0/x/wasm/keeper/keeper.go:424] with gas used: '102558': unknown request`
+          )
+          ? "Token Symbol is already taken"
+          : error.message
+        : error.message,
     });
   }
 };
@@ -256,7 +262,8 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const { userId, communityId, recipientAddress, type } = req.body;
+    const { userId, communityId, recipientAddress, type, collectionAddress } =
+      req.body;
 
     if (!["starknet", "xion"].includes(type)) {
       return res.status(400).json({
@@ -293,6 +300,11 @@ export const joinCommunity = async (req, res) => {
 
     if (type === "xion") {
       console.log("do something for xion");
+      const mint = await contractHelper.mintNFTPass(
+        collectionAddress,
+        recipientAddress,
+        userId
+      );
     }
 
     const community = await Community.findById(communityId);
