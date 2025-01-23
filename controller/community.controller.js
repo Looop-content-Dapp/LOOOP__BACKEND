@@ -176,7 +176,7 @@ export const createCommunity = async (req, res) => {
       createdBy: new Types.ObjectId(artistId),
     });
 
-    if (existingArtistCommunity) {
+    if (existingArtistCommunity.length > 0) {
       return res.status(400).json({
         status: "failed",
         message: "This artist already has a community",
@@ -256,9 +256,7 @@ export const createCommunity = async (req, res) => {
       status: "failed",
       message: "Error creating tribe",
       error: error
-        ? error.message.includes(
-            `Query failed with (6): rpc error: code = Unknown desc = failed to execute message; message index: 0: Symbol is already taken: execute wasm contract failed [CosmWasm/wasmd@v0.53.0/x/wasm/keeper/keeper.go:424] with gas used: '102558': unknown request`
-          )
+        ? error.message.includes(`Symbol is already taken`)
           ? "Token Symbol is already taken"
           : error.message
         : error.message,
