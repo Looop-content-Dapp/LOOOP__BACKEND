@@ -18,6 +18,8 @@ import { LastPlayed } from "../models/lastplayed.model.js";
 import { walletService } from "../xion/walletservice.js";
 // import { ApiError } from "../utils/helpers/ApiError.js";
 import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
+import sendEmail from "../script.cjs"; // Make sure this path matches your email utility location
+
 import crypto from "crypto";
 // Loads .env
 config();
@@ -39,6 +41,13 @@ const getAllUsers = async (req, res) => {
 
 const getUser = async (req, res) => {
   try {
+    const userExists = await User.findById(req.params.id);
+    if (!userExists) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User not found" });
+    }
+
     const matchUserObj = matchUser({ id: req.params.id, name: "userId" });
 
     const user = await User.aggregate([
@@ -57,6 +66,7 @@ const getUser = async (req, res) => {
       {
         $lookup: {
           from: "preferences",
+          localField: "_id",
           localField: "_id",
           foreignField: "userId",
           as: "preferences",
@@ -124,6 +134,26 @@ const getUser = async (req, res) => {
       {
         $project: {
           friends: 0,
+          password: 0
+        },
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "_id",
+          foreignField: "userid",
+          as: "artistProfile",
+        },
+      },
+      {
+        $addFields: {
+          artistProfile: {
+            $cond: {
+              if: { $gt: [{ $size: "$artistProfile" }, 0] },
+              then: { $arrayElemAt: ["$artistProfile", 0] },
+              else: null,
+            },
+          },
         },
       },
     ]);
@@ -148,10 +178,6 @@ const getUser = async (req, res) => {
       },
     ]);
 
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
     let arr = [];
     let arr2 = [];
     artistPlayed.forEach((val) => {
@@ -162,10 +188,11 @@ const getUser = async (req, res) => {
     });
 
     arr.find((val) => val);
-
     user.artistPlayed = arr2.length;
+
     return res.status(200).json({
-      message: "successfully gotten a user",
+      status: "success",
+      message: "Successfully gotten a user",
       data: { ...user[0], artistPlayed: arr2.length },
     });
   } catch (error) {
@@ -197,76 +224,6 @@ const checkIfUserNameExist = async (req, res) => {
       .json({ message: "Error checking username", error: error.message });
   }
 };
-
-// create user account block
-
-// class UserController {
-//   async createUser(req, res) {
-//     try {
-//       const { email, password, username } = req.body;
-
-//       // Input validation
-//       if (!password || !email || !username) {
-//         throw new ApiError(401, "Password, Email and username are required");
-//       }
-
-//       // Hash password
-//       const salt = await bcrypt.genSalt(10);
-//       const hashedPassword = await bcrypt.hash(password, salt);
-
-//       // Create Xion wallet
-//       const xionWallet = await walletService.createXionWallet();
-
-//       if (!xionWallet) {
-//         throw new ApiError(500, "Failed to create Xion wallet");
-//       }
-
-//       // Encrypt the private key with user's password
-//       const encryptedKey = walletService.encryptPrivateKey(xionWallet.privateKey, password);
-
-//       // Create new user with wallet
-//       const user = new User({
-//         email,
-//         username,
-//         password: hashedPassword,
-//         wallets: {
-//           xion: xionWallet.address
-//         }
-//       });
-
-//       await user.save();
-
-//       // Set encrypted key in secure cookie
-//       res.cookie("encryptedKey", JSON.stringify(encryptedKey), {
-//         httpOnly: true,
-//         secure: true,
-//         sameSite: "Strict",
-//         maxAge: 24 * 60 * 60 * 1000, // 24 hours
-//       });
-
-//       return res.status(200).json({
-//         message: "Successfully created user",
-//         data: { user }
-//       });
-
-//     } catch (error) {
-//       if (error instanceof ApiError) {
-//         return res.status(error.statusCode).json({
-//           message: error.message
-//         });
-//       }
-
-//       console.error("Error in createUser:", error);
-//       return res.status(500).json({
-//         message: "Error creating user",
-//         error: error.message
-//       });
-//     }
-//   }
-
-// }
-
-// export const userController = new UserController();
 
 const createUser = async (req, res) => {
   try {
@@ -331,10 +288,13 @@ const createUser = async (req, res) => {
           maxAge: 24 * 60 * 60 * 1000,
         });
 
+        const userWithoutPassword = user.toObject();
+        delete userWithoutPassword.password;
+
         return res.status(200).json({
           status: "success",
           message: "successfully created a user",
-          data: { user: user },
+          data: { user: userWithoutPassword },
         });
       }
     }
@@ -945,14 +905,12 @@ const signIn = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate request body
     if (!email || !password) {
       return res.status(400).json({
         message: "Email and password are required",
       });
     }
 
-    // Find user by email
     const user = await User.aggregate([
       {
         $match: { email: email },
@@ -1024,6 +982,25 @@ const signIn = async (req, res) => {
           },
         },
       },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "_id",
+          foreignField: "userid",
+          as: "artistProfile",
+        },
+      },
+      {
+        $addFields: {
+          artistProfile: {
+            $cond: {
+              if: { $gt: [{ $size: "$artistProfile" }, 0] },
+              then: { $arrayElemAt: ["$artistProfile", 0] },
+              else: null,
+            },
+          },
+        },
+      },
     ]);
 
     if (!user || user.length === 0) {
@@ -1075,7 +1052,21 @@ const signIn = async (req, res) => {
       }
     });
 
-    // Remove sensitive data before sending response
+    const loginInfo = {
+      username: email,
+      loginTime: new Date().toLocaleString(),
+      deviceInfo: req.headers["user-agent"] || "Unknown Device",
+      ipAddress: req.ip || "Unknown Location",
+      location: req.headers["x-forwarded-for"] || req.connection.remoteAddress,
+    };
+
+    // const result = await sendEmail(
+    //   email,
+    //   "New Login Detected",
+    //   "login",
+    //   loginInfo
+    // );
+
     const userData = { ...user[0] };
     delete userData.password;
 
