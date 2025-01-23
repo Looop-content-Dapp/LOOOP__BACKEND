@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
+import validator from "validator";
 import { config } from "dotenv";
 import {
   TokenboundClient,
@@ -41,6 +42,12 @@ const getAllUsers = async (req, res) => {
 
 const getUser = async (req, res) => {
   try {
+    if (!validator.isMongoId(req.params.id)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid user ID" });
+    }
+
     const user = await User.aggregate([
       {
         $match: {
@@ -123,6 +130,12 @@ const getUser = async (req, res) => {
       },
     ]);
 
+    if (user.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User not found" });
+    }
+
     const isArtist = await Artist.findOne({ userId: user[0]._id });
 
     const userData = {
@@ -132,6 +145,7 @@ const getUser = async (req, res) => {
     delete userData.password;
 
     return res.status(200).json({
+      status: "success",
       message: "User fetched successfully",
       data: userData,
     });
