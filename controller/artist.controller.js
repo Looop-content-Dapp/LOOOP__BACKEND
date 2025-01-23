@@ -6,6 +6,8 @@ import { Post } from "../models/post.model.js";
 import validator from "validator";
 import { submitClaim } from "./artistClaim.controller.js";
 import { User } from "../models/user.model.js";
+import { Release } from "../models/releases.model.js";
+import { Types } from "mongoose";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -24,41 +26,35 @@ export const getAllArtists = async (req, res) => {
 
 export const getArtist = async (req, res) => {
   const { id } = req.params;
-
   try {
-    const artist = await Artist.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$_id",
-              {
-                $toObjectId: id,
-              },
-            ],
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "releases",
-          localField: "_id",
-          foreignField: "artistId",
-          as: "releases",
-        },
-      },
-    ]);
+    if (!validator.isMongoId(id)) {
+      return res.status(400).json({ status: "failed", message: "Invalid ID" });
+    }
 
-    if (!artist) {
+    const isartist = await Artist.findOne(
+      {
+        _id: id,
+      },
+      { __v: 0 }
+    );
+
+    if (isartist === null) {
       return res
         .status(404)
         .json({ status: "failed", message: "Artist not found" });
     }
 
+    const release = await Release.find(
+      {
+        artistId: isartist._id,
+      },
+      { __v: 0 }
+    );
+
     return res.status(200).json({
       status: "success",
-      message: "successfully get artist",
-      data: artist[0],
+      message: "Artist fetched successfully",
+      data: { artist: { ...isartist._doc, releases: release } },
     });
   } catch (error) {
     console.log(error);
@@ -90,7 +86,7 @@ export const createArtist = async (req, res) => {
 
     const requiredFields = {
       artistname: "Artist name is required",
-      email: "Email is required",
+      email: "Email is required", 
       profileImage: "Profile image is required",
       bio: "Bio is required",
       address1: "Address 1 is required",
@@ -121,6 +117,12 @@ export const createArtist = async (req, res) => {
       });
     }
 
+    if (!validator.isMongoId(id)) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Invalid user ID" });
+    }
+
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({
@@ -129,11 +131,18 @@ export const createArtist = async (req, res) => {
       });
     }
 
+    const existingArtistAccount = await Artist.findOne({ userId: id });
+    if (existingArtistAccount) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "User already has an artist account" });
+    }
+
     const existingArtist = await Artist.findOne({ email });
     if (existingArtist) {
       return res
         .status(400)
-        .json({ status: "failed", message: "Email already exists" });
+        .json({ status: "failed", message: "Artist already exists" });
     }
 
     if (!validator.isEmail(email)) {
@@ -208,7 +217,7 @@ export const createArtist = async (req, res) => {
       city,
       postalcode,
       websiteurl,
-      userid: id,
+      userId: id,
     });
 
     const socials = await Social({

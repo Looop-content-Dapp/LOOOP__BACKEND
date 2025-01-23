@@ -41,15 +41,6 @@ const getAllUsers = async (req, res) => {
 
 const getUser = async (req, res) => {
   try {
-    const userExists = await User.findById(req.params.id);
-    if (!userExists) {
-      return res
-        .status(404)
-        .json({ status: "failed", message: "User not found" });
-    }
-
-    const matchUserObj = matchUser({ id: req.params.id, name: "userId" });
-
     const user = await User.aggregate([
       {
         $match: {
@@ -66,7 +57,6 @@ const getUser = async (req, res) => {
       {
         $lookup: {
           from: "preferences",
-          localField: "_id",
           localField: "_id",
           foreignField: "userId",
           as: "preferences",
@@ -131,72 +121,21 @@ const getUser = async (req, res) => {
           },
         },
       },
-      {
-        $project: {
-          friends: 0,
-          password: 0
-        },
-      },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "_id",
-          foreignField: "userid",
-          as: "artistProfile",
-        },
-      },
-      {
-        $addFields: {
-          artistProfile: {
-            $cond: {
-              if: { $gt: [{ $size: "$artistProfile" }, 0] },
-              then: { $arrayElemAt: ["$artistProfile", 0] },
-              else: null,
-            },
-          },
-        },
-      },
     ]);
 
-    const artistPlayed = await LastPlayed.aggregate([
-      {
-        ...matchUserObj,
-      },
-      {
-        $lookup: {
-          from: "tracks",
-          localField: "trackId",
-          foreignField: "_id",
-          as: "track",
-        },
-      },
-      {
-        $unwind: {
-          path: "$track",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-    ]);
+    const isArtist = await Artist.findOne({ userId: user[0]._id });
 
-    let arr = [];
-    let arr2 = [];
-    artistPlayed.forEach((val) => {
-      if (!arr.includes(val.track.artistId.toString())) {
-        arr.push(val.track.artistId.toString());
-        arr2.push(val.track);
-      }
-    });
-
-    arr.find((val) => val);
-    user.artistPlayed = arr2.length;
+    const userData = {
+      ...user[0],
+      artist: isArtist === null ? null : isArtist?.id,
+    };
+    delete userData.password;
 
     return res.status(200).json({
-      status: "success",
-      message: "Successfully gotten a user",
-      data: { ...user[0], artistPlayed: arr2.length },
+      message: "User fetched successfully",
+      data: userData,
     });
   } catch (error) {
-    console.log(error);
     return res
       .status(500)
       .json({ message: "Error fetching user", error: error.message });
@@ -267,8 +206,6 @@ const createUser = async (req, res) => {
       });
 
       if (xion || starknetTokenBoundAccount) {
-        const encryptedKey = encryptPrivateKey(xion.privateKey, password);
-
         const user = new User({
           email,
           username,
@@ -280,13 +217,6 @@ const createUser = async (req, res) => {
         });
 
         await user.save();
-
-        res.cookie("encryptedKey", JSON.stringify(encryptedKey), {
-          httpOnly: true,
-          secure: true,
-          sameSite: "Strict",
-          maxAge: 24 * 60 * 60 * 1000,
-        });
 
         const userWithoutPassword = user.toObject();
         delete userWithoutPassword.password;
@@ -982,43 +912,26 @@ const signIn = async (req, res) => {
           },
         },
       },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "_id",
-          foreignField: "userid",
-          as: "artistProfile",
-        },
-      },
-      {
-        $addFields: {
-          artistProfile: {
-            $cond: {
-              if: { $gt: [{ $size: "$artistProfile" }, 0] },
-              then: { $arrayElemAt: ["$artistProfile", 0] },
-              else: null,
-            },
-          },
-        },
-      },
     ]);
+
+    const isArtist = await Artist.findOne({ userId: user[0]._id });
 
     if (!user || user.length === 0) {
       return res.status(404).json({
+        status: "failed",
         message: "User not found",
       });
     }
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user[0].password);
 
     if (!isPasswordValid) {
       return res.status(401).json({
+        status: "failed",
         message: "Invalid password",
       });
     }
 
-    // Get artist played data
     const artistPlayed = await LastPlayed.aggregate([
       {
         $match: {
@@ -1052,29 +965,18 @@ const signIn = async (req, res) => {
       }
     });
 
-    const loginInfo = {
-      username: email,
-      loginTime: new Date().toLocaleString(),
-      deviceInfo: req.headers["user-agent"] || "Unknown Device",
-      ipAddress: req.ip || "Unknown Location",
-      location: req.headers["x-forwarded-for"] || req.connection.remoteAddress,
+    const userData = {
+      ...user[0],
+      artist: isArtist === null ? null : isArtist?.id,
+      artistPlayed: uniqueTracks.length,
     };
-
-    // const result = await sendEmail(
-    //   email,
-    //   "New Login Detected",
-    //   "login",
-    //   loginInfo
-    // );
-
-    const userData = { ...user[0] };
     delete userData.password;
 
     return res.status(200).json({
+      sattus: "success",
       message: "Sign in successful",
       data: {
         ...userData,
-        artistPlayed: uniqueTracks.length,
       },
     });
   } catch (error) {
