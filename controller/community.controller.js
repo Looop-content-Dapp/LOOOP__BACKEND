@@ -108,7 +108,6 @@ export const createCommunity = async (req, res) => {
       artistId,
       artistAddress,
       communitySymbol,
-      userid,
     } = req.body;
 
     function isValidImageType(type) {
@@ -172,82 +171,91 @@ export const createCommunity = async (req, res) => {
       });
     }
 
-    const existingArtistCommunity = await Community.find({
-      createdBy: new Types.ObjectId(artistId),
+    const existingArtistCommunity = await Community.findOne({
+      createdBy: artistId,
     });
 
-    if (existingArtistCommunity.length > 0) {
-      return res.status(400).json({
-        status: "failed",
-        message: "This artist already has a community",
-      });
-    }
-
-    const xionCreateCommunity = await contractHelper.createArtistCommunity({
-      artistAddress: artistAddress,
-      communityDetails: {
-        name: communityName,
-        symbol: communitySymbol,
-        imageUrl: coverImage,
-      },
-    });
-
-    const transactionHash = xionCreateCommunity.transactionHash;
-
-    const getArtistCollection = await contractHelper.getCollection(
-      artistAddress
-    );
-
-    const contractAddress = getArtistCollection.collection.contract_address;
-    const contractSymbol = getArtistCollection.collection.symbol;
-
-    const existingCommunity = await Community.findOne({ communityName });
-    if (existingCommunity) {
-      return res.status(400).json({
-        status: "failed",
-        message: "A community with this name already exists",
-      });
-    }
-
-    const validateImageType = isValidImageType(collectibleType);
-
-    if (validateImageType) {
-      const artist = await Artist.findById(artistId);
-      if (!artist) {
-        return res.status(404).json({ message: "Artist not found" });
+    if (existingArtistCommunity === null) {
+      const existingCommunity = await Community.findOne({ communityName });
+      if (existingCommunity) {
+        return res.status(400).json({
+          status: "failed",
+          message: "A community with this name already exists",
+        });
       }
 
-      const community = new Community({
-        communityName,
-        description,
-        coverImage,
-        tribePass: {
-          collectibleName,
-          collectibleDescription,
-          collectibleImage,
-          collectibleType,
-          contractAddress,
-          communitySymbol: contractSymbol,
-          transactionHash,
-        },
-        createdBy: artistId,
-      });
+      const artist = await Artist.findById(artistId);
+      if (!artist) {
+        return res
+          .status(404)
+          .json({ status: "failed", message: "Artist not found" });
+      }
 
-      await community.save();
-      await community.populate(
-        "createdBy",
-        "name email profileImage genre verified"
-      );
+      if (artist.verified === true) {
+        const xionCreateCommunity = await contractHelper.createArtistCommunity({
+          artistAddress: artistAddress,
+          communityDetails: {
+            name: communityName,
+            symbol: communitySymbol,
+            imageUrl: coverImage,
+          },
+        });
 
-      return res.status(201).json({
-        status: "success",
-        message: "Successfully created tribe",
-        data: community,
-      });
+        const transactionHash = xionCreateCommunity.transactionHash;
+
+        const getArtistCollection = await contractHelper.getCollection(
+          artistAddress
+        );
+
+        const contractAddress = getArtistCollection.collection.contract_address;
+        const contractSymbol = getArtistCollection.collection.symbol;
+
+        const validateImageType = isValidImageType(collectibleType);
+
+        if (validateImageType) {
+          const community = new Community({
+            communityName,
+            description,
+            coverImage,
+            tribePass: {
+              collectibleName,
+              collectibleDescription,
+              collectibleImage,
+              collectibleType,
+              contractAddress,
+              communitySymbol: contractSymbol,
+              transactionHash,
+            },
+            createdBy: artistId,
+          });
+
+          await community.save();
+          await community.populate(
+            "createdBy",
+            "name email profileImage genre verified"
+          );
+
+          return res.status(200).json({
+            status: "success",
+            message: "Community created successfully",
+            data: community,
+          });
+        } else {
+          return res.status(400).json({
+            status: "failed",
+            message: "Invalid image type",
+          });
+        }
+      } else {
+        return res.status(400).json({
+          status: "failed",
+          message: "This artist is not verified",
+        });
+      }
     } else {
       return res.status(400).json({
         status: "failed",
-        message: "Invalid image type",
+        message: "This artist already has a community",
       });
     }
   } catch (error) {

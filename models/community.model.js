@@ -26,7 +26,6 @@ const communitySchema = new Schema(
       },
       required: true,
     },
-
     tribePass: {
       collectibleName: {
         type: String,
@@ -59,7 +58,6 @@ const communitySchema = new Schema(
       communitySymbol: { type: String, default: null },
       transactionHash: { type: String, default: null },
     },
-
     createdBy: {
       type: Types.ObjectId,
       ref: "artist",
@@ -81,6 +79,7 @@ const communitySchema = new Schema(
   },
   {
     timestamps: true,
+    versionKey: false,
   }
 );
 
