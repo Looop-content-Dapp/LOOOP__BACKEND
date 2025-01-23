@@ -143,6 +143,15 @@ export class ContractHelper {
       });
     }
   }
+
+  async queryCollectionBySymbol(contractAddress, symbol) {
+    const queryMsg = { collection_by_symbol: { symbol } };
+    const response = await this.client.queryContractSmart(
+      contractAddress,
+      queryMsg
+    );
+    return response;
+  }
 }
 
 const CONTRACT_CONFIG = {
