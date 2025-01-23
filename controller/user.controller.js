@@ -22,6 +22,7 @@ import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
 import sendEmail from "../script.cjs"; // Make sure this path matches your email utility location
 
 import crypto from "crypto";
+import { Genre } from "../models/genre.model.js";
 // Loads .env
 config();
 
@@ -254,19 +255,60 @@ const createGenresForUser = async (req, res) => {
   try {
     const { userId, preferences } = req.body;
 
+    if (!validator.isMongoId(userId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid user ID",
+      });
+    }
+
+    if (!Array.isArray(preferences) || preferences.length === 0) {
+      return res.status(400).json({
+        status: "failed",
+        message:
+          "Invalid preferences array, preference should be an array of string(s)",
+      });
+    }
+
+    if (preferences.length === 0) {
+      return res.status(400).json({
+        status: "failed",
+        message:
+          "Invalid preferences array, preference should be an array of string(s)",
+      });
+    }
+
+    const user = await User.findById(userId);
     const parsePeferences = JSON.parse(JSON.stringify(preferences));
 
     for (let i = 0; i < parsePeferences.length; i++) {
+      if (!validator.isMongoId(parsePeferences[i])) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid genre ID",
+        });
+      }
+
+      const genreExist = await Genre.findById(parsePeferences[i]);
+      if (genreExist === null) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Genre does not exist",
+        });
+      }
+
       const element = parsePeferences[i];
       const peference = new Preferences({
         genreId: element,
-        userId: userId,
+        userId: user.id,
       });
       await peference.save();
     }
 
     return res.status(200).json({
-      message: "successfully saved all genres for user",
+      status: "success",
+      message: "Successfully saved all genres for user",
+      data: null,
     });
   } catch (error) {
     console.log(error);
