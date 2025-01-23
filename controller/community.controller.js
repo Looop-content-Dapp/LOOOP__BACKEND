@@ -75,7 +75,7 @@ export const checkIfTokenSymbolExist = async (req, res) => {
     });
 
     if (existingCollectible) {
-      return res.status(409).json({
+      return res.status(200).json({
         status: "success",
         message: "collectible already exist",
         data: null,
@@ -305,8 +305,14 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const { userId, communityId, recipientAddress, type, collectionAddress } =
-      req.body;
+    const {
+      userId,
+      communityId,
+      recipientAddress,
+      type,
+      collectionAddress,
+      tokenID,
+    } = req.body;
 
     if (!["starknet", "xion"].includes(type)) {
       return res.status(400).json({
@@ -337,16 +343,11 @@ export const joinCommunity = async (req, res) => {
         .json({ status: "failed", message: "Invalid communityID" });
     }
 
-    if (type === "starknet") {
-      console.log("do something for starknet");
-    }
-
     if (type === "xion") {
-      console.log("do something for xion");
       const mint = await contractHelper.mintNFTPass(
         collectionAddress,
-        recipientAddress
-        // userId
+        recipientAddress,
+        tokenID
       );
     }
 
