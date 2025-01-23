@@ -41,7 +41,11 @@ const artistSchema = new Schema(
     ],
     labels: [String],
     isActive: { type: Boolean, default: true },
-    userid: { type: String, required: true, unique: true },
+    userId: {
+      type: Schema.Types.ObjectId,
+      required: true,
+      ref: "User",
+    },
   },
   {
     timestamps: true,
