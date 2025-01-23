@@ -23,6 +23,8 @@ export const getAllArtists = async (req, res) => {
 };
 
 export const getArtist = async (req, res) => {
+  const { id } = req.params;
+
   try {
     const artist = await Artist.aggregate([
       {
@@ -31,7 +33,7 @@ export const getArtist = async (req, res) => {
             $eq: [
               "$_id",
               {
-                $toObjectId: req.params.id,
+                $toObjectId: id,
               },
             ],
           },
@@ -48,10 +50,13 @@ export const getArtist = async (req, res) => {
     ]);
 
     if (!artist) {
-      return res.status(404).json({ message: "Artist not found" });
+      return res
+        .status(404)
+        .json({ status: "failed", message: "Artist not found" });
     }
 
     return res.status(200).json({
+      status: "success",
       message: "successfully get artist",
       data: artist[0],
     });
@@ -142,7 +147,6 @@ export const createArtist = async (req, res) => {
       });
     }
 
-    // Validate all URLs
     if (!validator.isURL(profileImage)) {
       return res
         .status(400)
@@ -204,6 +208,7 @@ export const createArtist = async (req, res) => {
       city,
       postalcode,
       websiteurl,
+      userid: id,
     });
 
     const socials = await Social({

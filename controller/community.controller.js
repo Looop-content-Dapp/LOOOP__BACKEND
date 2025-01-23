@@ -54,6 +54,47 @@ export const getCommunityByArtistId = async (req, res) => {
   }
 };
 
+export const checkIfTokenSymbolExist = async (req, res) => {
+  try {
+    const { symbol } = req.params;
+    const { artistAddress } = req.body;
+
+    // const getArtistCollection = await contractHelper.getCollection(
+    //   artistAddress
+    // );
+
+    // const symbolChecker = await contractHelper.queryCollectionBySymbol(
+    //   getArtistCollection.collection.contract_address,
+    //   symbol
+    // );
+
+    // console.log(symbolChecker, "smbolds");
+
+    const existingCollectible = await Community.findOne({
+      "tribePass.communitySymbol": symbol,
+    });
+
+    if (existingCollectible) {
+      return res.status(409).json({
+        status: "success",
+        message: "collectible already exist",
+        data: null,
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "collectible does not exist",
+      data: null,
+    });
+  } catch (error) {
+    console.log(error);
+    return res
+      .status(500)
+      .json({ message: "Error fetching community", error: error.message });
+  }
+};
+
 export const createCommunity = async (req, res) => {
   try {
     const {
@@ -67,6 +108,7 @@ export const createCommunity = async (req, res) => {
       artistId,
       artistAddress,
       communitySymbol,
+      userid,
     } = req.body;
 
     function isValidImageType(type) {
@@ -130,6 +172,17 @@ export const createCommunity = async (req, res) => {
       });
     }
 
+    const existingArtistCommunity = await Community.find({
+      createdBy: new Types.ObjectId(artistId),
+    });
+
+    if (existingArtistCommunity) {
+      return res.status(400).json({
+        status: "failed",
+        message: "This artist already has a community",
+      });
+    }
+
     const xionCreateCommunity = await contractHelper.createArtistCommunity({
       artistAddress: artistAddress,
       communityDetails: {
@@ -153,16 +206,6 @@ export const createCommunity = async (req, res) => {
       return res.status(400).json({
         status: "failed",
         message: "A community with this name already exists",
-      });
-    }
-
-    const existingArtistCommunity = await Community.findOne({
-      createdBy: artistId,
-    });
-    if (existingArtistCommunity) {
-      return res.status(400).json({
-        status: "failed",
-        message: "This artist already has a community",
       });
     }
 
@@ -212,7 +255,13 @@ export const createCommunity = async (req, res) => {
     return res.status(500).json({
       status: "failed",
       message: "Error creating tribe",
-      error: error.message,
+      error: error
+        ? error.message.includes(
+            `Query failed with (6): rpc error: code = Unknown desc = failed to execute message; message index: 0: Symbol is already taken: execute wasm contract failed [CosmWasm/wasmd@v0.53.0/x/wasm/keeper/keeper.go:424] with gas used: '102558': unknown request`
+          )
+          ? "Token Symbol is already taken"
+          : error.message
+        : error.message,
     });
   }
 };
@@ -256,7 +305,8 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const { userId, communityId, recipientAddress, type } = req.body;
+    const { userId, communityId, recipientAddress, type, collectionAddress } =
+      req.body;
 
     if (!["starknet", "xion"].includes(type)) {
       return res.status(400).json({
@@ -293,6 +343,11 @@ export const joinCommunity = async (req, res) => {
 
     if (type === "xion") {
       console.log("do something for xion");
+      const mint = await contractHelper.mintNFTPass(
+        collectionAddress,
+        recipientAddress
+        // userId
+      );
     }
 
     const community = await Community.findById(communityId);

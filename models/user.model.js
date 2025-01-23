@@ -19,6 +19,7 @@ const userSchema = new Schema(
       xion: { type: String, default: null },
     },
     oauthTokens: [{ type: SchemaTypes.ObjectId, ref: "OAuthToken" }],
+    artist: { type: SchemaTypes.ObjectId, ref: "artist" },
   },
   { timestamps: true }
 );
