@@ -12,7 +12,7 @@ const communitySchema = new Schema(
     description: {
       type: String,
       required: true,
-      maxlength: 150,
+      maxlength: 450,
     },
     coverImage: {
       type: String,
@@ -34,7 +34,7 @@ const communitySchema = new Schema(
       },
       collectibleDescription: {
         type: String,
-        maxlength: 150,
+        maxlength: 250,
         trim: true,
       },
       collectibleImage: {
@@ -75,6 +75,10 @@ const communitySchema = new Schema(
     createdAt: {
       type: Date,
       default: Date.now,
+    },
+    NFTToken: {
+      type: Number,
+      required: false,
     },
   },
   {

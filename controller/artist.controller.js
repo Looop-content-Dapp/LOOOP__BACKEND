@@ -8,6 +8,7 @@ import { submitClaim } from "./artistClaim.controller.js";
 import { User } from "../models/user.model.js";
 import { Release } from "../models/releases.model.js";
 import { Types } from "mongoose";
+import { Genre } from "../models/genre.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -44,6 +45,14 @@ export const getArtist = async (req, res) => {
         .json({ status: "failed", message: "Artist not found" });
     }
 
+    const getGenre = await Genre.find({ _id: { $in: isartist.genres } });
+    if (getGenre.length === 0) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "error in fetching genre" });
+    }
+    const genreNames = getGenre.map((genre) => genre.name);
+
     const release = await Release.find(
       {
         artistId: isartist._id,
@@ -51,10 +60,17 @@ export const getArtist = async (req, res) => {
       { __v: 0 }
     );
 
+    const artistData = {
+      artist: { ...isartist._doc, genres: genreNames, releases: release },
+    };
+    delete artistData.artist.artistId;
+
     return res.status(200).json({
       status: "success",
       message: "Artist fetched successfully",
-      data: { artist: { ...isartist._doc, releases: release } },
+      data: {
+        ...artistData,
+      },
     });
   } catch (error) {
     console.log(error);
@@ -86,7 +102,7 @@ export const createArtist = async (req, res) => {
 
     const requiredFields = {
       artistname: "Artist name is required",
-      email: "Email is required", 
+      email: "Email is required",
       profileImage: "Profile image is required",
       bio: "Bio is required",
       address1: "Address 1 is required",
@@ -133,9 +149,10 @@ export const createArtist = async (req, res) => {
 
     const existingArtistAccount = await Artist.findOne({ userId: id });
     if (existingArtistAccount) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "User already has an artist account" });
+      return res.status(400).json({
+        status: "failed",
+        message: "User already has an artist account",
+      });
     }
 
     const existingArtist = await Artist.findOne({ email });
@@ -218,21 +235,30 @@ export const createArtist = async (req, res) => {
       postalcode,
       websiteurl,
       userId: id,
+      artistId: user.id + Math.floor(Math.random() * 1000),
     });
 
+    await artist.save();
+
     const socials = await Social({
-      artistId: artist._id,
+      artistId: artist._doc._id,
       twitter,
       tiktok,
       instagram,
     });
 
-    await Promise.all([await artist.save(), await socials.save()]);
+    await socials.save();
+
+    const getGenre = await Genre.find({ _id: { $in: genres } });
+    const genreNames = getGenre.map((genre) => genre.name);
+
+    const artistData = { artist: { ...artist._doc, genres: genreNames } };
+    delete artistData.artist.artistId;
 
     return res.status(200).json({
       status: "success",
       message: "Artist created successfully",
-      data: { artist, claimresult },
+      data: { ...artistData, claimresult },
     });
   } catch (error) {
     console.log(error);

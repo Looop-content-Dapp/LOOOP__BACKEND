@@ -10,6 +10,7 @@ const socialLinksSchema = new Schema({
 
 const artistSchema = new Schema(
   {
+    artistId: { type: String, required: false, default: null, index: false },
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     profileImage: { type: String, required: true, default: null },
@@ -46,6 +47,7 @@ const artistSchema = new Schema(
       required: true,
       ref: "User",
     },
+    genres: [{ type: Schema.Types.ObjectId, ref: "genres", required: true }],
   },
   {
     timestamps: true,
@@ -54,12 +56,12 @@ const artistSchema = new Schema(
 );
 
 // Indexes
-artistSchema.index({ name: "text", biography: "text" });
-artistSchema.index({ genres: 1 });
-artistSchema.index({ popularity: -1 });
-artistSchema.index({ monthlyListeners: -1 });
-artistSchema.index({ verified: 1 });
-artistSchema.index({ country: 1 });
-artistSchema.index({ "albums.releaseDate": -1 });
+// artistSchema.index({ name: "text", biography: "text" });
+// artistSchema.index({ genres: 1 });
+// artistSchema.index({ popularity: -1 });
+// artistSchema.index({ monthlyListeners: -1 });
+// artistSchema.index({ verified: 1 });
+// artistSchema.index({ country: 1 });
+// artistSchema.index({ "albums.releaseDate": -1 });
 
 export const Artist = model("artist", artistSchema);
