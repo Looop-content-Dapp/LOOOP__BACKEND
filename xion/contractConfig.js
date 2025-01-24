@@ -145,7 +145,15 @@ export class ContractHelper {
   }
 
   async queryCollectionBySymbol(contractAddress, symbol) {
-    const queryMsg = { collection_by_symbol: { symbol } };
+    const queryMsg = {
+      extension: {
+        msg: {
+          collection_by_symbol: {
+            symbol: symbol,
+          },
+        },
+      },
+    };
     const response = await this.client.queryContractSmart(
       contractAddress,
       queryMsg

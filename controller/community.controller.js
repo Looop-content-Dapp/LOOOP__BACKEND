@@ -59,16 +59,16 @@ export const checkIfTokenSymbolExist = async (req, res) => {
     const { symbol } = req.params;
     const { artistAddress } = req.body;
 
-    // const getArtistCollection = await contractHelper.getCollection(
-    //   artistAddress
-    // );
+    const getArtistCollection = await contractHelper.getCollection(
+      artistAddress
+    );
 
-    // const symbolChecker = await contractHelper.queryCollectionBySymbol(
-    //   getArtistCollection.collection.contract_address,
-    //   symbol
-    // );
+    const symbolChecker = await contractHelper.queryCollectionBySymbol(
+      getArtistCollection.collection.contract_address,
+      symbol
+    );
 
-    // console.log(symbolChecker, "smbolds");
+    console.log(symbolChecker, "smbolds");
 
     const existingCollectible = await Community.findOne({
       "tribePass.communitySymbol": symbol,
@@ -146,6 +146,8 @@ export const createCommunity = async (req, res) => {
         errors: missingFields,
       });
     }
+
+    const nextTokenId = await getNextNFTToken();
 
     if (!validator.isURL(coverImage)) {
       return res
@@ -227,6 +229,7 @@ export const createCommunity = async (req, res) => {
               transactionHash,
             },
             createdBy: artistId,
+            NFTToken: nextTokenId,
           });
 
           await community.save();
@@ -838,5 +841,19 @@ export const getTrendingArtistsByGenre = async (req, res) => {
       message: "Error fetching trending artists",
       error: error.message,
     });
+  }
+};
+
+const getNextNFTToken = async () => {
+  try {
+    const lastCommunity = await Community.findOne()
+      .sort({ NFTToken: -1 })
+      .select("NFTToken")
+      .lean();
+
+    return lastCommunity?.NFTToken ? lastCommunity.NFTToken + 1 : 1;
+  } catch (error) {
+    console.error("Error fetching the last NFT token:", error);
+    throw new Error("Unable to calculate the next NFT token");
   }
 };

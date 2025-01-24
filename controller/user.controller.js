@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+import mongoose, { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import validator from "validator";
 import { config } from "dotenv";
@@ -23,6 +23,9 @@ import sendEmail from "../script.cjs"; // Make sure this path matches your email
 
 import crypto from "crypto";
 import { Genre } from "../models/genre.model.js";
+import { get } from "http";
+import e from "express";
+import { Community } from "../models/community.model.js";
 // Loads .env
 config();
 
@@ -279,6 +282,13 @@ const createGenresForUser = async (req, res) => {
     }
 
     const user = await User.findById(userId);
+
+    if (user === null) {
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User not found" });
+    }
+
     const parsePeferences = JSON.parse(JSON.stringify(preferences));
 
     for (let i = 0; i < parsePeferences.length; i++) {
@@ -324,123 +334,66 @@ const getArtistBasedOnUserGenre = async (req, res) => {
     const { userId } = req.params;
 
     const user = await User.findById(userId);
-
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    // Get user's genre preferences with populated genre names
-    const userGenres = await Preferences.aggregate([
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(userId),
-        },
-      },
-      {
-        $lookup: {
-          from: "genres",
-          let: { genreId: "$genreId" },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $eq: ["$_id", "$$genreId"],
-                },
-              },
-            },
-          ],
-          as: "genre",
-        },
-      },
-      {
-        $unwind: "$genre",
-      },
-      // Group to get array of genre names and convert to lowercase
-      {
-        $group: {
-          _id: null,
-          genres: { $push: { $toLower: "$genre.name" } },
-          originalGenres: { $push: "$genre.name" },
-        },
-      },
-    ]);
-
-    if (!userGenres.length) {
-      return res.status(200).json({
-        message: "No genres found for user",
-        data: [],
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found",
       });
     }
 
-    const lowercaseGenres = userGenres[0].genres;
+    const userGenresPreferences = await Preferences.find({ userId: userId });
+    if (userGenresPreferences.length === 0) {
+      return res.status(404).json({
+        status: "failed",
+        message: "No genres found for user",
+      });
+    }
 
-    // Find artists that match any of the user's genres (case-insensitive)
-    const artists = await Artist.aggregate([
-      {
-        $addFields: {
-          lowercaseGenres: {
-            $map: {
-              input: "$genres",
-              as: "genre",
-              in: { $toLower: "$$genre" },
-            },
-          },
-        },
-      },
-      {
-        $match: {
-          lowercaseGenres: {
-            $in: lowercaseGenres,
-          },
-        },
-      },
-      // Calculate matching genres count using lowercase comparison
-      {
-        $addFields: {
-          matchingGenresCount: {
-            $size: {
-              $setIntersection: ["$lowercaseGenres", lowercaseGenres],
-            },
-          },
-        },
-      },
-      // Sort by matching genres count and popularity
-      {
-        $sort: {
-          matchingGenresCount: -1,
-          popularity: -1,
-        },
-      },
-      {
-        $limit: 50,
-      },
-      // Only include the fields we want (inclusion-only projection)
-      {
-        $project: {
-          _id: 1,
-          name: 1,
-          images: 1,
-          genres: 1,
-          popularity: 1,
-          monthlyListeners: 1,
-          verified: 1,
-          matchingGenresCount: 1,
-          artistId: 1,
-        },
-      },
-    ]);
+    const genreArtistData = [];
+
+    for (const preference of userGenresPreferences) {
+      const genre = await Genre.findById(preference.genreId);
+      if (!genre) continue;
+
+      const artists = await Artist.find({ genres: { $in: [genre._id] } });
+      const artistsWithCommunity = await Promise.all(
+        artists.map(async (artist) => {
+          const artistCommunity = await Community.findOne({
+            createdBy: artist._id,
+          });
+
+          return {
+            id: artist._id,
+            name: artist.name,
+            tribeName: artistCommunity?.communityName || "Unknown Tribe",
+            tribestars: artistCommunity?.NFTToken || 0,
+            profileImage: artist.profileImage || "default_image_url",
+          };
+        })
+      );
+
+      genreArtistData.push({
+        genreName: genre.name,
+        artists: artistsWithCommunity,
+      });
+    }
+
+    if (genreArtistData.length === 0) {
+      return res.status(404).json({
+        status: "failed",
+        message: "No artist data found for user genres",
+      });
+    }
 
     return res.status(200).json({
+      status: "success",
       message: "Successfully retrieved artists based on user genres",
-      data: {
-        artists,
-        userGenres: userGenres[0].originalGenres,
-        totalMatches: artists.length,
-      },
+      data: genreArtistData,
     });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return res.status(500).json({
+      status: "failed",
       message: "Error fetching artists based on genre of user",
       error: error.message,
     });
