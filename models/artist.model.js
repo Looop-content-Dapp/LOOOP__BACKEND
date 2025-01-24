@@ -14,7 +14,7 @@ const artistSchema = new Schema(
       type: String,
       required: false,
       default: null,
-      index: false,
+      index: true,
       sparse: true,
     },
     name: { type: String, required: true },
