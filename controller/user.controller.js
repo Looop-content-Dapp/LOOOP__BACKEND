@@ -21,10 +21,7 @@ import { walletService } from "../xion/walletservice.js";
 import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
 import sendEmail from "../script.cjs"; // Make sure this path matches your email utility location
 
-import crypto from "crypto";
 import { Genre } from "../models/genre.model.js";
-import { get } from "http";
-import e from "express";
 import { Community } from "../models/community.model.js";
 // Loads .env
 config();
@@ -341,7 +338,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       });
     }
 
-    const userGenresPreferences = await Preferences.find({ userId: userId });
+    const userGenresPreferences = await Preferences.find({ userId });
     if (userGenresPreferences.length === 0) {
       return res.status(404).json({
         status: "failed",
@@ -349,15 +346,25 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       });
     }
 
+    const processedGenres = new Set();
     const genreArtistData = [];
 
     for (const preference of userGenresPreferences) {
       const genre = await Genre.findById(preference.genreId);
-      if (!genre) continue;
+      if (!genre || processedGenres.has(genre._id.toString())) {
+        continue;
+      }
+
+      processedGenres.add(genre._id.toString()); // Mark genre as processed
 
       const artists = await Artist.find({ genres: { $in: [genre._id] } });
+      const artistMap = new Map();
+
       const artistsWithCommunity = await Promise.all(
         artists.map(async (artist) => {
+          if (artistMap.has(artist._id.toString())) return null;
+          artistMap.set(artist._id.toString(), true);
+
           const artistCommunity = await Community.findOne({
             createdBy: artist._id,
           });
@@ -374,7 +381,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
 
       genreArtistData.push({
         genreName: genre.name,
-        artists: artistsWithCommunity,
+        artists: artistsWithCommunity.filter(Boolean),
       });
     }
 
