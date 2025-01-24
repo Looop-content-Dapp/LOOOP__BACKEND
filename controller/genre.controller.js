@@ -107,4 +107,3 @@ export const createAGenre = async (req, res) => {
       .json({ message: "Error creating a genre", error: error.message });
   }
 };
-

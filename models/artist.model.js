@@ -10,7 +10,13 @@ const socialLinksSchema = new Schema({
 
 const artistSchema = new Schema(
   {
-    artistId: { type: String, required: false, default: null, index: false },
+    artistId: {
+      type: String,
+      required: false,
+      default: null,
+      index: false,
+      sparse: true,
+    },
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     profileImage: { type: String, required: true, default: null },
