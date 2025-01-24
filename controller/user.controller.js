@@ -989,7 +989,7 @@ const signIn = async (req, res) => {
     delete userData.password;
 
     return res.status(200).json({
-      sattus: "success",
+      status: "success",
       message: "Sign in successful",
       data: {
         ...userData,
