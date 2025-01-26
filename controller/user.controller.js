@@ -71,14 +71,6 @@ const getUser = async (req, res) => {
         },
       },
       {
-        $lookup: {
-          from: "faveartists",
-          localField: "_id",
-          foreignField: "userId",
-          as: "faveArtists",
-        },
-      },
-      {
         $unwind: {
           path: "$faveArtists",
           preserveNullAndEmptyArrays: true,
@@ -101,35 +93,27 @@ const getUser = async (req, res) => {
         },
       },
       {
-        $lookup: {
-          from: "artists",
-          localField: "faveArtists.artistId",
-          foreignField: "_id",
-          as: "faveArtists.artist",
-        },
-      },
-      {
         $addFields: {
           following: { $size: "$following" },
           friendsCount: { $size: "$friends" },
           artistPlayed: { $size: "$friends" },
         },
       },
-      {
-        $group: {
-          _id: "$_id",
-          faveArtist: { $push: "$faveArtists" },
-          otherFields: { $first: "$$ROOT" },
-        },
-      },
-      {
-        $replaceRoot: {
-          newRoot: {
-            $mergeObjects: ["$otherFields", { faveArtists: "$faveArtist" }],
-          },
-        },
-      },
     ]);
+
+    const favouriteArtists = await FaveArtist.find({
+      userId: new Types.ObjectId(req.params.id),
+    });
+
+    const processedFavorites = new Set();
+    const uniqueFavorites = favouriteArtists.filter((favorite) => {
+      const artistId = favorite.artistId.toString();
+      if (!processedFavorites.has(artistId)) {
+        processedFavorites.add(artistId);
+        return true;
+      }
+      return false;
+    });
 
     if (user.length === 0) {
       return res
@@ -142,6 +126,7 @@ const getUser = async (req, res) => {
     const userData = {
       ...user[0],
       artist: isArtist === null ? null : isArtist?.id,
+      favouriteArtists: uniqueFavorites,
     };
     delete userData.password;
 
@@ -346,6 +331,11 @@ const getArtistBasedOnUserGenre = async (req, res) => {
       });
     }
 
+    const findFavourites = await FaveArtist.find({ userId });
+    const favouriteArtistIds = findFavourites.map((fav) =>
+      fav.artistId.toString()
+    );
+
     const processedGenres = new Set();
     const genreArtistData = [];
 
@@ -355,7 +345,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
         continue;
       }
 
-      processedGenres.add(genre._id.toString()); // Mark genre as processed
+      processedGenres.add(genre._id.toString());
 
       const artists = await Artist.find({ genres: { $in: [genre._id] } });
       const artistMap = new Map();
@@ -375,6 +365,7 @@ const getArtistBasedOnUserGenre = async (req, res) => {
             tribeName: artistCommunity?.communityName || "Unknown Tribe",
             tribestars: artistCommunity?.NFTToken || 0,
             profileImage: artist.profileImage || "default_image_url",
+            isFavourite: favouriteArtistIds.includes(artist._id.toString()),
           };
         })
       );
@@ -415,25 +406,52 @@ const createUserFaveArtistBasedOnGenres = async (req, res) => {
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res
+        .status(404)
+        .json({ status: "failed", message: "User not found" });
     }
 
     for (let i = 0; i < parseFaveArtist.length; i++) {
-      const element = parseFaveArtist[i];
-      const faveArtist = new FaveArtist({
-        artistId: element,
-        userId: userId,
+      const findArtist = await Artist.findOne({
+        _id: parseFaveArtist[i],
       });
-      await faveArtist.save();
+      if (findArtist) {
+        const element = parseFaveArtist[i];
+
+        const existingFave = await FaveArtist.findOne({
+          artistId: element,
+          userId: userId,
+        });
+
+        if (existingFave) {
+          await FaveArtist.deleteOne({
+            artistId: element,
+            userId: userId,
+          });
+        } else {
+          const faveArtist = new FaveArtist({
+            artistId: element,
+            userId: userId,
+          });
+          await faveArtist.save();
+        }
+      } else {
+        return res.status(404).json({
+          status: "failed",
+          message: "Artist not found",
+        });
+      }
     }
 
     return res.status(200).json({
-      message: "successfully saved all users fave artist based on genre",
+      status: "success",
+      message: "Successfully updated user's favorite artists",
+      data: null,
     });
   } catch (error) {
     console.log(error);
     return res.status(500).json({
-      message: "Error saving user fave artist based on genre",
+      message: "Error updating user's favorite artists",
       error: error.message,
     });
   }
@@ -930,14 +948,14 @@ const signIn = async (req, res) => {
       },
     ]);
 
-    const isArtist = await Artist.findOne({ userId: user[0]._id });
-
     if (!user || user.length === 0) {
       return res.status(404).json({
         status: "failed",
         message: "User not found",
       });
     }
+
+    const isArtist = await Artist.findOne({ userId: user[0]._id });
 
     const isPasswordValid = await bcrypt.compare(password, user[0].password);
 
