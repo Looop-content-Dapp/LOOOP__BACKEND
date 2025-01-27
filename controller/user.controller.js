@@ -121,7 +121,10 @@ const getUser = async (req, res) => {
         .json({ status: "failed", message: "User not found" });
     }
 
-    const isArtist = await Artist.findOne({ userId: user[0]._id });
+    const isArtist = await Artist.findOne({
+      userId: user[0]._id,
+      verified: true,
+    });
 
     const userData = {
       ...user[0],
@@ -955,7 +958,10 @@ const signIn = async (req, res) => {
       });
     }
 
-    const isArtist = await Artist.findOne({ userId: user[0]._id });
+    const isArtist = await Artist.findOne({
+      userId: user[0]._id,
+      verified: true,
+    });
 
     const isPasswordValid = await bcrypt.compare(password, user[0].password);
 

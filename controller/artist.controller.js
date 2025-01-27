@@ -203,25 +203,6 @@ export const createArtist = async (req, res) => {
         .json({ status: "failed", message: "Invalid Instagram URL" });
     }
 
-    const claimresult = await submitClaim({
-      verificationDocuments: {
-        email,
-        profileImage,
-        genres,
-        address1,
-        country,
-        city,
-        postalcode,
-        websiteurl,
-      },
-      userId: user.id,
-      socialMediaHandles: {
-        tiktok: tiktok,
-        instagram: instagram,
-        twitter: twitter,
-      },
-    });
-
     const artist = new Artist({
       name: artistname,
       email,
@@ -239,6 +220,26 @@ export const createArtist = async (req, res) => {
     });
 
     await artist.save();
+
+    const claimresult = await submitClaim({
+      verificationDocuments: {
+        email,
+        profileImage,
+        genres,
+        address1,
+        country,
+        city,
+        postalcode,
+        websiteurl,
+      },
+      userId: user.id,
+      socialMediaHandles: {
+        tiktok: tiktok,
+        instagram: instagram,
+        twitter: twitter,
+      },
+      artistId: artist._id,
+    });
 
     const socials = await Social({
       artistId: artist._doc._id,

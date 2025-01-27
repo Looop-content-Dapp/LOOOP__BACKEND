@@ -83,6 +83,7 @@ export const submitArtistClaim = async (req, res) => {
 
 export const submitClaim = async ({
   userId,
+  artistId,
   verificationDocuments,
   socialMediaHandles,
 }) => {
@@ -105,9 +106,9 @@ export const submitClaim = async ({
         message: "A claim request is already pending for this artist profile",
       };
     } else {
-      // Create new claim
       const claim = new ArtistClaim({
         userId,
+        artistId,
         verificationDocuments,
         socialMediaHandles,
         websiteUrl: verificationDocuments.websiteurl,
@@ -192,14 +193,19 @@ export const updateClaimStatus = async (req, res) => {
     const { claimId } = req.params;
     const { status, rejectionReason, adminId } = req.body;
 
-    if (!["approved", "rejected"].includes(status)) {
+    if (
+      !["approved", "rejected", "pending", "not-submitted"].includes(status)
+    ) {
       return res.status(400).json({
-        message: "Invalid status. Must be 'approved' or 'rejected'",
+        status: "failed",
+        message: "Invalid status. Must be 'approved', 'rejected' or 'pending'",
       });
     }
 
+    // Validate admin role
     if (!["admin", "superAdmin"].includes(adminId)) {
       return res.status(400).json({
+        status: "failed",
         message: "Invalid admin. Must be 'admin' or 'superAdmin'",
       });
     }
@@ -207,6 +213,7 @@ export const updateClaimStatus = async (req, res) => {
     const claim = await ArtistClaim.findById(claimId);
     if (!claim) {
       return res.status(404).json({
+        status: "failed",
         message: "Claim request not found",
       });
     }
@@ -215,21 +222,41 @@ export const updateClaimStatus = async (req, res) => {
     session.startTransaction();
 
     try {
+      // Update claim status
       claim.status = status;
       claim.verifiedBy = adminId;
       claim.verifiedAt = new Date();
+      claim.updatedAt = new Date();
+
       if (status === "rejected") {
+        if (!rejectionReason) {
+          throw new Error(
+            "Rejection reason is required when rejecting a claim"
+          );
+        }
         claim.rejectionReason = rejectionReason;
       }
 
       if (status === "approved") {
+        // Update artist profile
         await Artist.findByIdAndUpdate(
           claim.artistId,
           {
             verified: true,
             verifiedAt: new Date(),
+            updatedAt: new Date(),
             ...claim.socialMediaHandles,
             websiteUrl: claim.websiteUrl,
+          },
+          { session }
+        );
+
+        // Update user profile
+        await User.findByIdAndUpdate(
+          claim.userId,
+          {
+            artist: claim.artistId,
+            updatedAt: new Date(),
           },
           { session }
         );
