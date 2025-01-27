@@ -1,100 +1,87 @@
 import { Artist } from "../../models/artist.model.js";
 import validator from "validator";
+import { ArtistClaim } from "../../models/artistClaim.model.js";
+import { Types } from "mongoose";
+import { User } from "../../models/user.model.js";
 
-export const verifyArtist = async (req, res) => {
+export const updateClaimStatus = async (req, res) => {
   try {
-    const { artistId } = req.params;
-    const { verified } = req.body;
+    const { claimId } = req.params;
+    const { status, rejectionReason, adminId } = req.body;
 
-    if (!validator.isMongoId(artistId)) {
+    if (!validator.isMongoId(claimId)) {
       return res.status(400).json({
         status: "failed",
-        message: "Invalid artist ID format",
+        message: "Invalid claim ID",
       });
     }
 
-    const artist = await Artist.findById(artistId);
-    if (!artist) {
+    if (
+      !["approved", "rejected", "pending", "not-submitted"].includes(status)
+    ) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid status. Must be 'approved', 'rejected' or 'pending'",
+      });
+    }
+
+    if (!["admin", "superAdmin"].includes(adminId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid admin. Must be 'admin' or 'superAdmin'",
+      });
+    }
+
+    const claim = await ArtistClaim.findById(claimId);
+    if (!claim) {
       return res.status(404).json({
         status: "failed",
-        message: "Artist not found",
+        message: "Claim request not found",
       });
     }
 
-    if (typeof verified !== "boolean") {
-      return res.status(400).json({
-        status: "failed",
-        message: "Verification status must be a boolean",
+    claim.status = status;
+    claim.verifiedBy = adminId;
+    claim.verifiedAt = new Date();
+    claim.updatedAt = new Date();
+
+    if (status === "rejected") {
+      if (!rejectionReason) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Rejection reason is required when rejecting a claim",
+        });
+      }
+      claim.rejectionReason = rejectionReason;
+    }
+
+    if (status === "approved") {
+      await Artist.findByIdAndUpdate(new Types.ObjectId(claim.artistId), {
+        verified: true,
+        verifiedAt: new Date(),
+        updatedAt: new Date(),
+        ...claim.socialMediaHandles,
+        websiteUrl: claim.websiteUrl,
+      });
+
+      await User.findByIdAndUpdate(claim.userId, {
+        artist: new Types.ObjectId(claim.artistId),
+        updatedAt: new Date(),
       });
     }
 
-    const updatedArtist = await Artist.findByIdAndUpdate(
-      artistId,
-      {
-        $set: {
-          verified: verified,
-          updatedAt: new Date(),
-        },
-      },
-      { new: true }
-    ).select("name email profileImage verified updatedAt");
+    await claim.save();
 
     return res.status(200).json({
       status: "success",
-      message: `Artist ${verified ? "verified" : "unverified"} successfully`,
-      data: updatedArtist,
+      message: `Claim ${status} successfully`,
+      data: claim,
     });
   } catch (error) {
-    console.error("Error verifying artist:", error);
+    console.error("Error in updateClaimStatus:", error);
     return res.status(500).json({
-      status: "failed",
-      message: "Error verifying artist",
+      message: "Error updating claim status",
       error: error.message,
     });
   }
 };
-
-// // Get verification status
-// export const getVerificationStatus = async (req, res) => {
-//   try {
-//     const { artistId } = req.params;
-
-//     if (!Types.ObjectId.isValid(artistId)) {
-//       return res.status(400).json({
-//         status: "failed",
-//         message: "Invalid artist ID format"
-//       });
-//     }
-
-//     const artist = await Artist.findById(artistId)
-//       .select('name email profileImage verified verificationNotes updatedAt');
-
-//     if (!artist) {
-//       return res.status(404).json({
-//         status: "failed",
-//         message: "Artist not found"
-//       });
-//     }
-
-//     return res.status(200).json({
-//       status: "success",
-//       data: {
-//         artistId: artist._id,
-//         name: artist.name,
-//         email: artist.email,
-//         profileImage: artist.profileImage,
-//         verified: artist.verified,
-//         verificationNotes: artist.verificationNotes,
-//         lastUpdated: artist.updatedAt
-//       }
-//     });
-
-//   } catch (error) {
-//     console.error("Error checking verification status:", error);
-//     return res.status(500).json({
-//       status: "failed",
-//       message: "Error checking verification status",
-//       error: error.message
-//     });
-//   }
-// };
