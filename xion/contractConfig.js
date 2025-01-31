@@ -81,7 +81,42 @@ export class ContractHelper {
     }
   }
 
-  async mintNFTPass(collectionAddress, userAddress, tokenId) {
+  // async mintNFTPass(collectionAddress, tokenId, userAddress) {
+  //   if (!this.client) await this.initializeAdminWallet();
+
+  //   const msg = {
+  //     extension: {
+  //       msg: {
+  //         mint_pass: {
+  //           token_id: tokenId,
+  //           userAddress,
+  //         },
+  //       },
+  //     },
+  //   };
+
+  //   try {
+  //     const result = await this.client.execute(
+  //       this.walletadmin,
+  //       collectionAddress,
+  //       msg,
+  //       "auto",
+  //       undefined,
+  //       [{ denom: "uxion", amount: "10" }] // Pass price
+  //     );
+
+  //     return {
+  //       success: true,
+  //       tokenId,
+  //       transactionHash: result.transactionHash,
+  //     };
+  //   } catch (error) {
+  //     console.error("Failed to mint NFT:", error);
+  //     throw error;
+  //   }
+  // }
+
+  async mintNFTPass(collectionAddress, tokenId, userAddress) {
     if (!this.client) await this.initializeAdminWallet();
 
     const msg = {
@@ -89,6 +124,7 @@ export class ContractHelper {
         msg: {
           mint_pass: {
             token_id: tokenId,
+            owner_address: userAddress,
           },
         },
       },
@@ -164,7 +200,7 @@ export class ContractHelper {
 
 const CONTRACT_CONFIG = {
   factoryAddress:
-    "xion1tsedteq0lvljmd6y9ptfk2dtqlx8s43lkvd2wppfe6dcn0kjs0fqn5f67q",
+    "xion1wzs7z3qy0mcmq509jjjfm0e2fdggx54mx7xdx9zwrey5l30jzh7q88u9gr",
   rpcEndpoint: "https://rpc.xion-testnet-1.burnt.com:443",
   network: {
     denom: "uxion",

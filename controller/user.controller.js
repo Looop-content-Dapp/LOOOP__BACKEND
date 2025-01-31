@@ -23,6 +23,7 @@ import sendEmail from "../script.cjs"; // Make sure this path matches your email
 
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
+import { ArtistClaim } from "../models/artistClaim.model.js";
 // Loads .env
 config();
 
@@ -126,9 +127,14 @@ const getUser = async (req, res) => {
       verified: true,
     });
 
+    const hasClaim = await ArtistClaim.findOne({
+      userId: user[0]._id,
+    });
+
     const userData = {
       ...user[0],
       artist: isArtist === null ? null : isArtist?.id,
+      artistClaim: hasClaim === null ? null : hasClaim?.id,
       favouriteArtists: uniqueFavorites,
     };
     delete userData.password;
@@ -878,78 +884,9 @@ const signIn = async (req, res) => {
       });
     }
 
-    const user = await User.aggregate([
-      {
-        $match: { email: email },
-      },
-      {
-        $lookup: {
-          from: "preferences",
-          localField: "_id",
-          foreignField: "userId",
-          as: "preferences",
-        },
-      },
-      {
-        $lookup: {
-          from: "faveartists",
-          localField: "_id",
-          foreignField: "userId",
-          as: "faveArtists",
-        },
-      },
-      {
-        $unwind: {
-          path: "$faveArtists",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-      {
-        $lookup: {
-          from: "follows",
-          localField: "_id",
-          foreignField: "follower",
-          as: "following",
-        },
-      },
-      {
-        $lookup: {
-          from: "friends",
-          localField: "_id",
-          foreignField: "userId",
-          as: "friends",
-        },
-      },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "faveArtists.artistId",
-          foreignField: "_id",
-          as: "faveArtists.artist",
-        },
-      },
-      {
-        $addFields: {
-          following: { $size: "$following" },
-          friendsCount: { $size: "$friends" },
-          artistPlayed: { $size: "$friends" },
-        },
-      },
-      {
-        $group: {
-          _id: "$_id",
-          faveArtist: { $push: "$faveArtists" },
-          otherFields: { $first: "$$ROOT" },
-        },
-      },
-      {
-        $replaceRoot: {
-          newRoot: {
-            $mergeObjects: ["$otherFields", { faveArtists: "$faveArtist" }],
-          },
-        },
-      },
-    ]);
+    const user = await User.find({
+      email: email,
+    });
 
     if (!user || user.length === 0) {
       return res.status(404).json({
@@ -963,6 +900,10 @@ const signIn = async (req, res) => {
       verified: true,
     });
 
+    const hasClaim = await ArtistClaim.findOne({
+      userId: user[0]._id,
+    });
+
     const isPasswordValid = await bcrypt.compare(password, user[0].password);
 
     if (!isPasswordValid) {
@@ -972,43 +913,10 @@ const signIn = async (req, res) => {
       });
     }
 
-    const artistPlayed = await LastPlayed.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: ["$userId", user[0]._id],
-          },
-        },
-      },
-      {
-        $lookup: {
-          from: "tracks",
-          localField: "trackId",
-          foreignField: "_id",
-          as: "track",
-        },
-      },
-      {
-        $unwind: {
-          path: "$track",
-          preserveNullAndEmptyArrays: true,
-        },
-      },
-    ]);
-
-    let uniqueArtists = [];
-    let uniqueTracks = [];
-    artistPlayed.forEach((val) => {
-      if (!uniqueArtists.includes(val.track.artistId.toString())) {
-        uniqueArtists.push(val.track.artistId.toString());
-        uniqueTracks.push(val.track);
-      }
-    });
-
     const userData = {
-      ...user[0],
+      ...user[0]._doc,
       artist: isArtist === null ? null : isArtist?.id,
-      artistPlayed: uniqueTracks.length,
+      artistClaim: hasClaim === null ? null : hasClaim?.id,
     };
     delete userData.password;
 

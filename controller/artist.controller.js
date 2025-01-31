@@ -9,6 +9,8 @@ import { User } from "../models/user.model.js";
 import { Release } from "../models/releases.model.js";
 import { Types } from "mongoose";
 import { Genre } from "../models/genre.model.js";
+import { Community } from "../models/community.model.js";
+import { FaveArtist } from "../models/faveartist.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -52,6 +54,9 @@ export const getArtist = async (req, res) => {
         .json({ status: "failed", message: "error in fetching genre" });
     }
     const genreNames = getGenre.map((genre) => genre.name);
+    const getArtisCommunity = await Community.findOne({
+      createdBy: new Types.ObjectId(isartist._id),
+    });
 
     const release = await Release.find(
       {
@@ -59,9 +64,18 @@ export const getArtist = async (req, res) => {
       },
       { __v: 0 }
     );
+    const userHasFavouriteArtist = await FaveArtist.find({
+      artistId: isartist._id,
+    });
 
     const artistData = {
-      artist: { ...isartist._doc, genres: genreNames, releases: release },
+      artist: {
+        ...isartist._doc,
+        genres: genreNames,
+        releases: release,
+        numberOfArtistFollowers: userHasFavouriteArtist.length,
+        community: getArtisCommunity.id,
+      },
     };
     delete artistData.artist.artistId;
 
