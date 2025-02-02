@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import { get, Types } from "mongoose";
 import validator from "validator";
 
 import { Artist } from "../models/artist.model.js";
@@ -12,7 +12,8 @@ export const getAllCommunity = async (req, res) => {
   try {
     const communities = await Community.find({});
     return res.status(200).json({
-      message: "successfully get all communities",
+      status: "success",
+      message: "Communities fetch successfully",
       data: communities,
     });
   } catch (error) {
@@ -31,21 +32,35 @@ export const getCommunityByArtistId = async (req, res) => {
         .json({ status: "failed", message: "invalid artist id format" });
     }
 
-    const communities = await Community.find({
-      createdBy: new Types.ObjectId(artistid),
-    });
+    const checkIfArtistExist = await Artist.findById(artistid);
+    if (checkIfArtistExist !== null) {
+      const communities = await Community.findOne({
+        createdBy: new Types.ObjectId(artistid),
+      });
 
-    if (communities.length === 0) {
-      return res
-        .status(404)
-        .json({ status: "failed", message: "community not found" });
+      const communitydata = {
+        ...communities._doc,
+      };
+
+      if (communities.length === 0) {
+        return res.status(200).json({
+          status: "success",
+          message: "Artist does not have a community",
+          data: null,
+        });
+      }
+
+      return res.status(200).json({
+        status: "success",
+        message: "successfully gotten a community",
+        data: communitydata,
+      });
+    } else {
+      return res.status(404).json({
+        status: "failed",
+        message: `Artist with ID ${artistid} does not exist or does not have a community`,
+      });
     }
-
-    return res.status(200).json({
-      status: "success",
-      message: "successfully gotten a community",
-      data: communities[0],
-    });
   } catch (error) {
     console.log(error);
     return res
@@ -352,13 +367,15 @@ export const joinCommunity = async (req, res) => {
         .json({ status: "failed", message: "Invalid communityID" });
     }
 
-    if (type === "xion") {
-      const mint = await contractHelper.mintNFTPass(
-        collectionAddress,
-        recipientAddress,
-        tokenID
-      );
-    }
+    // if (type === "xion") {
+    //   const mint = await contractHelper.mintNFTPass(
+    //     "xion1nvgfucdxcp4jfyrdl90tt8h9h22r3ldepqp0n7a5y6c6vvjm65aqcyvzfp",
+    //     "1",
+    //     "xion1rw2pyfaq6cam5gjk4qymewfdvu64ff9ma2tstm"
+    //   );
+
+    //   console.log(mint, "mint");
+    // }
 
     const community = await Community.findById(communityId);
     if (!community) {
@@ -383,6 +400,9 @@ export const joinCommunity = async (req, res) => {
     });
 
     await communitymember.save();
+
+    community.memberCount += 1;
+    await community.save();
 
     return res.status(200).json({
       status: "success",
