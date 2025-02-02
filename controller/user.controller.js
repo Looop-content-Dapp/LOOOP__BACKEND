@@ -24,6 +24,7 @@ import sendEmail from "../script.cjs"; // Make sure this path matches your email
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
+import { CommunityMember } from "../models/communitymembers.model.js";
 // Loads .env
 config();
 
@@ -131,17 +132,47 @@ const getUser = async (req, res) => {
       userId: user[0]._id,
     });
 
+    const getUserTribe = await CommunityMember.aggregate([
+      {
+        $match: {
+          userId: user[0]._id,
+        },
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "communityId",
+          foreignField: "_id",
+          as: "community",
+        },
+      },
+      {
+        $unwind: "$community",
+      },
+      {
+        $project: {
+          _id: "$community._id",
+          communityName: "$community.communityName",
+          NFTToken: "$community.NFTToken",
+          createdBy: "$community.createdBy",
+          memberCount: "$community.memberCount",
+          coverImage: "$community.coverImage",
+        },
+      },
+    ]);
+
     const userData = {
       ...user[0],
       artist: isArtist === null ? null : isArtist?.id,
       artistClaim: hasClaim === null ? null : hasClaim?.id,
       favouriteArtists: uniqueFavorites,
+      communities: getUserTribe,
     };
     delete userData.password;
 
     return res.status(200).json({
       status: "success",
-      message: "User fetched successfully",
+      message: "User data fetched successfully",
       data: userData,
     });
   } catch (error) {
@@ -919,6 +950,11 @@ const signIn = async (req, res) => {
       artistClaim: hasClaim === null ? null : hasClaim?.id,
     };
     delete userData.password;
+
+    // sendEmail("seyi.oyebamiji@gmail.com", "Welcome back user", "login", {
+    //   username: "seyi",
+    //   message: "Welcome back from sleep!",
+    // });
 
     return res.status(200).json({
       status: "success",

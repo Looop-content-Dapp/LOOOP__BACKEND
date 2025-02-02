@@ -11,6 +11,7 @@ import { Types } from "mongoose";
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { FaveArtist } from "../models/faveartist.model.js";
+import { CommunityMember } from "../models/communitymembers.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -67,14 +68,24 @@ export const getArtist = async (req, res) => {
     const userHasFavouriteArtist = await FaveArtist.find({
       artistId: isartist._id,
     });
+    const followers = userHasFavouriteArtist.map(
+      (faveArtist) => faveArtist.userId
+    );
+
+    const getCommunityMembers = await CommunityMember.find({
+      communityId: getArtisCommunity._id,
+    });
+
+    const communityMembers = getCommunityMembers.map((g) => g.userId);
 
     const artistData = {
       artist: {
         ...isartist._doc,
         genres: genreNames,
         releases: release,
-        numberOfArtistFollowers: userHasFavouriteArtist.length,
+        followers,
         community: getArtisCommunity.id,
+        communityMembers: communityMembers,
       },
     };
     delete artistData.artist.artistId;
