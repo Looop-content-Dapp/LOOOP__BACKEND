@@ -81,41 +81,6 @@ export class ContractHelper {
     }
   }
 
-  // async mintNFTPass(collectionAddress, tokenId, userAddress) {
-  //   if (!this.client) await this.initializeAdminWallet();
-
-  //   const msg = {
-  //     extension: {
-  //       msg: {
-  //         mint_pass: {
-  //           token_id: tokenId,
-  //           userAddress,
-  //         },
-  //       },
-  //     },
-  //   };
-
-  //   try {
-  //     const result = await this.client.execute(
-  //       this.walletadmin,
-  //       collectionAddress,
-  //       msg,
-  //       "auto",
-  //       undefined,
-  //       [{ denom: "uxion", amount: "10" }] // Pass price
-  //     );
-
-  //     return {
-  //       success: true,
-  //       tokenId,
-  //       transactionHash: result.transactionHash,
-  //     };
-  //   } catch (error) {
-  //     console.error("Failed to mint NFT:", error);
-  //     throw error;
-  //   }
-  // }
-
   async mintNFTPass(collectionAddress, tokenId, userAddress) {
     if (!this.client) await this.initializeAdminWallet();
 
@@ -137,7 +102,7 @@ export class ContractHelper {
         msg,
         "auto",
         undefined,
-        [{ denom: "uxion", amount: "10" }] // Pass price
+        [{ denom: "uxion", amount: "1000" }] // Pass price
       );
 
       return {
