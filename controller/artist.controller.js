@@ -15,11 +15,43 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
-    const Artists = await Artist.find({}, "-password");
+    const Artists = await Artist.find({});
+    const populatedArtists = await Promise.all(
+      Artists.map(async (artist) => {
+        const genres = await Genre.find({ _id: { $in: artist.genres } });
+        const genreNames = genres.map((genre) => genre.name);
+
+        const community = await Community.findOne({ createdBy: artist._id });
+
+        const releases = await Release.find(
+          { artistId: artist._id },
+          { __v: 0 }
+        );
+
+        const faveArtists = await FaveArtist.find({ artistId: artist._id });
+        const followers = faveArtists.map((faveArtist) => faveArtist.userId);
+
+        const getCommunityMembers = await CommunityMember.find({
+          communityId: community?._id,
+        });
+
+        const communityMembers = getCommunityMembers.map((g) => g.userId);
+
+        return {
+          ...artist._doc,
+          genres: genreNames,
+          releases,
+          followers,
+          community: community?._id,
+          communityMembers: communityMembers,
+        };
+      })
+    );
 
     return res.status(200).json({
-      message: "successfully get all Artists",
-      data: Artists,
+      status: "success",
+      message: "Successfully fetched all artists",
+      data: populatedArtists,
     });
   } catch (error) {
     res
