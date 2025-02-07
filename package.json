@@ -33,6 +33,7 @@
     "nodemailer-express-handlebars": "^7.0.0",
     "nodemailer-smtp-transport": "^2.7.4",
     "path": "^0.12.7",
+    "payaza_lib": "^1.0.3",
     "paystack-sdk": "^2.5.17",
     "spotify-web-api-node": "^5.0.2",
     "starknet": "^6.11.0",

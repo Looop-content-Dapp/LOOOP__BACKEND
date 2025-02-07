@@ -81,14 +81,15 @@ export class ContractHelper {
     }
   }
 
-  async mintNFTPass(collectionAddress, tokenId, userAddress) {
+  async mintNFTPass({ collectionAddress, userAddress }) {
     if (!this.client) await this.initializeAdminWallet();
+
+    console.log(collectionAddress, userAddress);
 
     const msg = {
       extension: {
         msg: {
           mint_pass: {
-            token_id: tokenId,
             owner_address: userAddress,
           },
         },
@@ -107,7 +108,7 @@ export class ContractHelper {
 
       return {
         success: true,
-        tokenId,
+        // tokenId,
         transactionHash: result.transactionHash,
       };
     } catch (error) {
@@ -161,11 +162,30 @@ export class ContractHelper {
     );
     return response;
   }
+
+  async queryUserPass({ symbol, owner, collectionAddress }) {
+    const queryMsg = {
+      extension: {
+        msg: {
+          get_user_pass: {
+            symbol: symbol,
+            owner: owner,
+          },
+        },
+      },
+    };
+
+    const response = await this.client.queryContractSmart(
+      collectionAddress,
+      queryMsg
+    );
+    return response;
+  }
 }
 
 const CONTRACT_CONFIG = {
   factoryAddress:
-    "xion1wzs7z3qy0mcmq509jjjfm0e2fdggx54mx7xdx9zwrey5l30jzh7q88u9gr",
+    "xion16t0zex5lpsujwfptjhmqpvhr6ke2ppzgqdzn2dg97dpczyl73snse67knr",
   rpcEndpoint: "https://rpc.xion-testnet-1.burnt.com:443",
   network: {
     denom: "uxion",

@@ -184,7 +184,7 @@ export const createArtist = async (req, res) => {
       .map(([, message]) => message);
 
     if (missingFields.length) {
-      return res.status(401).json({
+      return res.status(400).json({
         message: "Missing required fields",
         errors: missingFields,
       });
