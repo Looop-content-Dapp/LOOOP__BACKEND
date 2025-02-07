@@ -7,6 +7,7 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
+import { PayAzaCardPayment } from "../utils/helpers/payaza.js";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -332,82 +333,91 @@ export const joinCommunity = async (req, res) => {
     const {
       userId,
       communityId,
-      recipientAddress,
+      userAddress,
       type,
       collectionAddress,
-      tokenID,
+      transactionReference,
     } = req.body;
 
-    if (!["starknet", "xion"].includes(type)) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Type must be either 'starknet' or 'xion'",
+    const payment = await PayAzaCardPayment(transactionReference);
+
+    if (payment.status === "success") {
+      if (!["starknet", "xion"].includes(type)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Type must be either 'starknet' or 'xion'",
+        });
+      }
+
+      if (!validator.isLength(userAddress, { min: 1 })) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Recipient address is required",
+        });
+      }
+
+      const user = await User.findById(userId);
+
+      if (!validator.isMongoId(userId) || user === null) {
+        return res.status(400).json({
+          status: "failed",
+          message: user === null ? "user not found" : "Invalid userID",
+        });
+      }
+
+      if (!validator.isMongoId(communityId)) {
+        return res
+          .status(400)
+          .json({ status: "failed", message: "Invalid communityID" });
+      }
+
+      const community = await Community.findById(communityId);
+      if (!community) {
+        return res
+          .status(400)
+          .json({ status: "failed", message: "community doesn't exist" });
+      }
+
+      const userAlreadyExistinCommunity = await CommunityMember.findOne({
+        userId: userId,
+        communityId: communityId,
+      });
+
+      if (userAlreadyExistinCommunity) {
+        return res
+          .status(400)
+          .json({ message: "User already exists in community" });
+      }
+
+      const mint = await contractHelper.mintNFTPass({
+        collectionAddress: collectionAddress,
+        userAddress: userAddress,
+      });
+
+      const communitymember = new CommunityMember({
+        userId,
+        communityId,
+      });
+
+      await communitymember.save();
+
+      community.memberCount += 1;
+      await community.save();
+
+      const getCollection = await contractHelper.queryUserPass({
+        collectionAddress: collectionAddress,
+        symbol: community.tribePass.communitySymbol,
+        owner: userAddress,
+      });
+
+      console.log(getCollection, "gc");
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully minted community",
+        data: { communitymember, nftmint: mint.transactionHash },
       });
     }
-
-    if (!validator.isLength(recipientAddress, { min: 1 })) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Recipient address is required",
-      });
-    }
-
-    const user = await User.findById(userId);
-
-    if (!validator.isMongoId(userId) || user === null) {
-      return res.status(400).json({
-        status: "failed",
-        message: user === null ? "user not found" : "Invalid userID",
-      });
-    }
-
-    if (!validator.isMongoId(communityId)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid communityID" });
-    }
-
-    // if (type === "xion") {
-    //   const mint = await contractHelper.mintNFTPass(
-    //     "xion1nvgfucdxcp4jfyrdl90tt8h9h22r3ldepqp0n7a5y6c6vvjm65aqcyvzfp",
-    //     "1",
-    //     "xion1rw2pyfaq6cam5gjk4qymewfdvu64ff9ma2tstm"
-    //   );
-
-    //   console.log(mint, "mint");
-    // }
-
-    const community = await Community.findById(communityId);
-    if (!community) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "community doesn't exist" });
-    }
-
-    const userAlreadyExistinCommunity = await CommunityMember.findOne({
-      userId: userId,
-      communityId: communityId,
-    });
-
-    if (userAlreadyExistinCommunity) {
-      return res
-        .status(400)
-        .json({ message: "User already exists in community" });
-    }
-    const communitymember = new CommunityMember({
-      userId,
-      communityId,
-    });
-
-    await communitymember.save();
-
-    community.memberCount += 1;
-    await community.save();
-
-    return res.status(200).json({
-      status: "success",
-      message: "Successfully minted community",
-    });
   } catch (error) {
     console.log(error);
     return res
@@ -445,7 +455,6 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    // First get user's genre preferences with genre details
     const userPreferences = await Preferences.aggregate([
       {
         $match: {
@@ -471,15 +480,12 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
       });
     }
 
-    // Get genre names since Artist.genre is stored as string
     const genreNames = userPreferences.map((pref) => pref.genre.name);
 
-    // Create regex patterns for each genre name
     const genrePatterns = genreNames.map(
       (name) => new RegExp(name.trim(), "i")
     );
 
-    // Create a mapping of genre names to complete genre info
     const genreMap = userPreferences.reduce((acc, pref) => {
       acc[pref.genre.name] = {
         id: pref.genreId,
@@ -490,13 +496,11 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
       return acc;
     }, {});
 
-    // Create a response object to group communities by genre
     const genreBasedResults = {};
     genreNames.forEach((genreName) => {
       genreBasedResults[genreName] = [];
     });
 
-    // Find artists and their communities for each genre
     const artists = await Artist.aggregate([
       {
         $match: {
@@ -507,7 +511,6 @@ export const getArtistCommunitiesByGenre = async (req, res) => {
       },
       {
         $addFields: {
-          // Split the genre string into an array
           genreArray: {
             $split: ["$genre", ","],
           },

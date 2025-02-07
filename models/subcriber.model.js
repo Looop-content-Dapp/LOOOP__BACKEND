@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const subscriberSchema = new mongoose.Schema({
   userId: {
     type: mongoose.Types.ObjectId,
-    ref: "User", // Assuming there's a User model
+    ref: "User",
     required: true,
   },
   artistId: {
