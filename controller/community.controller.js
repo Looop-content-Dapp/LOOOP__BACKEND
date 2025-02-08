@@ -402,14 +402,6 @@ export const joinCommunity = async (req, res) => {
       community.memberCount += 1;
       await community.save();
 
-      const getCollection = await contractHelper.queryUserPass({
-        collectionAddress: collectionAddress,
-        symbol: community.tribePass.communitySymbol,
-        owner: userAddress,
-      });
-
-      console.log(getCollection, "gc");
-
       return res.status(200).json({
         status: "success",
         message: "Successfully minted community",

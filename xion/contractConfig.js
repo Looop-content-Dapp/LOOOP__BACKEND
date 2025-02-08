@@ -163,24 +163,24 @@ export class ContractHelper {
     return response;
   }
 
-  async queryUserPass({ symbol, owner, collectionAddress }) {
-    const queryMsg = {
-      extension: {
-        msg: {
-          get_user_pass: {
-            symbol: symbol,
-            owner: owner,
-          },
-        },
-      },
-    };
+  // async queryUserPass({ symbol, owner, collectionAddress }) {
+  //   const queryMsg = {
+  //     extension: {
+  //       msg: {
+  //         get_user_pass: {
+  //           symbol: symbol,
+  //           owner: owner,
+  //         },
+  //       },
+  //     },
+  //   };
 
-    const response = await this.client.queryContractSmart(
-      collectionAddress,
-      queryMsg
-    );
-    return response;
-  }
+  //   const response = await this.client.queryContractSmart(
+  //     collectionAddress,
+  //     queryMsg
+  //   );
+  //   return response;
+  // }
 
   async signAgreement({ contractAddress, artistAddress, artistName }) {
     if (!this.client) await this.initializeAdminWallet();
@@ -209,7 +209,6 @@ export class ContractHelper {
       throw error;
     }
   }
-
 }
 
 const CONTRACT_CONFIG = {
