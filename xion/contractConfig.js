@@ -209,6 +209,7 @@ export class ContractHelper {
       throw error;
     }
   }
+
 }
 
 const CONTRACT_CONFIG = {
