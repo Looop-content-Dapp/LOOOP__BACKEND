@@ -106,7 +106,7 @@ export const getArtist = async (req, res) => {
     );
 
     const getCommunityMembers = await CommunityMember.find({
-      communityId: getArtisCommunity._id,
+      communityId: getArtisCommunity.id,
     });
 
     const communityMembers = getCommunityMembers.map((g) => g.userId);
@@ -360,15 +360,6 @@ export const signContract = async (req, res) => {
       });
 
       if (signContract) {
-        await Artist.findByIdAndUpdate(
-          new Types.ObjectId(validateArtistName._id),
-          {
-            verified: true,
-            verifiedAt: new Date(),
-            updatedAt: new Date(),
-          }
-        );
-
         await User.findByIdAndUpdate(validateArtistName.userId, {
           artist: new Types.ObjectId(validateArtistName._id),
           updatedAt: new Date(),

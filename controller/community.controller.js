@@ -39,10 +39,6 @@ export const getCommunityByArtistId = async (req, res) => {
         createdBy: new Types.ObjectId(artistid),
       });
 
-      const communitydata = {
-        ...communities._doc,
-      };
-
       if (communities.length === 0) {
         return res.status(200).json({
           status: "success",
@@ -54,7 +50,7 @@ export const getCommunityByArtistId = async (req, res) => {
       return res.status(200).json({
         status: "success",
         message: "successfully gotten a community",
-        data: communitydata,
+        data: communities,
       });
     } else {
       return res.status(404).json({
@@ -393,6 +389,8 @@ export const joinCommunity = async (req, res) => {
         collectionAddress: collectionAddress,
         userAddress: userAddress,
       });
+
+      console.log(mint, "minted");
 
       const communitymember = new CommunityMember({
         userId,
