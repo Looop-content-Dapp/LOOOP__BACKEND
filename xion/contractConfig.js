@@ -181,6 +181,34 @@ export class ContractHelper {
     );
     return response;
   }
+
+  async signAgreement({ contractAddress, artistAddress, artistName }) {
+    if (!this.client) await this.initializeAdminWallet();
+
+    const msg = {
+      sign_agreement: {
+        artist_address: artistAddress,
+        artist_name: artistName,
+      },
+    };
+
+    try {
+      const result = await this.client.execute(
+        this.walletadmin,
+        contractAddress,
+        msg,
+        "auto"
+      );
+
+      return {
+        success: true,
+        transactionHash: result.transactionHash,
+      };
+    } catch (error) {
+      console.error("Failed to sign agreement:", error);
+      throw error;
+    }
+  }
 }
 
 const CONTRACT_CONFIG = {

@@ -12,6 +12,7 @@ import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { FaveArtist } from "../models/faveartist.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
+import contractHelper from "../xion/contractConfig.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -328,10 +329,11 @@ export const createArtist = async (req, res) => {
 
 export const signContract = async (req, res) => {
   try {
-    const { artistname } = req.body;
+    const { artistname, artistAddress, claimId } = req.body;
 
     const requiredFields = {
       artistname: "Artist name is required",
+      artistAddress: "Artist address is required",
     };
 
     const missingFields = Object.entries({
@@ -347,10 +349,37 @@ export const signContract = async (req, res) => {
       });
     }
 
-    console.log(
-      artistname,
-      "call a function to execute a blockchain contract save"
-    );
+    const validateArtistName = await Artist.findOne({ name: artistname });
+
+    if (validateArtistName) {
+      const signContract = await contractHelper.signAgreement({
+        contractAddress:
+          "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
+        artistAddress: artistAddress,
+        artistName: artistname,
+      });
+
+      if (signContract) {
+        await Artist.findByIdAndUpdate(
+          new Types.ObjectId(validateArtistName._id),
+          {
+            verified: true,
+            verifiedAt: new Date(),
+            updatedAt: new Date(),
+          }
+        );
+
+        await User.findByIdAndUpdate(validateArtistName.userId, {
+          artist: new Types.ObjectId(validateArtistName._id),
+          updatedAt: new Date(),
+        });
+      }
+    } else {
+      return res.status(400).json({
+        status: "failed",
+        message: "Artist not found",
+      });
+    }
 
     return res.status(200).json({
       status: "success",
@@ -359,9 +388,14 @@ export const signContract = async (req, res) => {
     });
   } catch (error) {
     console.log(error);
-    return res
-      .status(500)
-      .json({ message: "Error creating artist", error: error.message });
+    const customerror = `Artist has already signed the agreement`;
+    return res.status(500).json({
+      status: "failed",
+      message: "Error creating artist",
+      error: error.message.includes(customerror)
+        ? "Artist have already signed the contract agreement"
+        : error.message,
+    });
   }
 };
 

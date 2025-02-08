@@ -14,7 +14,13 @@ const artistClaimSchema = new Schema(
     },
     status: {
       type: String,
-      enum: ["pending", "approved", "rejected", "not-submitted"],
+      enum: [
+        "pending",
+        "approved",
+        "rejected",
+        "not-submitted",
+        "contract-not-signed",
+      ],
       default: "not-submitted",
     },
     verificationDocuments: {
