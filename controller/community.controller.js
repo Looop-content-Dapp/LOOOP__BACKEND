@@ -39,7 +39,7 @@ export const getCommunityByArtistId = async (req, res) => {
         createdBy: new Types.ObjectId(artistid),
       });
 
-      if (communities.length === 0) {
+      if (!communities) {
         return res.status(200).json({
           status: "success",
           message: "Artist does not have a community",
