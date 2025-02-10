@@ -82,12 +82,9 @@ export const getArtist = async (req, res) => {
     }
 
     const getGenre = await Genre.find({ _id: { $in: isartist.genres } });
-    if (getGenre.length === 0) {
-      return res
-        .status(404)
-        .json({ status: "failed", message: "error in fetching genre" });
-    }
-    const genreNames = getGenre.map((genre) => genre.name);
+    const genreNames =
+      getGenre.length > 0 ? getGenre.map((genre) => genre.name) : [];
+
     const getArtisCommunity = await Community.findOne({
       createdBy: new Types.ObjectId(isartist._id),
     });
@@ -104,7 +101,7 @@ export const getArtist = async (req, res) => {
     const followers = userHasFavouriteArtist.map(
       (faveArtist) => faveArtist.userId
     );
-    
+
     const getCommunityMembers = await CommunityMember.find({
       communityId: getArtisCommunity?._id,
     });
