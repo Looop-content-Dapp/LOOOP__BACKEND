@@ -104,20 +104,18 @@ export const getArtist = async (req, res) => {
     const followers = userHasFavouriteArtist.map(
       (faveArtist) => faveArtist.userId
     );
-
+    
     const getCommunityMembers = await CommunityMember.find({
-      communityId: getArtisCommunity.id,
+      communityId: getArtisCommunity?._id,
     });
-
     const communityMembers = getCommunityMembers.map((g) => g.userId);
-
     const artistData = {
       artist: {
         ...isartist._doc,
         genres: genreNames,
         releases: release,
         followers,
-        community: getArtisCommunity.id,
+        community: getArtisCommunity?.id || null,
         communityMembers: communityMembers,
       },
     };
