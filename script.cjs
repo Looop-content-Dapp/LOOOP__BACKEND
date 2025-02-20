@@ -3,16 +3,14 @@ const path = require("path");
 const { default: hbs } = require("nodemailer-express-handlebars");
 
 const transporter = nodemailer.createTransport({
-  // host: 'smtp.zoho.com',
   host: "smtp.hostinger.com",
-  secure: false,
-  // port: 465,
-  port: 587,
+  secure: true,
+  port: 465,
   auth: {
-    user: "looopofficial@looopmusic.xyz",
-    pass: "Happydaysahead@$123",
+    user: "official@looopmusic.com",
+    pass: "Looopmusic@$123",
   },
-  logger: true, // Enables debug logging
+  logger: true,
   debug: true,
 });
 
@@ -31,7 +29,7 @@ transporter.use("compile", hbs(handlebarOptions));
 const sendEmail = async (to, subject, template, context) => {
   try {
     const mailOptions = {
-      from: `"Looop Music <${process.env.EMAIL_USER}>`,
+      from: `Looop Music <official@looopmusic.com>`,
       to,
       subject,
       template,
