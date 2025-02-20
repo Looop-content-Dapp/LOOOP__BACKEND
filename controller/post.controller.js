@@ -546,6 +546,55 @@ export const commentOnPost = async (req, res) => {
   }
 };
 
+
+// Get comment replies
+export const getCommentReplies = async (req, res) => {
+  try {
+    const { commentId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
+
+    // Verify the parent comment exists and is a top-level comment
+    const parentComment = await Comment.findById(commentId);
+    if (!parentComment) {
+      return res.status(404).json({ message: "Comment not found" });
+    }
+    
+    if (parentComment.parentCommentId) {
+      return res.status(400).json({ message: "Can only get replies for top-level comments" });
+    }
+
+    // Get replies
+    const replies = await Comment.find({
+      parentCommentId: commentId
+    })
+      .populate('userId', 'email profileImage bio')
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    const total = await Comment.countDocuments({
+      parentCommentId: commentId
+    });
+
+    return res.status(200).json({
+      message: "Successfully retrieved replies",
+      data: {
+        replies,
+        parentComment,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalReplies: total
+      }
+    });
+  } catch (error) {
+    console.error("Error in getCommentReplies:", error);
+    return res.status(500).json({
+      message: "Error fetching replies",
+      error: error.message
+    });
+  }
+};
+
 // Get post comments
 export const getPostComments = async (req, res) => {
   try {
