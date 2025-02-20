@@ -5,6 +5,7 @@ import { Artist } from "../models/artist.model.js";
 import { Comment } from "../models/comment.model.js";
 import { Like } from "../models/likes.model.js";
 import { Community } from "../models/community.model.js";
+import { User } from "../models/user.model.js";  
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {
@@ -649,6 +650,88 @@ export const getPostComments = async (req, res) => {
     });
   }
 };
+
+
+// Get user feed (posts from communities user is part of)
+export const getUserFeed = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10, postType } = req.query;
+
+    // First check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    console.log('User found:', user._id);
+
+    // Get communities user is part of - modify this based on your community schema
+    const userCommunities = await Community.find({
+      $or: [
+        { members: userId },
+        { admins: userId },
+        { owner: userId }
+      ]
+    }).select('_id');
+
+    if (!userCommunities.length) {
+      return res.status(200).json({
+        message: "User is not part of any communities",
+        data: {
+          posts: [],
+          currentPage: 1,
+          totalPages: 0,
+          totalPosts: 0
+        }
+      });
+    }
+
+    const communityIds = userCommunities.map(community => community._id);
+
+    // Build query
+    const query = {
+      communityId: { $in: communityIds },
+      status: 'published', // Only get published posts
+      ...(postType && { postType })
+    };
+
+    // Get posts with pagination
+    const [posts, total] = await Promise.all([
+      Post.find(query)
+        .populate('artistId', 'name email profileImage genre verified')
+        .populate('communityId', 'name description coverImage')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Post.countDocuments(query)
+    ]);
+
+    // Add details to each post
+    const postsWithDetails = await Promise.all(
+      posts.map(post => populatePostDetails(post))
+    );
+
+    return res.status(200).json({
+      message: postsWithDetails.length ? "Successfully retrieved user feed" : "No posts found",
+      data: {
+        posts: postsWithDetails,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(total / limit),
+        totalPosts: total
+      }
+    });
+  } catch (error) {
+    console.error("Error in getUserFeed:", error);
+    return res.status(500).json({
+      message: "Error fetching user feed",
+      error: error.message
+    });
+  }
+};
+
+
+
 // Get event attendees
 export const getEventAttendees = async (req, res) => {
   try {
