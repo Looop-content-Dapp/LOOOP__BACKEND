@@ -4,6 +4,13 @@ const userSchema = new Schema(
   {
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true, unique: true },
+    fullname: { type: String, required: true },
+    age: { type: String, required: true },
+    gender: {
+      type: String,
+      required: true,
+      enum: ["male", "female"],
+    },
     password: { type: String },
     profileImage: { type: String, default: null },
     bio: { type: String, default: null },

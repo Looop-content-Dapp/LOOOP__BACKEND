@@ -1,0 +1,37 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Welcome to Looop Music!</title>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; } .header {
+      background-color: #f8f9fa; padding: 20px; text-align: center;
+      border-radius: 5px; } .content { padding: 20px; } .footer { text-align:
+      center; padding: 20px; font-size: 12px; color: #666; } .otp { font-weight:
+      bold; font-size: 24px; color: #007bff; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h2>Welcome to Looop Music!</h2>
+      </div>
+      <div class="content">
+        <p>Hello {{username}},</p>
+        <p>Thank you for signing up with Looop Music! We're excited to have you
+          on board.</p>
+        <p>To complete your registration, please verify your email address using
+          the OTP below:</p>
+
+        <h3>Your OTP:</h3>
+        <p class="otp">{{otp}}</p>
+
+        <p>If you did not sign up for this account, please ignore this email.</p>
+        <p>We look forward to providing you with the best music experience!</p>
+      </div>
+      <div class="footer">
+        <p>This is an automated message, please do not reply.</p>
+      </div>
+    </div>
+  </body>
+</html>

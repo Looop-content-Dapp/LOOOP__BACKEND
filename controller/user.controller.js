@@ -1,4 +1,4 @@
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import validator from "validator";
 import { config } from "dotenv";
@@ -17,16 +17,18 @@ import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
 import { walletService } from "../xion/walletservice.js";
-// import { ApiError } from "../utils/helpers/ApiError.js";
-import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
-import sendEmail from "../script.cjs"; // Make sure this path matches your email utility location
 
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
+import contractHelper from "../xion/contractConfig.js";
+import sendEmail from "../script.cjs";
+import { generateOtp } from "../utils/helpers/generateotp.js";
 // Loads .env
 config();
+
+const otpStore = {};
 
 const getAllUsers = async (req, res) => {
   try {
@@ -161,6 +163,11 @@ const getUser = async (req, res) => {
       },
     ]);
 
+    const balance = await contractHelper.getBalance(
+      "xion15ta5m0qflt9g8ned53pfw8mdg0uuwvsd8m9trp"
+    );
+    console.log(balance, "balance");
+
     const userData = {
       ...user[0],
       artist: isArtist === null ? null : isArtist?.id,
@@ -204,9 +211,66 @@ const checkIfUserNameExist = async (req, res) => {
   }
 };
 
+const verifyEmailOTP = async (req, res) => {
+  const { email } = req.body;
+  const otp = generateOtp();
+  otpStore[email] = { otp, expiresAt: Date.now() + 10 * 60 * 1000 };
+
+  const existingEmailUser = await User.findOne({ email });
+  if (existingEmailUser) {
+    return res
+      .status(400)
+      .json({ status: "failed", message: "Email already in use" });
+  } else
+    await sendEmail(email, "Verify your signup email!", "verify", {
+      email: email,
+      otp: otp,
+    });
+
+  return res.status(200).json({
+    status: "success",
+    message: "Check your email",
+    data: { otp },
+  });
+};
+
 const createUser = async (req, res) => {
   try {
-    const { email, password, username } = req.body;
+    const { email, password, username, fullname, age, gender } = req.body;
+
+    if (
+      password == "" ||
+      email == "" ||
+      username == "" ||
+      fullname == "" ||
+      age == ""
+    ) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Password, Email, Age, Fullname and Username are required",
+      });
+    }
+
+    if (!["male", "female"].includes(gender)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Gender must be either 'male' or 'female'",
+      });
+    }
+
+    const existingEmailUser = await User.findOne({ email });
+    if (existingEmailUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Email already in use" });
+    }
+
+    const existingUsernameUser = await User.findOne({ username });
+    if (existingUsernameUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Username already in use" });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -230,50 +294,74 @@ const createUser = async (req, res) => {
     const tokenbound = new TokenboundClient(options);
     const xion = await walletService.createXionWallet();
 
-    if (password == "" || email == "" || username == "") {
-      return res
-        .status(401)
-        .json({ message: "Password, Email and username is required" });
-    }
+    const shortSalt = generateSimpleSalt();
 
-    if (username) {
-      const shortSalt = generateSimpleSalt();
+    let starknetTokenBoundAccount = await tokenbound.createAccount({
+      tokenContract: process.env.NFT_CONTRACT_ADDRESS,
+      tokenId: process.env.NFT_TOKEN_ID,
+      salt: shortSalt,
+    });
 
-      let starknetTokenBoundAccount = await tokenbound.createAccount({
-        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
-        tokenId: process.env.NFT_TOKEN_ID,
-        salt: shortSalt,
+    if (xion || starknetTokenBoundAccount) {
+      const user = new User({
+        email,
+        username,
+        password: hashedPassword,
+        fullname,
+        age,
+        gender,
+        wallets: {
+          starknet: starknetTokenBoundAccount.account,
+          xion: xion.address,
+        },
       });
 
-      if (xion || starknetTokenBoundAccount) {
-        const user = new User({
-          email,
-          username,
-          password: hashedPassword,
-          wallets: {
-            starknet: starknetTokenBoundAccount.account,
-            xion: xion.address,
-          },
-        });
+      await user.save();
 
-        await user.save();
+      const userWithoutPassword = user.toObject();
+      delete userWithoutPassword.password;
 
-        const userWithoutPassword = user.toObject();
-        delete userWithoutPassword.password;
-
-        return res.status(200).json({
-          status: "success",
-          message: "successfully created a user",
-          data: { user: userWithoutPassword },
-        });
-      }
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully created a user",
+        data: { user: userWithoutPassword },
+      });
     }
   } catch (error) {
     console.log(error, "error");
-    return res
-      .status(500)
-      .json({ message: "Error creating user", error: error.message });
+    return res.status(500).json({
+      status: "failed",
+      message: "Error creating user",
+      error: error.message,
+    });
   }
+};
+
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!otpStore[email]) {
+    return res
+      .status(400)
+      .json({ status: "failed", message: "OTP not found or expired" });
+  }
+
+  if (otpStore[email].otp !== otp) {
+    return res.status(400).json({ status: "failed", message: "Invalid OTP" });
+  }
+
+  const currentTime = Date.now();
+  if (currentTime > otpStore[email].expiresAt) {
+    delete otpStore[email];
+    return res
+      .status(400)
+      .json({ status: "failed", message: "OTP has expired" });
+  }
+
+  delete otpStore[email];
+  return res
+    .status(200)
+    .json({ status: "success", message: "OTP verified successfully" });
 };
 
 const createGenresForUser = async (req, res) => {
@@ -951,10 +1039,19 @@ const signIn = async (req, res) => {
     };
     delete userData.password;
 
-    // sendEmail("seyi.oyebamiji@gmail.com", "Welcome back user", "login", {
-    //   username: "seyi",
-    //   message: "Welcome back from sleep!",
-    // });
+    const emailResult = await sendEmail(
+      user[0].email,
+      "New Login Detected",
+      "login",
+      {
+        username: user[0].username,
+        loginTime: new Date().toLocaleString(),
+        deviceInfo: req.headers["user-agent"],
+        ipAddress: req.ip,
+      }
+    );
+
+    console.log(emailResult);
 
     return res.status(200).json({
       status: "success",
@@ -991,4 +1088,6 @@ export {
   getUserByEmail,
   signIn,
   checkIfUserNameExist,
+  verifyEmailOTP,
+  verifyOtp,
 };
