@@ -11,7 +11,7 @@ const populatePostDetails = async (post) => {
   try {
     const comments = await Comment.find({
       postId: post._id,
-      itemType: "comment"
+      parentCommentId: null  // Get only top-level comments
     })
       .populate({
         path: 'userId',
@@ -23,13 +23,12 @@ const populatePostDetails = async (post) => {
 
     const commentCount = await Comment.countDocuments({
       postId: post._id,
-      itemType: "comment"
+      parentCommentId: null  // Count only top-level comments
     });
 
     const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
       const replies = await Comment.find({
         postId: post._id,
-        itemType: "reply",
         parentCommentId: comment._id
       })
         .populate({
@@ -449,7 +448,7 @@ export const likePost = async (req, res) => {
     if (!userId || !postId) {
       return res.status(400).json({
         message: "Missing required fields",
-        required: ['userId', 'postId']
+        required: ["userId", "postId"],
       });
     }
 
@@ -458,7 +457,7 @@ export const likePost = async (req, res) => {
       return res.status(404).json({ message: "Post not found" });
     }
 
-    const existingLike = await Like.findOne({ postId, userId });
+    const existingLike = await Like.findOne({ postId, userId, itemType: "post" });
 
     if (existingLike) {
       // Unlike
@@ -467,7 +466,7 @@ export const likePost = async (req, res) => {
       return res.status(200).json({ message: "Post unliked successfully" });
     } else {
       // Like
-      const like = new Like({ userId, postId });
+      const like = new Like({ userId, postId, itemType: "post" });
       await like.save();
       await Post.findByIdAndUpdate(postId, { $inc: { likeCount: 1 } });
       return res.status(200).json({ message: "Post liked successfully" });
@@ -476,10 +475,11 @@ export const likePost = async (req, res) => {
     console.error("Error in likePost:", error);
     return res.status(500).json({
       message: "Error processing like/unlike",
-      error: error.message
+      error: error.message,
     });
   }
 };
+
 
 // Add comment
 export const commentOnPost = async (req, res) => {
@@ -489,39 +489,59 @@ export const commentOnPost = async (req, res) => {
     if (!userId || !postId || !content) {
       return res.status(400).json({
         message: "Missing required fields",
-        required: ['userId', 'postId', 'content']
+        required: ["userId", "postId", "content"],
       });
     }
 
+    // Check if post exists
     const post = await Post.findById(postId);
     if (!post) {
       return res.status(404).json({ message: "Post not found" });
     }
 
+    // If parentCommentId is provided, check if it exists and is a top-level comment
+    if (parentCommentId) {
+      const parentComment = await Comment.findById(parentCommentId);
+      if (!parentComment) {
+        return res.status(404).json({ message: "Parent comment not found" });
+      }
+      if (parentComment.parentCommentId) {
+        return res.status(400).json({ message: "Cannot reply to a reply" });
+      }
+    }
+// note that to use parentCommentID, the _id gotten from the comment creation is what is passed as parentCommentID
+// parentCommentId are meant for replies
     const comment = new Comment({
       userId,
       postId,
       content,
-      itemType: parentCommentId ? 'reply' : 'comment',
-      parentCommentId
+      parentCommentId: parentCommentId || null
     });
 
     await comment.save();
+
+    // Increment comment count on Post
     await Post.findByIdAndUpdate(postId, { $inc: { commentCount: 1 } });
 
     const populatedComment = await Comment.findById(comment._id)
-      .populate('userId', 'email profileImage bio')
-      .populate('parentCommentId');
+      .populate("userId", "email profileImage bio")
+      .populate({
+        path: "parentCommentId",
+        populate: {
+          path: "userId",
+          select: "email profileImage bio"
+        }
+      });
 
     return res.status(201).json({
       message: "Comment added successfully",
-      data: populatedComment
+      data: populatedComment,
     });
   } catch (error) {
     console.error("Error in commentOnPost:", error);
     return res.status(500).json({
       message: "Error adding comment",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -532,9 +552,10 @@ export const getPostComments = async (req, res) => {
     const { postId } = req.params;
     const { page = 1, limit = 10 } = req.query;
 
+    // Get top-level comments (comments without parentCommentId)
     const comments = await Comment.find({
       postId,
-      itemType: 'comment'
+      parentCommentId: null
     })
       .populate('userId', 'email profileImage bio')
       .sort({ createdAt: -1 })
@@ -545,7 +566,6 @@ export const getPostComments = async (req, res) => {
     const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
       const replies = await Comment.find({
         postId,
-        itemType: 'reply',
         parentCommentId: comment._id
       })
         .populate('userId', 'email profileImage bio')
@@ -560,7 +580,7 @@ export const getPostComments = async (req, res) => {
 
     const total = await Comment.countDocuments({
       postId,
-      itemType: 'comment'
+      parentCommentId: null
     });
 
     return res.status(200).json({
@@ -580,7 +600,6 @@ export const getPostComments = async (req, res) => {
     });
   }
 };
-
 // Get event attendees
 export const getEventAttendees = async (req, res) => {
   try {
