@@ -18,6 +18,8 @@ import {
   getUserByEmail,
   signIn,
   checkIfUserNameExist,
+  verifyEmailOTP,
+  verifyOtp,
 } from "../controller/user.controller.js";
 import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
@@ -47,6 +49,8 @@ userRouter.put("/changepremiumstate/:userId", subcribeToPremium);
 userRouter.delete("/:userId", deleteUser);
 userRouter.get("/email/:email", getUserByEmail);
 userRouter.post("/signin", signIn);
-userRouter.post("/check", checkIfUserNameExist)
+userRouter.post("/check", checkIfUserNameExist);
+userRouter.post("/verify-email", verifyEmailOTP);
+userRouter.post("/verify-otp", verifyOtp);
 
 export default userRouter;
