@@ -9,23 +9,28 @@ const commentSchema = new Schema({
   },
   postId: {
     type: _Schema.Types.ObjectId,
-    refPath: "Post",
+    ref: "Post",
     required: true,
   },
-  itemType: {
-    type: String,
-    required: true,
-    enum: ["comment", "reply"], // Adjust this to match your content models
+  parentCommentId: {
+    type: _Schema.Types.ObjectId,
+    ref: "Comment",
+    default: null,
   },
   content: {
     type: String,
     required: true,
-    maxlength: 1000, // Limiting comment length
+    maxlength: 1000,
   },
   createdAt: {
     type: Date,
     default: Date.now,
-  },
+  }
+});
+
+// Helper method to check if comment is a reply
+commentSchema.virtual('isReply').get(function() {
+  return this.parentCommentId !== null;
 });
 
 export const Comment = model("Comment", commentSchema);
