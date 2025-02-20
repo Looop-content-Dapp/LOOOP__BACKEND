@@ -14,7 +14,8 @@ import {
   toggleEventAttendance,
   getUpcomingEvents,
   getActiveAnnouncements,
-  getCommentReplies
+  getCommentReplies,
+  getUserFeed
 } from "../controller/post.controller.js";
 
 const postRouter = Router();
@@ -35,6 +36,7 @@ postRouter.post("/like", likePost);
 postRouter.post("/comment", commentOnPost);
 postRouter.get("/:postId/comments", getPostComments);
 postRouter.get("/comments/:commentId/replies", getCommentReplies);
+postRouter.get("/feed/:userId", getUserFeed);
 
 // Event specific routes
 postRouter.get("/events/upcoming", getUpcomingEvents);
