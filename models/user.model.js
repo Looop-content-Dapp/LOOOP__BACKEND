@@ -27,6 +27,11 @@ const userSchema = new Schema(
     },
     oauthTokens: [{ type: SchemaTypes.ObjectId, ref: "OAuthToken" }],
     artist: { type: SchemaTypes.ObjectId, ref: "artist" },
+    referralCode: { type: String, required: true, unique: true },
+    referralCount: { type: Number, default: 0 },
+    referralCodeUsed: [
+      { type: SchemaTypes.ObjectId, ref: "users", default: [] },
+    ],
   },
   { timestamps: true }
 );

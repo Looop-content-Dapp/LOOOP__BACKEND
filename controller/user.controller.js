@@ -25,6 +25,16 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import sendEmail from "../script.cjs";
 import { generateOtp } from "../utils/helpers/generateotp.js";
+import {
+  createUserSchema,
+  signInSchema,
+} from "../validations_schemas/auth.validation.js";
+import { validateGoogleToken } from "../middlewares/googleauth.js";
+import { validateAppleToken } from "../middlewares/appleauth.js";
+import { generateUniqueReferralCode } from "../utils/helpers/referralcode.cjs";
+import { ReferralCode } from "../models/referralcode.model.js";
+import referralConfig from "../config/referral.config.js";
+
 // Loads .env
 config();
 
@@ -236,27 +246,10 @@ const verifyEmailOTP = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { email, password, username, fullname, age, gender } = req.body;
+    const { email, password, username, fullname, age, gender, referralCode } =
+      req.body;
 
-    if (
-      password == "" ||
-      email == "" ||
-      username == "" ||
-      fullname == "" ||
-      age == ""
-    ) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Password, Email, Age, Fullname and Username are required",
-      });
-    }
-
-    if (!["male", "female"].includes(gender)) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Gender must be either 'male' or 'female'",
-      });
-    }
+    await createUserSchema.validate(req.body);
 
     const existingEmailUser = await User.findOne({ email });
     if (existingEmailUser) {
@@ -294,6 +287,8 @@ const createUser = async (req, res) => {
     const tokenbound = new TokenboundClient(options);
     const xion = await walletService.createXionWallet();
 
+    const refcode = await generateUniqueReferralCode(username);
+
     const shortSalt = generateSimpleSalt();
 
     let starknetTokenBoundAccount = await tokenbound.createAccount({
@@ -314,9 +309,53 @@ const createUser = async (req, res) => {
           starknet: starknetTokenBoundAccount.account,
           xion: xion.address,
         },
+        referralCode: refcode,
       });
 
-      await user.save();
+      const savedUser = await user.save();
+
+      const referralEntry = new ReferralCode({
+        code: refcode,
+        userId: savedUser._id,
+      });
+
+      await referralEntry.save();
+
+      if (referralCode) {
+        const ownerReferral = await ReferralCode.findOne({
+          code: referralCode,
+        });
+        if (ownerReferral) {
+          let reward;
+
+          switch (true) {
+            case ownerReferral.referralCount === 3:
+              reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
+              break;
+            case ownerReferral.referralCount === 10:
+              reward = referralConfig.referralRewards.PURCHASE;
+              break;
+            case ownerReferral.referralCount === 5:
+              reward = referralConfig.referralRewards.PROFILE_COMPLETION;
+              break;
+            default:
+              reward = referralConfig.referralRewards.SOCIAL_SHARE;
+              break;
+          }
+          ownerReferral.rewardPoints += reward.points;
+          ownerReferral.rewardsHistory.push({
+            points: reward.points,
+            reason: reward.description,
+            date: new Date(),
+          });
+          await ownerReferral.save();
+
+          await User.findByIdAndUpdate(ownerReferral.userId, {
+            $push: { referralCodeUsed: savedUser._id },
+            $inc: { referralCount: 1 },
+          });
+        }
+      }
 
       const userWithoutPassword = user.toObject();
       delete userWithoutPassword.password;
@@ -995,6 +1034,7 @@ const getUserByEmail = async (req, res) => {
 
 const signIn = async (req, res) => {
   try {
+    await signInSchema.validate(req.body);
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -1063,6 +1103,81 @@ const signIn = async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({
+      message: "Error signing in",
+      error: error.message,
+    });
+  }
+};
+
+export const oauth = async (req, res) => {
+  try {
+    const { email, token, channel } = req.body;
+
+    let isTokenValid;
+
+    if (channel === "google") {
+      isTokenValid = await validateGoogleToken(token, email);
+    } else {
+      isTokenValid = await validateAppleToken(token, email);
+    }
+
+    if (!isTokenValid) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid token",
+      });
+    }
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Create new user
+      const newUser = new User({
+        email: email,
+      });
+
+      user = await newUser.save();
+
+      return res.status(200).json({
+        status: "success",
+        message: "User created successfully",
+        data: {
+          user: {
+            id: user._id,
+            email: user.email,
+            username: user.username,
+          },
+          isNewUser: true,
+        },
+      });
+    }
+
+    /// existing user
+    const userData = { ...user._doc };
+    delete userData.password;
+
+    const isArtist = await Artist.findOne({
+      userId: user._id,
+      verified: true,
+    });
+
+    const hasClaim = await ArtistClaim.findOne({
+      userId: user._id,
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Sign in successful",
+      data: {
+        ...userData,
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+        isNewUser: false,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "failed",
       message: "Error signing in",
       error: error.message,
     });
