@@ -1,7 +1,8 @@
 import mongoose, { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import validator from "validator";
-import { config } from "dotenv";
+// import { config } from "dotenv";
+import { PRIVATE_KEY, ACCT_ADDRESS } from "../config/env.js";
 import {
   TokenboundClient,
   TBAVersion,
@@ -25,8 +26,9 @@ import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
+import { config } from "dotenv";
 // Loads .env
-config();
+// config();
 
 const getAllUsers = async (req, res) => {
   try {
@@ -215,8 +217,8 @@ const createUser = async (req, res) => {
     };
 
     const account = {
-      address: process.env.ACCT_ADDRESS,
-      privateKey: process.env.PRIVATE_KEY,
+      address: ACCT_ADDRESS,
+      privateKey: PRIVATE_KEY,
     };
 
     const options = {

@@ -1,7 +1,8 @@
 import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
-import { config } from "dotenv";
+// import { config } from "dotenv";
+import { PORT, NODE_ENV, MONGODB_URI } from "./config/env.js";
 
 import userRouter from "./routes/user.route.js";
 import artistRouter from "./routes/artist.route.js";
@@ -18,8 +19,9 @@ import searchRoutes from "./routes/search.routes.js";
 import adminRouter from "./routes/admin-route/admin.route.js";
 import contractHelper from "./xion/contractConfig.js";
 import paymentRouter from "./routes/payment.route.js";
+import webhookRouter from "./routes/webhook.route.js";
 
-config();
+// config();
 
 const app = express();
 
@@ -47,26 +49,17 @@ app.use("/api/post", postRouter);
 app.use("/api/artistclaim", artistClaimRouter);
 app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRouter);
-// app.use("/api/payment", paymentRouter);
-// app.use("/api/oauth", OAuthRouter);
+app.use("/api/payment", paymentRouter);
+app.use("/api/webhook", webhookRouter);
 
-const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
-const mongoURI =
-  // process.env.NODE_ENV !== "production"
-  //   ? "mongodb://localhost:27017/"
-  //   : process.env.MONGODB_URI ||
-      "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
-
+// Separate the initialization function
 (async () => {
   try {
     console.log("Initializing admin wallet...");
     await contractHelper.initializeAdminWallet();
     console.log("Admin wallet successfully initialized.");
 
-    mongoose.connect(mongoURI, {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
-    });
+    mongoose.connect(MONGODB_URI);
 
     mongoose.connection.on("open", () => {
       console.log("Connected to MongoDB successfully.");
