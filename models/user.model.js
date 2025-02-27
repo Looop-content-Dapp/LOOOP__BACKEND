@@ -23,7 +23,13 @@ const userSchema = new Schema(
     },
     wallets: {
       starknet: { type: String, default: null },
-      xion: { type: String, default: null },
+      xion: {
+        type: {
+          address: { type: String, required: true },
+          mnemonic: { type: String, required: true },
+        },
+        default: null,
+      },
     },
     oauthTokens: [{ type: SchemaTypes.ObjectId, ref: "OAuthToken" }],
     artist: { type: SchemaTypes.ObjectId, ref: "artist" },
