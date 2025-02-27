@@ -34,6 +34,7 @@ import { validateAppleToken } from "../middlewares/appleauth.js";
 import { generateUniqueReferralCode } from "../utils/helpers/referralcode.cjs";
 import { ReferralCode } from "../models/referralcode.model.js";
 import referralConfig from "../config/referral.config.js";
+import XionWalletService from "../xion/wallet.service.js";
 
 // Loads .env
 config();
@@ -173,11 +174,6 @@ const getUser = async (req, res) => {
       },
     ]);
 
-    const balance = await contractHelper.getBalance(
-      "xion15ta5m0qflt9g8ned53pfw8mdg0uuwvsd8m9trp"
-    );
-    console.log(balance, "balance");
-
     const userData = {
       ...user[0],
       artist: isArtist === null ? null : isArtist?.id,
@@ -186,6 +182,11 @@ const getUser = async (req, res) => {
       communities: getUserTribe,
     };
     delete userData.password;
+    delete userData.wallets.xion.mnemonic;
+    delete userData.wallets.xion._id;
+    delete userData.referralCode;
+    delete userData.referralCount;
+    delete userData.referralCodeUsed;
 
     return res.status(200).json({
       status: "success",
@@ -285,8 +286,7 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
-    const xion = await walletService.createXionWallet();
-
+    const xionwallet = await XionWalletService.createAccount(email, password);
     const refcode = await generateUniqueReferralCode(username);
 
     const shortSalt = generateSimpleSalt();
@@ -297,7 +297,7 @@ const createUser = async (req, res) => {
       salt: shortSalt,
     });
 
-    if (xion || starknetTokenBoundAccount) {
+    if (xionwallet || starknetTokenBoundAccount) {
       const user = new User({
         email,
         username,
@@ -307,7 +307,10 @@ const createUser = async (req, res) => {
         gender,
         wallets: {
           starknet: starknetTokenBoundAccount.account,
-          xion: xion.address,
+          xion: {
+            address: xionwallet.walletAddress,
+            mnemonic: xionwallet.mnemonic,
+          },
         },
         referralCode: refcode,
       });
@@ -1037,12 +1040,6 @@ const signIn = async (req, res) => {
     await signInSchema.validate(req.body);
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
-    }
-
     const user = await User.find({
       email: email,
     });
@@ -1072,34 +1069,56 @@ const signIn = async (req, res) => {
       });
     }
 
-    const userData = {
-      ...user[0]._doc,
-      artist: isArtist === null ? null : isArtist?.id,
-      artistClaim: hasClaim === null ? null : hasClaim?.id,
-    };
-    delete userData.password;
-
-    const emailResult = await sendEmail(
-      user[0].email,
-      "New Login Detected",
-      "login",
-      {
-        username: user[0].username,
-        loginTime: new Date().toLocaleString(),
-        deviceInfo: req.headers["user-agent"],
-        ipAddress: req.ip,
-      }
+    const xionLoggedInUser = await XionWalletService.loginAccount(
+      email,
+      password
     );
 
-    console.log(emailResult);
+    if (xionLoggedInUser) {
+      const userData = {
+        ...user[0]._doc,
+        wallets: {
+          ...user[0]._doc.wallets,
+          xion: {
+            address: xionLoggedInUser.walletAddress,
+          },
+        },
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
 
-    return res.status(200).json({
-      status: "success",
-      message: "Sign in successful",
-      data: {
-        ...userData,
-      },
-    });
+      const emailResult = await sendEmail(
+        user[0].email,
+        "New Login Detected",
+        "login",
+        {
+          username: user[0].username,
+          loginTime: new Date().toLocaleString(),
+          deviceInfo: req.headers["user-agent"],
+          ipAddress: req.ip,
+        }
+      );
+
+      console.log(emailResult);
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful",
+        data: {
+          ...userData,
+        },
+      });
+    } else {
+      return res.status(400).json({
+        status: "failed",
+        message: "An Error Occired",
+        data: null,
+      });
+    }
   } catch (error) {
     console.log(error);
     return res.status(500).json({
