@@ -10,7 +10,7 @@ const PlanSchema = new mongoose.Schema(
       required: true["amount is required"],
       min: (0)["amount must be greater than 0"],
     }, // Monthly subscription amount
-    currency: { type: String, enum: ["NGN", "USD"], default: "USD" },
+    currency: { type: String, enum: ["NGN", "USD"], default: "NGN" },
     description: { type: String },
     flutterwavePlanId: { type: String }, // Flutterwave plan ID after creation
   },
