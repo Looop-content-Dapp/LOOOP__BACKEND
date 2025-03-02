@@ -292,12 +292,6 @@ export const signContract = async (req, res) => {
     const validateArtistName = await Artist.findOne({ name: artistname });
 
     if (validateArtistName) {
-      const getUserLinkedToArtist = await User.findOne({
-        artist: validateArtistName.id,
-      });
-
-      console.log(validateArtistName.id)
-
       const msg = {
         sign_agreement: {
           artist_address: artistAddress,
@@ -305,16 +299,12 @@ export const signContract = async (req, res) => {
         },
       };
 
-      console.log(getUserLinkedToArtist);
-      return;
-
-      // const sign = await XionWalletService.executeTransaction(
-      //   getUserLinkedToArtist.email,
-      //   getUserLinkedToArtist.password,
-      //   "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
-      //   msg,
-      //   undefined
-      // );
+      const sign = await XionWalletService.executeTransaction(
+        validateArtistName.email,
+        "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
+        msg,
+        undefined
+      );
       // const signContract = await contractHelper.signAgreement({
       //   contractAddress:
       //     "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
