@@ -286,7 +286,7 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
-    const xionwallet = await XionWalletService.createAccount(email, password);
+    const xionwallet = await XionWalletService.createAccount(email);
     const refcode = await generateUniqueReferralCode(username);
 
     const shortSalt = generateSimpleSalt();
@@ -1069,10 +1069,7 @@ const signIn = async (req, res) => {
       });
     }
 
-    const xionLoggedInUser = await XionWalletService.loginAccount(
-      email,
-      password
-    );
+    const xionLoggedInUser = await XionWalletService.loginAccount(email);
 
     if (xionLoggedInUser) {
       const userData = {
@@ -1157,6 +1154,49 @@ export const oauth = async (req, res) => {
 
       user = await newUser.save();
 
+      const referralEntry = new ReferralCode({
+        code: refcode,
+        userId: savedUser._id,
+      });
+
+      await referralEntry.save();
+
+      // if (referralCode) {
+      //   const ownerReferral = await ReferralCode.findOne({
+      //     code: referralCode,
+      //   });
+      //   if (ownerReferral) {
+      //     let reward;
+
+      //     switch (true) {
+      //       case ownerReferral.referralCount === 3:
+      //         reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
+      //         break;
+      //       case ownerReferral.referralCount === 10:
+      //         reward = referralConfig.referralRewards.PURCHASE;
+      //         break;
+      //       case ownerReferral.referralCount === 5:
+      //         reward = referralConfig.referralRewards.PROFILE_COMPLETION;
+      //         break;
+      //       default:
+      //         reward = referralConfig.referralRewards.SOCIAL_SHARE;
+      //         break;
+      //     }
+      //     ownerReferral.rewardPoints += reward.points;
+      //     ownerReferral.rewardsHistory.push({
+      //       points: reward.points,
+      //       reason: reward.description,
+      //       date: new Date(),
+      //     });
+      //     await ownerReferral.save();
+
+      //     await User.findByIdAndUpdate(ownerReferral.userId, {
+      //       $push: { referralCodeUsed: savedUser._id },
+      //       $inc: { referralCount: 1 },
+      //     });
+      //   }
+      // }
+
       return res.status(200).json({
         status: "success",
         message: "User created successfully",
@@ -1164,7 +1204,6 @@ export const oauth = async (req, res) => {
           user: {
             id: user._id,
             email: user.email,
-            username: user.username,
           },
           isNewUser: true,
         },

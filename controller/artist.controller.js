@@ -283,7 +283,6 @@ export const createArtist = async (req, res) => {
       .json({ message: "Error creating artist", error: error.message });
   }
 };
-
 export const signContract = async (req, res) => {
   try {
     const { artistname, artistAddress } = req.body;
@@ -305,14 +304,6 @@ export const signContract = async (req, res) => {
         msg,
         undefined
       );
-      // const signContract = await contractHelper.signAgreement({
-      //   contractAddress:
-      //     "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
-      //   artistAddress: artistAddress,
-      //   artistName: artistname,
-      // });
-
-      console.log(JSON.stringify(sign));
 
       if (sign) {
         await User.findByIdAndUpdate(validateArtistName.userId, {
@@ -344,7 +335,6 @@ export const signContract = async (req, res) => {
     });
   }
 };
-
 export const verifyArtistEmail = async (req, res) => {
   try {
     const { email = "", name = "" } = req.body;
@@ -397,7 +387,6 @@ export const verifyArtistEmail = async (req, res) => {
       .json({ message: "Error verifying artist", error: error.message });
   }
 };
-
 export const getArtistSubcribers = async (req, res) => {
   try {
     const { artistId } = req.params;
