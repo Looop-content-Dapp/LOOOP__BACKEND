@@ -6,7 +6,6 @@ const XionWalletService = {
       `${process.env.WALLET_API_BASE_URL}/signup`,
       {
         email,
-        password,
       }
     );
     if (response.status !== 200) {
@@ -23,7 +22,6 @@ const XionWalletService = {
       `${process.env.WALLET_API_BASE_URL}/login`,
       {
         email,
-        password,
       }
     );
     if (response.status !== 200) {
@@ -35,12 +33,11 @@ const XionWalletService = {
     }
   },
 
-  executeTransaction: async (email, password, contractAddress, msg, memo) => {
+  executeTransaction: async (email, contractAddress, msg, memo) => {
     const response = await axios.post(
-      `${process.env.WALLET_API_BASE_URL}/execute-transaction`,
+      `${process.env.WALLET_API_BASE_URL}/execute-contract`,
       {
         email,
-        password,
         contractAddress,
         msg,
         memo,
@@ -48,6 +45,19 @@ const XionWalletService = {
     );
     if (response.status !== 200) {
       throw new Error("Failed to execute transaction");
+    }
+
+    if (response.status === 200) {
+      return response.data.data;
+    }
+  },
+
+  getWalletBalance: async (address) => {
+    const response = await axios.get(
+      `${process.env.WALLET_API_BASE_URL}/balance/${address}`
+    );
+    if (response.status !== 200) {
+      throw new Error("Failed to get wallet balance");
     }
 
     if (response.status === 200) {

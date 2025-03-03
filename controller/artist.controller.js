@@ -7,12 +7,17 @@ import validator from "validator";
 import { submitClaim } from "./artistClaim.controller.js";
 import { User } from "../models/user.model.js";
 import { Release } from "../models/releases.model.js";
-import { Types } from "mongoose";
+import { get, Types } from "mongoose";
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { FaveArtist } from "../models/faveartist.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
 import contractHelper from "../xion/contractConfig.js";
+import {
+  createArtistSchema,
+  signContractSchema,
+} from "../validations_schemas/artist.validation.js";
+import XionWalletService from "../xion/wallet.service.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -153,43 +158,12 @@ export const createArtist = async (req, res) => {
       id,
     } = req.body;
 
-    const requiredFields = {
-      artistname: "Artist name is required",
-      email: "Email is required",
-      profileImage: "Profile image is required",
-      bio: "Bio is required",
-      address1: "Address 1 is required",
-      country: "Country is required",
-      city: "City is required",
-      postalcode: "Postal code is required",
-      websiteurl: "Website URL is required",
-      id: "User ID is required",
-    };
-
-    const requiredSocial = {
-      tiktok: "Tiktok social is required",
-      instagram: "Instagram social is required",
-      twitter: "Twitter social is required",
-    };
-
-    const missingFields = Object.entries({
-      ...requiredFields,
-      ...requiredSocial,
-    })
-      .filter(([field]) => !req.body[field])
-      .map(([, message]) => message);
-
-    if (missingFields.length) {
-      return res.status(400).json({
-        message: "Missing required fields",
-        errors: missingFields,
-      });
-    }
+    await createArtistSchema.validate(req.body, { abortEarly: false });
 
     if (!validator.isMongoId(id)) {
       return res
         .status(400)
-        .json({ status: "failed", message: "Invalid user ID" });
+        .json({ status: "failed", message: "Invalid MongoID" });
     }
 
     const user = await User.findById(id);
@@ -213,17 +187,6 @@ export const createArtist = async (req, res) => {
       return res
         .status(400)
         .json({ status: "failed", message: "Artist already exists" });
-    }
-
-    if (!validator.isEmail(email)) {
-      return res.status(400).json({ message: "invalid email" });
-    }
-
-    if (!genres || !Array.isArray(genres) || genres.length === 0) {
-      return res.status(400).json({
-        message: "Error",
-        errors: "At least one genre must be specified",
-      });
     }
 
     if (!validator.isURL(profileImage)) {
@@ -315,7 +278,6 @@ export const createArtist = async (req, res) => {
       data: { ...artistData, claimresult },
     });
   } catch (error) {
-    console.log(error);
     return res
       .status(500)
       .json({ message: "Error creating artist", error: error.message });
@@ -324,37 +286,35 @@ export const createArtist = async (req, res) => {
 
 export const signContract = async (req, res) => {
   try {
-    const { artistname, artistAddress, claimId } = req.body;
-
-    const requiredFields = {
-      artistname: "Artist name is required",
-      artistAddress: "Artist address is required",
-    };
-
-    const missingFields = Object.entries({
-      ...requiredFields,
-    })
-      .filter(([field]) => !req.body[field])
-      .map(([, message]) => message);
-
-    if (missingFields.length) {
-      return res.status(401).json({
-        message: "Missing required fields",
-        errors: missingFields,
-      });
-    }
+    const { artistname, artistAddress } = req.body;
+    await signContractSchema.validate(req.body);
 
     const validateArtistName = await Artist.findOne({ name: artistname });
 
     if (validateArtistName) {
-      const signContract = await contractHelper.signAgreement({
-        contractAddress:
-          "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
-        artistAddress: artistAddress,
-        artistName: artistname,
-      });
+      const msg = {
+        sign_agreement: {
+          artist_address: artistAddress,
+          artist_name: artistname,
+        },
+      };
 
-      if (signContract) {
+      const sign = await XionWalletService.executeTransaction(
+        validateArtistName.email,
+        "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
+        msg,
+        undefined
+      );
+      // const signContract = await contractHelper.signAgreement({
+      //   contractAddress:
+      //     "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
+      //   artistAddress: artistAddress,
+      //   artistName: artistname,
+      // });
+
+      console.log(JSON.stringify(sign));
+
+      if (sign) {
         await User.findByIdAndUpdate(validateArtistName.userId, {
           artist: new Types.ObjectId(validateArtistName._id),
           updatedAt: new Date(),
