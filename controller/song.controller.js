@@ -12,6 +12,10 @@ import { SavedRelease } from "../models/savedalbums.model.js";
 // import { matchUser } from "../utils/helpers/searchquery.js";
 import { transformTrackData } from "../utils/helpers/transformData.js";
 
+import { UploadVerification } from "../models/songuploadverification.model.js";
+import { validateFile } from '../utils/helpers/fileValidation.js';
+import { uploadConfig } from '../utils/helpers/upload.config.js';
+
 // Common aggregation pipelines
 const releaseDetailsPipeline = [
   {
@@ -80,6 +84,17 @@ export const getAllSongs = async (req, res) => {
     const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
 
     const songs = await Song.aggregate([
+      {
+        $lookup: {
+          from: "uploadverifications",
+          localField: "_id",
+          foreignField: "songId",
+          as: "verificationStatus"
+        }
+      },
+      {
+        $unwind: "$verificationStatus"
+      },
       {
         $lookup: {
           from: "tracks",
@@ -194,6 +209,15 @@ export const createRelease = async (req, res) => {
   session.startTransaction();
 
   try {
+    const todayUploads = await Song.countDocuments({
+      'createdAt': {
+        $gte: new Date().setHours(0, 0, 0, 0)
+      }
+    });
+
+    if (todayUploads >= uploadConfig.maxDailyUploads) {
+      throw new Error(`Daily upload limit of ${uploadConfig.maxDailyUploads} reached`);
+    }
     const {
       title,
       artistId,
@@ -209,9 +233,11 @@ export const createRelease = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!title || !artistId || !type || !release_date || !genre || !songs) {
-      throw new Error("Missing required fields: title, artistId, type, release_date, genre, and songs are required");
-    }
+    // if (!title || !artistId || !type || !release_date || !genre || !songs) {
+    //   throw new Error("Missing required fields: title, artistId, type, release_date, genre, and songs are required");
+    // }
+
+    
 
     // Validate release type constraints
     const parsedSongs = JSON.parse(JSON.stringify(songs));
@@ -224,6 +250,35 @@ export const createRelease = async (req, res) => {
     if (type === "ep" && (parsedSongs.length < 2 || parsedSongs.length > 6)) {
       throw new Error("An EP must contain between 2 and 6 songs");
     }
+
+     // Process each song with enhanced validation
+    //  for (const songData of parsedSongs) {
+    //   const fileValidation = await validateFile(songData.file);
+      
+    //    // Check if fileValidation and metadata are valid
+    //   if (!fileValidation || !fileValidation.metadata || !fileValidation.metadata.fileHash) {
+    //     throw new Error("File validation failed: metadata or fileHash is missing");
+    //   }
+
+    //   // Create song with verification status
+    //   const song = new Song({
+    //     ...songData,
+    //     metadata: {
+    //       ...fileValidation.metadata,
+    //       originalHash: fileValidation.metadata.fileHash
+    //     }
+    //   });
+
+    //   const verification = new UploadVerification({
+    //     songId: song._id,
+    //     status: 'pending',
+    //     metadata: fileValidation.metadata
+    //   });
+
+    //   await song.save({ session });
+    //   await verification.save({ session });
+    //   songsToSave.push(song);
+    // }
 
     // Create release
     const release = new Release({
@@ -260,14 +315,14 @@ export const createRelease = async (req, res) => {
     });
 
     // Validate each song's required fields before processing
-    for (const songData of parsedSongs) {
-      if (!songData.fileUrl || !songData.duration || !songData.bitrate || !songData.title) {
-        throw new Error(
-          `Invalid song data. Each song requires: fileUrl, duration, bitrate, and title.
-             Missing fields in song: ${songData.title || 'Untitled'}`
-        );
-      }
-    }
+    // for (const songData of parsedSongs) {
+    //   if (!songData.fileUrl || !songData.duration || !songData.bitrate || !songData.title) {
+    //     throw new Error(
+    //       `Invalid song data. Each song requires: fileUrl, duration, bitrate, and title.
+    //          Missing fields in song: ${songData.title || 'Untitled'}`
+    //     );
+    //   }
+    // }
 
     const songsToSave = [];
     const tracksToSave = [];
@@ -355,14 +410,11 @@ export const createRelease = async (req, res) => {
     await release.save({ session });
 
     await session.commitTransaction();
-
     return res.status(201).json({
-      message: "Successfully created release",
+      message: "Release created and pending verification",
       data: {
         releaseId: release._id,
-        title: release.title,
-        type: release.type,
-        totalTracks: release.metadata.totalTracks
+        status: 'pending'
       }
     });
 
@@ -370,13 +422,141 @@ export const createRelease = async (req, res) => {
     await session.abortTransaction();
     return res.status(500).json({
       message: "Error creating release",
-      error: error.message,
-      details: error.errors ? Object.values(error.errors).map(err => err.message) : null
+      error: error.message
     });
   } finally {
     session.endSession();
   }
 };
+
+// New endpoints for verification workflow
+export const verifyUpload = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { verificationId } = req.params;
+    const { status, moderationNotes } = req.body;
+    const moderatorId = req.user._id;
+
+    const verification = await UploadVerification.findById(verificationId);
+    if (!verification) {
+      throw new Error('Verification record not found');
+    }
+
+    // Check retry limits for rejected uploads
+    if (status === 'rejected' && verification.retryCount >= uploadConfig.maxRetries) {
+      throw new Error('Maximum retry attempts reached');
+    }
+
+    const updatedVerification = await UploadVerification.findByIdAndUpdate(
+      verificationId,
+      {
+        status,
+        moderatorId,
+        moderationNotes,
+        verifiedAt: new Date(),
+        $inc: { retryCount: status === 'rejected' ? 1 : 0 }
+      },
+      { session, new: true }
+    );
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      message: `Upload ${status}`,
+      data: updatedVerification
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(500).json({
+      message: "Error during verification",
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Get verification status
+export const getVerificationStatus = async (req, res) => {
+  try {
+    const { songId } = req.params;
+    const verification = await UploadVerification.findOne({ songId })
+      .populate('moderatorId', 'username email');
+
+    if (!verification) {
+      return res.status(404).json({
+        message: "Verification record not found"
+      });
+    }
+
+    return res.status(200).json({
+      message: "Verification status retrieved",
+      data: verification
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching verification status",
+      error: error.message
+    });
+  }
+};
+
+// Resubmit rejected upload
+export const resubmitUpload = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { songId } = req.params;
+    const { newFile } = req.body;
+
+    const verification = await UploadVerification.findOne({ songId });
+    if (!verification) {
+      throw new Error('Verification record not found');
+    }
+
+    if (verification.retryCount >= uploadConfig.maxRetries) {
+      throw new Error('Maximum retry attempts reached');
+    }
+
+    // Validate new file
+    const fileValidation = await validateFile(newFile);
+    if (!fileValidation.isValid) {
+      throw new Error(`File validation failed: ${fileValidation.errors.join(', ')}`);
+    }
+
+    // Update song and verification records
+    await Song.findByIdAndUpdate(songId, {
+      fileUrl: newFile.path,
+      'metadata.fileHash': fileValidation.metadata.fileHash
+    }, { session });
+
+    await UploadVerification.findByIdAndUpdate(verification._id, {
+      status: 'pending',
+      moderationNotes: null,
+      verifiedAt: null,
+      'metadata.fileHash': fileValidation.metadata.fileHash
+    }, { session });
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      message: "Upload resubmitted successfully",
+      status: 'pending'
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(500).json({
+      message: "Error resubmitting upload",
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 
 // Analytics and Interactions
 export const streamSong = async (req, res) => {
