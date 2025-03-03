@@ -127,5 +127,13 @@ songSchema.index({ 'streamHistory.timestamp': -1 }); // For streaming history qu
 songSchema.index({ 'streamHistory.userId': 1, 'streamHistory.timestamp': -1 }); // For user history
 songSchema.index({ 'playlists.playlistId': 1 }); // For playlist queries
 
+
+
+
+
+
+
 export const Song = model("songs", songSchema);
+
+
 
