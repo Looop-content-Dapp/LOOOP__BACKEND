@@ -297,8 +297,6 @@ const createUser = async (req, res) => {
       salt: shortSalt,
     });
 
-    console.log(starknetTokenBoundAccount);
-
     if (xionwallet || starknetTokenBoundAccount) {
       const user = new User({
         email,
