@@ -51,10 +51,7 @@ app.use("/api/admin", adminRouter);
 // app.use("/api/oauth", OAuthRouter);
 
 const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
-const mongoURI =
-  process.env.NODE_ENV !== "production"
-    ? "mongodb://localhost:27017/"
-    : process.env.MONGODB_URI ||
+const mongoURI = process.env.MONGODB_URI ||
       "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
 (async () => {
