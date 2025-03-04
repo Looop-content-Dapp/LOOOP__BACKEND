@@ -19,7 +19,12 @@ const artistSchema = new Schema(
     },
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
-    profileImage: { type: String, required: true, default: null },
+    profileImage: {
+      type: String,
+      required: true,
+      default: null,
+      unique: false,
+    },
     biography: { type: String, required: true, default: null },
     address1: { type: String, required: true, default: null },
     address2: { type: String, required: false, default: null },

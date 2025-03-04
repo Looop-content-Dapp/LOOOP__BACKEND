@@ -22,11 +22,18 @@ const userSchema = new Schema(
       default: "LISTENER",
     },
     wallets: {
-      starknet: { type: String, default: null },
+      starknet: {
+        type: {
+          address: { type: String, default: null },
+          balance: { type: Number, default: 0 },
+        },
+        default: null,
+      },
       xion: {
         type: {
           address: { type: String, required: true },
           mnemonic: { type: String, required: true },
+          balance: { type: Number, default: 0 },
         },
         default: null,
       },
