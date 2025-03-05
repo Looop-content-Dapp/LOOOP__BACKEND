@@ -52,10 +52,11 @@ app.use("/api/referral", referralRouter);
 // app.use("/api/oauth", OAuthRouter);
 
 const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
-const mongoURI = "mongodb://localhost:27017/";
+const mongoURI =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
-// process.env.MONGODB_URI ||
-//   "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
+// "mongodb://localhost:27017/"
 
 (async () => {
   try {
