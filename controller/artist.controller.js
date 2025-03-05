@@ -18,6 +18,7 @@ import {
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
 import XionWalletService from "../xion/wallet.service.js";
+import sendEmail from "../script.cjs";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -271,6 +272,11 @@ export const createArtist = async (req, res) => {
 
     const artistData = { artist: { ...artist._doc, genres: genreNames } };
     delete artistData.artist.artistId;
+
+    await sendEmail(email, "Congratulations", "artist", {
+      artist_name: artistname,
+      support_email: "https://localhost:3000",
+    });
 
     return res.status(200).json({
       status: "success",

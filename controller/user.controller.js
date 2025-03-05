@@ -1146,66 +1146,19 @@ export const oauth = async (req, res) => {
       });
     }
 
-    let user = await User.findOne({ email });
+    let user = await User.findOne({ email: email });
 
     if (!user) {
-      // Create new user
       const newUser = new User({
         email: email,
       });
-
-      user = await newUser.save();
-
-      const referralEntry = new ReferralCode({
-        code: refcode,
-        userId: savedUser._id,
-      });
-
-      await referralEntry.save();
-
-      // if (referralCode) {
-      //   const ownerReferral = await ReferralCode.findOne({
-      //     code: referralCode,
-      //   });
-      //   if (ownerReferral) {
-      //     let reward;
-
-      //     switch (true) {
-      //       case ownerReferral.referralCount === 3:
-      //         reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
-      //         break;
-      //       case ownerReferral.referralCount === 10:
-      //         reward = referralConfig.referralRewards.PURCHASE;
-      //         break;
-      //       case ownerReferral.referralCount === 5:
-      //         reward = referralConfig.referralRewards.PROFILE_COMPLETION;
-      //         break;
-      //       default:
-      //         reward = referralConfig.referralRewards.SOCIAL_SHARE;
-      //         break;
-      //     }
-      //     ownerReferral.rewardPoints += reward.points;
-      //     ownerReferral.rewardsHistory.push({
-      //       points: reward.points,
-      //       reason: reward.description,
-      //       date: new Date(),
-      //     });
-      //     await ownerReferral.save();
-
-      //     await User.findByIdAndUpdate(ownerReferral.userId, {
-      //       $push: { referralCodeUsed: savedUser._id },
-      //       $inc: { referralCount: 1 },
-      //     });
-      //   }
-      // }
 
       return res.status(200).json({
         status: "success",
         message: "User created successfully",
         data: {
           user: {
-            id: user._id,
-            email: user.email,
+            ...(newUser?.toObject ? newUser.toObject() : newUser),
           },
           isNewUser: true,
         },
@@ -1213,9 +1166,6 @@ export const oauth = async (req, res) => {
     }
 
     /// existing user
-    const userData = { ...user._doc };
-    delete userData.password;
-
     const isArtist = await Artist.findOne({
       userId: user._id,
       verified: true,
@@ -1225,16 +1175,33 @@ export const oauth = async (req, res) => {
       userId: user._id,
     });
 
-    return res.status(200).json({
-      status: "success",
-      message: "Sign in successful",
-      data: {
-        ...userData,
+    const xionLoggedInUser = await XionWalletService.loginAccount(email);
+
+    if (xionLoggedInUser) {
+      const userData = {
+        ...user._doc,
+        wallets: {
+          ...user._doc.wallets,
+          xion: {
+            address: xionLoggedInUser.walletAddress,
+          },
+        },
         artist: isArtist === null ? null : isArtist?.id,
         artistClaim: hasClaim === null ? null : hasClaim?.id,
-        isNewUser: false,
-      },
-    });
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful",
+        data: {
+          ...userData,
+        },
+      });
+    }
   } catch (error) {
     return res.status(500).json({
       status: "failed",
