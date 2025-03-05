@@ -18,6 +18,7 @@ import searchRoutes from "./routes/search.routes.js";
 import adminRouter from "./routes/admin-route/admin.route.js";
 import paymentRouter from "./routes/payment.route.js";
 import referralRouter from "./routes/referral.route.js";
+import oauthrouter from "./routes/oauth.route.js";
 
 config();
 
@@ -49,7 +50,7 @@ app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRouter);
 app.use("/api/referral", referralRouter);
 // app.use("/api/payment", paymentRouter);
-// app.use("/api/oauth", OAuthRouter);
+app.use("/api/oauth", oauthrouter);
 
 const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
 const mongoURI =
