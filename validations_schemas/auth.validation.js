@@ -20,6 +20,7 @@ export const createUserSchema = yup.object().shape({
     .oneOf(["male", "female"], "Gender must be 'male' or 'female'")
     .required("Gender is required"),
   referralCode: yup.string().trim().optional(),
+  oauthprovider: yup.string().trim().optional(),
 });
 
 export const signInSchema = yup.object().shape({
