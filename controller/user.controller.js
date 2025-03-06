@@ -36,6 +36,8 @@ import { ReferralCode } from "../models/referralcode.model.js";
 import referralConfig from "../config/referral.config.js";
 import XionWalletService from "../xion/wallet.service.js";
 
+import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+
 // Loads .env
 config();
 
@@ -247,8 +249,16 @@ const verifyEmailOTP = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { email, password, username, fullname, age, gender, referralCode } =
-      req.body;
+    const {
+      email,
+      password,
+      username,
+      fullname,
+      age,
+      gender,
+      referralCode,
+      provider,
+    } = req.body;
 
     await createUserSchema.validate(req.body);
 
@@ -286,7 +296,8 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
-    const xionwallet = await XionWalletService.createAccount(email);
+    const xionwallet = await AbstraxionAuth.signup(email);
+
     const refcode = await generateUniqueReferralCode(username);
 
     const shortSalt = generateSimpleSalt();
@@ -310,7 +321,7 @@ const createUser = async (req, res) => {
             address: starknetTokenBoundAccount.account,
           },
           xion: {
-            address: xionwallet.walletAddress,
+            address: xionwallet.address,
             mnemonic: xionwallet.mnemonic,
           },
         },
@@ -1071,7 +1082,8 @@ const signIn = async (req, res) => {
       });
     }
 
-    const xionLoggedInUser = await XionWalletService.loginAccount(email);
+    const xionLoggedInUser = await AbstraxionAuth.login(email);
+    const walletAddress = await AbstraxionAuth.getKeypairAddress();
 
     if (xionLoggedInUser) {
       const userData = {
@@ -1079,7 +1091,7 @@ const signIn = async (req, res) => {
         wallets: {
           ...user[0]._doc.wallets,
           xion: {
-            address: xionLoggedInUser.walletAddress,
+            address: walletAddress,
           },
         },
         artist: isArtist === null ? null : isArtist?.id,
