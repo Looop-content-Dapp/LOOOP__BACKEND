@@ -19,6 +19,7 @@ import adminRouter from "./routes/admin-route/admin.route.js";
 import paymentRouter from "./routes/payment.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
+import AbstraxionAuth from "./xion/AbstraxionAuth.cjs";
 
 config();
 
@@ -61,6 +62,12 @@ const mongoURI =
 
 (async () => {
   try {
+    AbstraxionAuth.configureAbstraxionInstance(
+      process.env.RPC_URL || "https://rpc.xion-testnet-2.burnt.com:443",
+      process.env.REST_URL || "https://api.xion-testnet-2.burnt.com",
+      process.env.TREASURY_ADDRESS
+    );
+
     mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
