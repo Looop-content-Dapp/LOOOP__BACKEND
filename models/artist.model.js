@@ -53,11 +53,6 @@ const artistSchema = new Schema(
     ],
     labels: [String],
     isActive: { type: Boolean, default: true },
-    userId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      ref: "User",
-    },
     genres: [{ type: Schema.Types.ObjectId, ref: "genres", required: true }],
   },
   {
@@ -66,13 +61,5 @@ const artistSchema = new Schema(
   }
 );
 
-// Indexes
-// artistSchema.index({ name: "text", biography: "text" });
-// artistSchema.index({ genres: 1 });
-// artistSchema.index({ popularity: -1 });
-// artistSchema.index({ monthlyListeners: -1 });
-// artistSchema.index({ verified: 1 });
-// artistSchema.index({ country: 1 });
-// artistSchema.index({ "albums.releaseDate": -1 });
 
 export const Artist = model("artist", artistSchema);
