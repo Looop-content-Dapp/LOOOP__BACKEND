@@ -257,7 +257,7 @@ const createUser = async (req, res) => {
       age,
       gender,
       referralCode,
-      provider,
+      oauthprovider,
     } = req.body;
 
     await createUserSchema.validate(req.body);
@@ -309,24 +309,45 @@ const createUser = async (req, res) => {
     });
 
     if (xionwallet || starknetTokenBoundAccount) {
-      const user = new User({
-        email,
-        username,
-        password: hashedPassword,
-        fullname,
-        age,
-        gender,
-        wallets: {
-          starknet: {
-            address: starknetTokenBoundAccount.account,
+      let user;
+      if (oauthprovider) {
+        user = new User({
+          email,
+          username,
+          fullname,
+          age,
+          gender,
+          wallets: {
+            starknet: {
+              address: starknetTokenBoundAccount.account,
+            },
+            xion: {
+              address: xionwallet.address,
+              mnemonic: xionwallet.mnemonic,
+            },
           },
-          xion: {
-            address: xionwallet.address,
-            mnemonic: xionwallet.mnemonic,
+          referralCode: refcode,
+        });
+      } else {
+        user = new User({
+          email,
+          username,
+          password: hashedPassword,
+          fullname,
+          age,
+          gender,
+          wallets: {
+            starknet: {
+              address: starknetTokenBoundAccount.account,
+            },
+            xion: {
+              address: xionwallet.address,
+              mnemonic: xionwallet.mnemonic,
+            },
           },
-        },
-        referralCode: refcode,
-      });
+          referralCode: refcode,
+        });
+      }
 
       const savedUser = await user.save();
 
@@ -1083,7 +1104,6 @@ const signIn = async (req, res) => {
     }
 
     const xionLoggedInUser = await AbstraxionAuth.login(email);
-    const walletAddress = await AbstraxionAuth.getKeypairAddress();
 
     if (xionLoggedInUser) {
       const userData = {
@@ -1091,7 +1111,7 @@ const signIn = async (req, res) => {
         wallets: {
           ...user[0]._doc.wallets,
           xion: {
-            address: walletAddress,
+            address: xionLoggedInUser.address,
           },
         },
         artist: isArtist === null ? null : isArtist?.id,

@@ -10,8 +10,11 @@ export const createUserSchema = yup.object().shape({
     .string()
     .trim()
     .min(6, "Password must be at least 6 characters")
-    .required("Password is required"),
-  username: yup.string().trim().required("Username is required"),
+    .when('oauthprovider', {
+      is: (val) => val && val.length > 0,
+      then: (schema) => schema.optional(),
+      otherwise: (schema) => schema.required("Password is required")
+    }),  username: yup.string().trim().required("Username is required"),
   fullname: yup.string().trim().required("Fullname is required"),
   age: yup.string().trim().required("Age is required"),
   gender: yup
