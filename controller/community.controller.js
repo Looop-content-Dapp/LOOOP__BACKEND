@@ -8,6 +8,7 @@ import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import { PayAzaCardPayment } from "../utils/helpers/payaza.js";
+import XionWalletService from "../xion/wallet.service.js";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -206,23 +207,38 @@ export const createCommunity = async (req, res) => {
       }
 
       if (artist.verified === true) {
-        const xionCreateCommunity = await contractHelper.createArtistCommunity({
-          artistAddress: artistAddress,
-          communityDetails: {
-            name: communityName,
-            symbol: communitySymbol,
-            imageUrl: coverImage,
-          },
-        });
+        // const msg = {
+        //   create_collection: {
+        //     name: communityName,
+        //     symbol: communitySymbol,
+        //     artist: artistAddress,
+        //     minter: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
+        //     collection_info: coverImage,
+        //   },
+        // };
 
-        const transactionHash = xionCreateCommunity.transactionHash;
+        // const createCollection = await XionWalletService.executeTransaction(
+        //   "fireboy@gmail.com",
+        //   "xion106z7nrejkjzps0qmpwkykg8w6nryxyht9nsu0j3t5kcmd4v0sfks9har0d",
+        //   msg
+        // );
 
-        const getArtistCollection = await contractHelper.getCollection(
-          artistAddress
-        );
+        // console.log(createCollection, "createCollection");
 
-        const contractAddress = getArtistCollection.collection.contract_address;
-        const contractSymbol = getArtistCollection.collection.symbol;
+        // return res.status(200).json({
+        //   status: "success",
+        //   message: "Community created successfully",
+        //   data: createCollection,
+        // });
+
+        // const transactionHash = xionCreateCommunity.transactionHash;
+
+        // const getArtistCollection = await contractHelper.getCollection(
+        //   artistAddress
+        // );
+
+        // const contractAddress = getArtistCollection.collection.contract_address;
+        // const contractSymbol = getArtistCollection.collection.symbol;
 
         const validateImageType = isValidImageType(collectibleType);
 
@@ -236,9 +252,9 @@ export const createCommunity = async (req, res) => {
               collectibleDescription,
               collectibleImage,
               collectibleType,
-              contractAddress,
-              communitySymbol: contractSymbol,
-              transactionHash,
+              contractAddress: "contractAddress",
+              communitySymbol: "contractSymbol",
+              transactionHash: "transactionHash",
             },
             createdBy: artistId,
             NFTToken: nextTokenId,

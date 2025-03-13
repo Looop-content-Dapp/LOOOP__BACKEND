@@ -3,7 +3,6 @@ import { User } from "../models/user.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import mongoose from "mongoose";
 
-// Submit a claim request
 export const submitArtistClaim = async (req, res) => {
   try {
     const {
@@ -22,7 +21,6 @@ export const submitArtistClaim = async (req, res) => {
       });
     }
 
-    // Check if user exists
     const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({
@@ -30,7 +28,6 @@ export const submitArtistClaim = async (req, res) => {
       });
     }
 
-    // Check if artist profile exists
     const artist = await Artist.findById(artistId);
     if (!artist) {
       return res.status(404).json({
@@ -38,14 +35,12 @@ export const submitArtistClaim = async (req, res) => {
       });
     }
 
-    // Check if artist is already verified
     if (artist.verified) {
       return res.status(400).json({
         message: "This artist profile is already verified",
       });
     }
 
-    // Check if there's already a pending claim
     const existingClaim = await ArtistClaim.findOne({
       artistId,
       status: "pending",
@@ -57,7 +52,6 @@ export const submitArtistClaim = async (req, res) => {
       });
     }
 
-    // Create new claim
     const claim = new ArtistClaim({
       userId,
       artistId,
@@ -144,7 +138,7 @@ export const getClaimStatus = async (req, res) => {
       .populate("userId", "email profileImage");
 
     if (!claim) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "failed",
         message: "Claim request not found",
       });

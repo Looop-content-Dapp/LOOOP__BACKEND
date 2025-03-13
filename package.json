@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "import-spotify": "node scripts/importSpotifyData.js",
     "generate-streams": "node scripts/generateStreamHistory.js",
     "populate-db": "npm run import-spotify && npm run generate-streams",
-    "pnpm-populate-db": "pnpm run import-spotify && pnpm run generate-streams",
     "db:genres:clear": "node scripts/clearGenres.js",
     "db:genres:populate": "node scripts/populateSpotifyGenres.js",
     "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate",
@@ -19,16 +17,26 @@
   "description": "",
   "type": "module",
   "dependencies": {
+
     "@aws-sdk/client-s3": "^3.758.0",
+
+    "@burnt-labs/constants": "^0.1.0-alpha.15",
+    "@burnt-labs/signers": "^0.1.0-alpha.13",
+
     "@cosmjs/cosmwasm-stargate": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
     "@google-cloud/kms": "^4.5.0",
+    "@keplr-wallet/cosmos": "^0.12.192",
+    "@keplr-wallet/crypto": "^0.12.192",
+    "apple-signin-auth": "^1.7.8",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
+    "buffer": "^6.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "fast-jwt": "^5.0.2",
+    "google-auth-library": "^9.15.1",
     "mongoose": "^8.6.1",
     "multer": "^1.4.5-lts.1",
     "multer-s3": "^3.0.1",
@@ -41,7 +49,8 @@
     "spotify-web-api-node": "^5.0.2",
     "starknet": "^6.11.0",
     "starknet-tokenbound-sdk": "^0.3.9",
-    "validator": "^13.12.0"
+    "validator": "^13.12.0",
+    "yup": "^1.6.1"
   },
   "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab",
   "devDependencies": {

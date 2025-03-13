@@ -4,6 +4,13 @@ const userSchema = new Schema(
   {
     email: { type: String, required: true, unique: true },
     username: { type: String, required: true, unique: true },
+    fullname: { type: String, required: true },
+    age: { type: String, required: true },
+    gender: {
+      type: String,
+      required: true,
+      enum: ["male", "female"],
+    },
     password: { type: String },
     profileImage: { type: String, default: null },
     bio: { type: String, default: null },
@@ -15,11 +22,29 @@ const userSchema = new Schema(
       default: "LISTENER",
     },
     wallets: {
-      starknet: { type: String, default: null },
-      xion: { type: String, default: null },
+      starknet: {
+        type: {
+          address: { type: String, default: null },
+          balance: { type: Number, default: 0 },
+        },
+        default: null,
+      },
+      xion: {
+        type: {
+          address: { type: String, required: true },
+          mnemonic: { type: String, required: true },
+          balance: { type: Number, default: 0 },
+        },
+        default: null,
+      },
     },
     oauthTokens: [{ type: SchemaTypes.ObjectId, ref: "OAuthToken" }],
     artist: { type: SchemaTypes.ObjectId, ref: "artist" },
+    referralCode: { type: String, required: true, unique: true },
+    referralCount: { type: Number, default: 0 },
+    referralCodeUsed: [
+      { type: SchemaTypes.ObjectId, ref: "users", default: [] },
+    ],
   },
   { timestamps: true }
 );

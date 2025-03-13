@@ -9,7 +9,7 @@ const GenreSchema = new Schema(
     },
     image: {
       type: String,
-      required: true,
+      required: false,
     },
     description: {
       type: String,

@@ -1,4 +1,4 @@
-import mongoose, { Types } from "mongoose";
+import { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import validator from "validator";
 import { config } from "dotenv";
@@ -17,16 +17,31 @@ import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
 import { walletService } from "../xion/walletservice.js";
-// import { ApiError } from "../utils/helpers/ApiError.js";
-import { encryptPrivateKey } from "../utils/helpers/encyption.cjs";
-import sendEmail from "../script.cjs"; // Make sure this path matches your email utility location
 
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
+import contractHelper from "../xion/contractConfig.js";
+import sendEmail from "../script.cjs";
+import { generateOtp } from "../utils/helpers/generateotp.js";
+import {
+  createUserSchema,
+  signInSchema,
+} from "../validations_schemas/auth.validation.js";
+import { validateGoogleToken } from "../middlewares/googleauth.js";
+import { validateAppleToken } from "../middlewares/appleauth.js";
+import { generateUniqueReferralCode } from "../utils/helpers/referralcode.cjs";
+import { ReferralCode } from "../models/referralcode.model.js";
+import referralConfig from "../config/referral.config.js";
+import XionWalletService from "../xion/wallet.service.js";
+
+import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+
 // Loads .env
 config();
+
+const otpStore = {};
 
 const getAllUsers = async (req, res) => {
   try {
@@ -169,6 +184,11 @@ const getUser = async (req, res) => {
       communities: getUserTribe,
     };
     delete userData.password;
+    delete userData.wallets.xion.mnemonic;
+    delete userData.wallets.xion._id;
+    delete userData.referralCode;
+    delete userData.referralCount;
+    delete userData.referralCodeUsed;
 
     return res.status(200).json({
       status: "success",
@@ -204,9 +224,57 @@ const checkIfUserNameExist = async (req, res) => {
   }
 };
 
+const verifyEmailOTP = async (req, res) => {
+  const { email } = req.body;
+  const otp = generateOtp();
+  otpStore[email] = { otp, expiresAt: Date.now() + 10 * 60 * 1000 };
+
+  const existingEmailUser = await User.findOne({ email });
+  if (existingEmailUser) {
+    return res
+      .status(400)
+      .json({ status: "failed", message: "Email already in use" });
+  } else
+    await sendEmail(email, "Verify your signup email!", "verify", {
+      email: email,
+      otp: otp,
+    });
+
+  return res.status(200).json({
+    status: "success",
+    message: "Check your email",
+    data: { otp },
+  });
+};
+
 const createUser = async (req, res) => {
   try {
-    const { email, password, username } = req.body;
+    const {
+      email,
+      password,
+      username,
+      fullname,
+      age,
+      gender,
+      referralCode,
+      oauthprovider,
+    } = req.body;
+
+    await createUserSchema.validate(req.body);
+
+    const existingEmailUser = await User.findOne({ email });
+    if (existingEmailUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Email already in use" });
+    }
+
+    const existingUsernameUser = await User.findOne({ username });
+    if (existingUsernameUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Username already in use" });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -228,52 +296,148 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
-    const xion = await walletService.createXionWallet();
+    const xionwallet = await AbstraxionAuth.signup(email);
 
-    if (password == "" || email == "" || username == "") {
-      return res
-        .status(401)
-        .json({ message: "Password, Email and username is required" });
-    }
+    const refcode = await generateUniqueReferralCode(username);
 
-    if (username) {
-      const shortSalt = generateSimpleSalt();
+    const shortSalt = generateSimpleSalt();
 
-      let starknetTokenBoundAccount = await tokenbound.createAccount({
-        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
-        tokenId: process.env.NFT_TOKEN_ID,
-        salt: shortSalt,
-      });
+    let starknetTokenBoundAccount = await tokenbound.createAccount({
+      tokenContract: process.env.NFT_CONTRACT_ADDRESS,
+      tokenId: process.env.NFT_TOKEN_ID,
+      salt: shortSalt,
+    });
 
-      if (xion || starknetTokenBoundAccount) {
-        const user = new User({
+    if (xionwallet || starknetTokenBoundAccount) {
+      let user;
+      if (oauthprovider) {
+        user = new User({
+          email,
+          username,
+          fullname,
+          age,
+          gender,
+          wallets: {
+            starknet: {
+              address: starknetTokenBoundAccount.account,
+            },
+            xion: {
+              address: xionwallet.address,
+              mnemonic: xionwallet.mnemonic,
+            },
+          },
+          referralCode: refcode,
+        });
+      } else {
+        user = new User({
           email,
           username,
           password: hashedPassword,
+          fullname,
+          age,
+          gender,
           wallets: {
-            starknet: starknetTokenBoundAccount.account,
-            xion: xion.address,
+            starknet: {
+              address: starknetTokenBoundAccount.account,
+            },
+            xion: {
+              address: xionwallet.address,
+              mnemonic: xionwallet.mnemonic,
+            },
           },
-        });
-
-        await user.save();
-
-        const userWithoutPassword = user.toObject();
-        delete userWithoutPassword.password;
-
-        return res.status(200).json({
-          status: "success",
-          message: "successfully created a user",
-          data: { user: userWithoutPassword },
+          referralCode: refcode,
         });
       }
+
+      const savedUser = await user.save();
+
+      const referralEntry = new ReferralCode({
+        code: refcode,
+        userId: savedUser._id,
+      });
+
+      await referralEntry.save();
+
+      if (referralCode) {
+        const ownerReferral = await ReferralCode.findOne({
+          code: referralCode,
+        });
+        if (ownerReferral) {
+          let reward;
+
+          switch (true) {
+            case ownerReferral.referralCount === 3:
+              reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
+              break;
+            case ownerReferral.referralCount === 10:
+              reward = referralConfig.referralRewards.PURCHASE;
+              break;
+            case ownerReferral.referralCount === 5:
+              reward = referralConfig.referralRewards.PROFILE_COMPLETION;
+              break;
+            default:
+              reward = referralConfig.referralRewards.SOCIAL_SHARE;
+              break;
+          }
+          ownerReferral.rewardPoints += reward.points;
+          ownerReferral.rewardsHistory.push({
+            points: reward.points,
+            reason: reward.description,
+            date: new Date(),
+          });
+          await ownerReferral.save();
+
+          await User.findByIdAndUpdate(ownerReferral.userId, {
+            $push: { referralCodeUsed: savedUser._id },
+            $inc: { referralCount: 1 },
+          });
+        }
+      }
+
+      const userWithoutPassword = user.toObject();
+      delete userWithoutPassword.password;
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully created a user",
+        data: { user: userWithoutPassword },
+      });
     }
   } catch (error) {
     console.log(error, "error");
-    return res
-      .status(500)
-      .json({ message: "Error creating user", error: error.message });
+    return res.status(500).json({
+      status: "failed",
+      message: "Error creating user",
+      error: error.message,
+    });
   }
+};
+
+const verifyOtp = async (req, res) => {
+  const { email, otp } = req.body;
+
+  if (!otpStore[email]) {
+    return res
+      .status(400)
+      .json({ status: "failed", message: "OTP not found or expired" });
+  }
+
+  if (otpStore[email].otp !== otp) {
+    return res.status(400).json({ status: "failed", message: "Invalid OTP" });
+  }
+
+  const currentTime = Date.now();
+  if (currentTime > otpStore[email].expiresAt) {
+    delete otpStore[email];
+    return res
+      .status(400)
+      .json({ status: "failed", message: "OTP has expired" });
+  }
+
+  delete otpStore[email];
+  return res
+    .status(200)
+    .json({ status: "success", message: "OTP verified successfully" });
 };
 
 const createGenresForUser = async (req, res) => {
@@ -907,13 +1071,8 @@ const getUserByEmail = async (req, res) => {
 
 const signIn = async (req, res) => {
   try {
+    await signInSchema.validate(req.body);
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        message: "Email and password are required",
-      });
-    }
 
     const user = await User.find({
       email: email,
@@ -944,28 +1103,140 @@ const signIn = async (req, res) => {
       });
     }
 
-    const userData = {
-      ...user[0]._doc,
-      artist: isArtist === null ? null : isArtist?.id,
-      artistClaim: hasClaim === null ? null : hasClaim?.id,
-    };
-    delete userData.password;
+    const xionLoggedInUser = await AbstraxionAuth.login(email);
 
-    // sendEmail("seyi.oyebamiji@gmail.com", "Welcome back user", "login", {
-    //   username: "seyi",
-    //   message: "Welcome back from sleep!",
-    // });
+    if (xionLoggedInUser) {
+      const userData = {
+        ...user[0]._doc,
+        wallets: {
+          ...user[0]._doc.wallets,
+          xion: {
+            address: xionLoggedInUser.address,
+          },
+        },
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
 
-    return res.status(200).json({
-      status: "success",
-      message: "Sign in successful",
-      data: {
-        ...userData,
-      },
-    });
+      const emailResult = await sendEmail(
+        user[0].email,
+        "New Login Detected",
+        "login",
+        {
+          username: user[0].username,
+          loginTime: new Date().toLocaleString(),
+          deviceInfo: req.headers["user-agent"],
+          ipAddress: req.ip,
+        }
+      );
+
+      console.log(emailResult);
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful",
+        data: {
+          ...userData,
+        },
+      });
+    } else {
+      return res.status(400).json({
+        status: "failed",
+        message: "An Error Occired",
+        data: null,
+      });
+    }
   } catch (error) {
     console.log(error);
     return res.status(500).json({
+      message: "Error signing in",
+      error: error.message,
+    });
+  }
+};
+
+export const oauth = async (req, res) => {
+  try {
+    const { email, token, channel } = req.body;
+
+    let isTokenValid;
+
+    if (channel === "google") {
+      isTokenValid = await validateGoogleToken(token, email);
+    } else {
+      isTokenValid = await validateAppleToken(token, email);
+    }
+
+    if (!isTokenValid) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid token",
+      });
+    }
+
+    let user = await User.findOne({ email: email });
+
+    if (!user) {
+      const newUser = new User({
+        email: email,
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "User created successfully",
+        data: {
+          user: {
+            ...(newUser?.toObject ? newUser.toObject() : newUser),
+          },
+          isNewUser: true,
+        },
+      });
+    }
+
+    /// existing user
+    const isArtist = await Artist.findOne({
+      userId: user._id,
+      verified: true,
+    });
+
+    const hasClaim = await ArtistClaim.findOne({
+      userId: user._id,
+    });
+
+    const xionLoggedInUser = await XionWalletService.loginAccount(email);
+
+    if (xionLoggedInUser) {
+      const userData = {
+        ...user._doc,
+        wallets: {
+          ...user._doc.wallets,
+          xion: {
+            address: xionLoggedInUser.walletAddress,
+          },
+        },
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful",
+        data: {
+          ...userData,
+        },
+      });
+    }
+  } catch (error) {
+    return res.status(500).json({
+      status: "failed",
       message: "Error signing in",
       error: error.message,
     });
@@ -991,4 +1262,6 @@ export {
   getUserByEmail,
   signIn,
   checkIfUserNameExist,
+  verifyEmailOTP,
+  verifyOtp,
 };
