@@ -9,13 +9,14 @@ const songSchema = new Schema({
       type: Number,
       required: true,
     },
+
     bitrate: {
       type: Number,
       required: true,
     },
     format: {
       type: String,
-      enum: ['mp3', 'wav', 'aac', 'flac'],
+      enum: ['mp3', 'wav', 'aac', 'flac', 'mpeg'],
       required: true,
     },
     // Enhanced analytics tracking
@@ -84,8 +85,11 @@ const songSchema = new Schema({
     },
     isrc: {
       type: String,
-      unique: true
+      unique: true,
+      null:true,
+      sparse: true, // Allows multiple null values
     },
+
     // Quality metrics
     audioQuality: {
       peak: Number,
