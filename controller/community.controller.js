@@ -9,6 +9,7 @@ import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import { PayAzaCardPayment } from "../utils/helpers/payaza.js";
 import XionWalletService from "../xion/wallet.service.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -207,21 +208,31 @@ export const createCommunity = async (req, res) => {
       }
 
       if (artist.verified === true) {
-        // const msg = {
-        //   create_collection: {
-        //     name: communityName,
-        //     symbol: communitySymbol,
-        //     artist: artistAddress,
-        //     minter: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
-        //     collection_info: coverImage,
-        //   },
-        // };
+        const msg = {
+          create_collection: {
+            name: communityName,
+            symbol: communitySymbol,
+            artist: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
+            minter: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
+            collection_info: coverImage,
+          },
+        };
 
         // const createCollection = await XionWalletService.executeTransaction(
         //   "fireboy@gmail.com",
         //   "xion106z7nrejkjzps0qmpwkykg8w6nryxyht9nsu0j3t5kcmd4v0sfks9har0d",
         //   msg
         // );
+
+        await AbstraxionAuth.login(artist.email);
+
+        const execute = await AbstraxionAuth.executeSmartContract(
+          "xion1pr46zcmdy830sk4pj6ug2wqrkjywm4nzqcqlmd5nkqz3xg0wjf5s76ms6h",
+          msg,
+          "auto"
+        );
+
+        console.log(execute, "execute");
 
         // console.log(createCollection, "createCollection");
 

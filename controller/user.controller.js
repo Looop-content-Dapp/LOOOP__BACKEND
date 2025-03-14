@@ -310,7 +310,7 @@ const createUser = async (req, res) => {
 
     if (xionwallet || starknetTokenBoundAccount) {
       let user;
-      if (oauthprovider) {
+      if (oauthprovider === "oauth") {
         user = new User({
           email,
           username,
