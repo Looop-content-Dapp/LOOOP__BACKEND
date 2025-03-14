@@ -12,6 +12,10 @@ import { SavedRelease } from "../models/savedalbums.model.js";
 // import { matchUser } from "../utils/helpers/searchquery.js";
 import { transformTrackData } from "../utils/helpers/transformData.js";
 
+import { UploadVerification } from "../models/songuploadverification.model.js";
+import { validateFile } from '../utils/helpers/fileValidation.js';
+import { uploadConfig } from '../utils/helpers/upload.config.js';
+
 // Common aggregation pipelines
 const releaseDetailsPipeline = [
   {
@@ -73,64 +77,166 @@ const releaseDetailsPipeline = [
 // Basic CRUD Operations
 export const getAllSongs = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const skip = (page - 1) * limit;
-    const sortBy = req.query.sortBy || 'createdAt';
-    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+    // Add initial check for songs
+    const songCount = await Song.countDocuments();
+    console.log('Total songs in database:', songCount);
 
+    const {
+      page = 1,
+      limit = 20,
+      sort = '-createdAt'
+    } = req.query;
+
+    // Now try the aggregation
     const songs = await Song.aggregate([
       {
         $lookup: {
-          from: "tracks",
-          localField: "_id",
-          foreignField: "songId",
-          as: "trackInfo"
+          from: 'tracks',
+          localField: '_id',
+          foreignField: 'songId',
+          as: 'track'
+        }
+      },
+      {
+        $unwind: {
+          path: '$track',
+          preserveNullAndEmptyArrays: true
         }
       },
       {
         $lookup: {
-          from: "releases",
-          localField: "trackInfo.releaseId",
-          foreignField: "_id",
-          as: "releaseInfo"
+          from: 'releases',
+          localField: 'track.releaseId',
+          foreignField: '_id',
+          as: 'release'
         }
       },
       {
-        $addFields: {
-          engagementScore: {
-            $add: [
-              { $multiply: ["$analytics.totalStreams", 1] },
-              { $multiply: ["$analytics.playlistAdditions", 2] },
-              { $multiply: ["$analytics.shares.total", 3] },
-              { $multiply: ["$analytics.likes", 1.5] }
-            ]
-          }
+        $unwind: {
+          path: '$release',
+          preserveNullAndEmptyArrays: true
         }
       },
-      { $sort: { [sortBy]: sortOrder } },
-      { $skip: skip },
-      { $limit: limit }
+      // Add match stage here to filter only approved releases
+      {
+        $match: {
+          'release.verificationStatus': 'approved'
+        }
+      },
+      {
+        $lookup: {
+          from: 'artists',
+          localField: 'release.artistId',
+          foreignField: '_id',
+          as: 'artist'
+        }
+      },
+      {
+        $unwind: {
+          path: '$artist',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          fileUrl: 1,
+          duration: 1,
+          format: 1,
+          bitrate: 1,
+          analytics: 1,
+          waveform: 1,
+          track: {
+            _id: '$track._id',
+            title: '$track.title',
+            trackNumber: '$track.track_number',
+            isExplicit: '$track.flags.isExplicit'
+          },
+          release: {
+            _id: '$release._id',
+            title: '$release.title',
+            type: '$release.type',
+            coverImage: '$release.artwork.cover_image',
+            releaseDate: '$release.dates.release_date',
+            verificationStatus: '$release.verificationStatus'
+          },
+          artist: {
+            _id: '$artist._id',
+            name: '$artist.name',
+            imageUrl: '$artist.imageUrl'
+          },
+          createdAt: 1,
+          updatedAt: 1
+        }
+      },
+      {
+        $sort: { createdAt: -1 }
+      },
+      {
+        $skip: (Number(page) - 1) * Number(limit)
+      },
+      {
+        $limit: Number(limit)
+      }
     ]);
 
-    const total = await Song.countDocuments();
+    // Get total count of approved songs
+    const totalCount = await Song.aggregate([
+      {
+        $lookup: {
+          from: 'tracks',
+          localField: '_id',
+          foreignField: 'songId',
+          as: 'track'
+        }
+      },
+      {
+        $unwind: '$track'
+      },
+      {
+        $lookup: {
+          from: 'releases',
+          localField: 'track.releaseId',
+          foreignField: '_id',
+          as: 'release'
+        }
+      },
+      {
+        $unwind: '$release'
+      },
+      {
+        $match: {
+          'release.verificationStatus': 'approved'
+        }
+      },
+      {
+        $count: 'total'
+      }
+    ]);
+
+    const total = totalCount.length > 0 ? totalCount[0].total : 0;
 
     return res.status(200).json({
-      message: "Successfully retrieved all songs",
+      status: 'success',
       data: songs,
       pagination: {
-        current: page,
-        total: Math.ceil(total / limit),
-        hasMore: total > skip + songs.length
+        currentPage: Number(page),
+        totalPages: Math.ceil(total / Number(limit)),
+        totalItems: total,
+        itemsPerPage: Number(limit)
       }
     });
+
   } catch (error) {
+    console.error('Error in getAllSongs:', error);
     return res.status(500).json({
-      message: "Error fetching songs",
-      error: error.message
+      status: 'error',
+      message: error.message
     });
   }
 };
+
+
 
 export const getSong = async (req, res) => {
   try {
@@ -194,6 +300,15 @@ export const createRelease = async (req, res) => {
   session.startTransaction();
 
   try {
+    const todayUploads = await Song.countDocuments({
+      'createdAt': {
+        $gte: new Date().setHours(0, 0, 0, 0)
+      }
+    });
+
+    if (todayUploads >= uploadConfig.maxDailyUploads) {
+      throw new Error(`Daily upload limit of ${uploadConfig.maxDailyUploads} reached`);
+    }
     const {
       title,
       artistId,
@@ -208,10 +323,9 @@ export const createRelease = async (req, res) => {
       metadata,
     } = req.body;
 
-    // Validate required fields
-    if (!title || !artistId || !type || !release_date || !genre || !songs) {
-      throw new Error("Missing required fields: title, artistId, type, release_date, genre, and songs are required");
-    }
+    
+
+    
 
     // Validate release type constraints
     const parsedSongs = JSON.parse(JSON.stringify(songs));
@@ -225,15 +339,24 @@ export const createRelease = async (req, res) => {
       throw new Error("An EP must contain between 2 and 6 songs");
     }
 
+
+    const parsedReleaseDate = new Date(release_date);
+    if (isNaN(parsedReleaseDate.getTime())) {
+        throw new Error("Invalid release date format");
+    }
+
     // Create release
     const release = new Release({
       title,
       artistId,
       type,
+      
+      
       dates: {
-        release_date: new Date(release_date),
-        announcement_date: new Date(),
+        release_date: parsedReleaseDate,
+        announcement_date: new Date()
       },
+      
       artwork: {
         cover_image: {
           high: cover_image,
@@ -256,18 +379,13 @@ export const createRelease = async (req, res) => {
       },
       contentInfo: {
         isExplicit
-      }
+      },
+      verificationStatus: 'pending',
+      moderationNotes: null,
+      verifiedAt: null
     });
 
-    // Validate each song's required fields before processing
-    for (const songData of parsedSongs) {
-      if (!songData.fileUrl || !songData.duration || !songData.bitrate || !songData.title) {
-        throw new Error(
-          `Invalid song data. Each song requires: fileUrl, duration, bitrate, and title.
-             Missing fields in song: ${songData.title || 'Untitled'}`
-        );
-      }
-    }
+
 
     const songsToSave = [];
     const tracksToSave = [];
@@ -277,106 +395,312 @@ export const createRelease = async (req, res) => {
     for (let i = 0; i < parsedSongs.length; i++) {
       const songData = parsedSongs[i];
 
-      // Create song with all required fields
-      const song = new Song({
-        fileUrl: songData.fileUrl,
-        duration: songData.duration,
-        bitrate: songData.bitrate,
-        format: songData.format || 'mp3',
-        analytics: {
-          totalStreams: 0,
-          uniqueListeners: 0,
-          playlistAdditions: 0,
-          shares: {
-            total: 0,
-            platforms: {}
-          }
-        },
-        flags: {
-          isExplicit: songData.isExplicit || false,
-          isInstrumental: songData.isInstrumental || false,
-          hasLyrics: songData.hasLyrics !== false
-        }
-      });
-      songsToSave.push(song);
+       // Validate the song file
+       const fileValidation = await validateFile(songData.fileUrl);
 
-      // Create track
-      const track = new Track({
-        releaseId: release._id,
+       if (!fileValidation.valid) {
+         await session.abortTransaction();
+         session.endSession();
+         return res.status(400).json({
+           message: "File validation failed",
+           error: fileValidation.error
+         });
+       }
+ 
+       // Create song using validated metadata
+       const song = new Song({
+         fileUrl: songData.fileUrl,
+         duration: fileValidation.metadata.duration,
+         bitrate: fileValidation.metadata.bitrate,
+         format: fileValidation.metadata.format.toLowerCase() === "mpeg" ? "mp3" : fileValidation.metadata.format || "mp3",
+
+         metadata: {
+           fileHash: fileValidation.metadata.fileHash, // Store file hash
+         },
+         analytics: {
+           totalStreams: 0,
+           uniqueListeners: 0,
+           playlistAdditions: 0,
+           shares: { total: 0, platforms: {} }
+         },
+         flags: {
+           isExplicit: songData.isExplicit || false,
+           isInstrumental: songData.isInstrumental || false,
+           hasLyrics: songData.hasLyrics !== false
+         }
+       });
+       const verification = new UploadVerification({
         songId: song._id,
-        title: songData.title,
-        duration: songData.duration,
-        track_number: i + 1,
-        artistId,
+        releaseId: release._id,
+        status: 'pending',
         metadata: {
-          genre: Array.isArray(genre) ? genre : [genre],
-          bpm: songData.bpm,
-          key: songData.key,
-          languageCode: songData.language,
-          isrc: songData.isrc
-        },
-        flags: {
-          isExplicit: songData.isExplicit || false,
-          isInstrumental: songData.isInstrumental || false,
-          hasLyrics: songData.hasLyrics !== false
+          title: songData.title,
+          duration: song.duration,
+          format: song.format
         }
       });
-      tracksToSave.push(track);
 
-      // Process featured artists if present
-      if (Array.isArray(songData.featuredArtists) && songData.featuredArtists.length > 0) {
-        for (const feature of songData.featuredArtists) {
-          if (!feature.artistId) {
-            throw new Error(`Missing artistId for featured artist in song: ${songData.title}`);
-          }
+      songsToSave.push(song);
+      verificationRecords.push(verification);
+      
+ 
+       // Create track
+       const track = new Track({
+         releaseId: release._id,
+         songId: song._id,
+         title: songData.title,
+         duration: fileValidation.metadata.duration, // Use validated duration
+         track_number: i + 1,
+         artistId,
+         metadata: {
+           genre: Array.isArray(genre) ? genre : [genre],
+           bpm: songData.bpm,
+           key: songData.key,
+           languageCode: songData.language,
+           isrc: songData.isrc
+         },
+         flags: {
+           isExplicit: songData.isExplicit || false,
+           isInstrumental: songData.isInstrumental || false,
+           hasLyrics: songData.hasLyrics !== false
+         }
+       });
+       tracksToSave.push(track);
+ 
+       // Process featured artists
+       if (Array.isArray(songData.featuredArtists) && songData.featuredArtists.length > 0) {
+         for (const feature of songData.featuredArtists) {
+           if (!feature.artistId) {
+             throw new Error(`Missing artistId for featured artist in song: ${songData.title}`);
+           }
+ 
+           const ftArtist = new FT({
+             trackId: track._id,
+             artistId: feature.artistId,
+             contribution: feature.contribution || "vocals",
+             credits: {
+               billingOrder: feature.billingOrder || featuredArtists.length + 1,
+               displayName: feature.displayName,
+               primaryArtist: false,
+               featured: true
+             }
+           });
+           featuredArtists.push(ftArtist);
+         }
+       }
+     }
+ 
+     // Save everything in transaction
+     await Song.insertMany(songsToSave, { session });
+     await Track.insertMany(tracksToSave, { session });
+     if (featuredArtists.length > 0) {
+       await FT.insertMany(featuredArtists, { session });
+     }
+     await release.save({ session });
+ 
+     await session.commitTransaction();
+     return res.status(201).json({
+       message: "Release created and pending verification",
+       data: {
+         releaseId: release._id,
+         status: "pending"
+       }
+     });
+ 
+   } catch (error) {
+     await session.abortTransaction();
+     return res.status(500).json({
+       message: "Error creating release",
+       error: error.message
+     });
+   } finally {
+     session.endSession();
+   }
+ };
 
-          const ftArtist = new FT({
-            trackId: track._id,
-            artistId: feature.artistId,
-            contribution: feature.contribution || 'vocals',
-            credits: {
-              billingOrder: feature.billingOrder || featuredArtists.length + 1,
-              displayName: feature.displayName,
-              primaryArtist: false,
-              featured: true
-            }
-          });
-          featuredArtists.push(ftArtist);
-        }
-      }
+
+ // apprive or rject a release  
+ export const verifyRelease = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { releaseId } = req.params;
+    const { status, moderationNotes } = req.body;
+    // const moderatorId = req.user._id;
+
+    // Find release and validate
+    const release = await Release.findById(releaseId).session(session);
+    if (!release) {
+      throw new Error('Release not found');
     }
 
-    // Save everything in transaction
-    await Song.insertMany(songsToSave, { session });
-    await Track.insertMany(tracksToSave, { session });
-    if (featuredArtists.length > 0) {
-      await FT.insertMany(featuredArtists, { session });
+    // Update release status
+    const updatedRelease = await Release.findByIdAndUpdate(
+      releaseId,
+      {
+        verificationStatus: status,
+        moderationNotes,
+        // moderatorId,  
+        verifiedAt: new Date(),
+      },
+      { session, new: true }
+    );
+
+    // If approved, update all associated tracks and songs
+    if (status === 'approved') {
+      await Track.updateMany(
+        { releaseId },
+        { status: 'active' },
+        { session }
+      );
     }
-    await release.save({ session });
 
     await session.commitTransaction();
-
-    return res.status(201).json({
-      message: "Successfully created release",
-      data: {
-        releaseId: release._id,
-        title: release.title,
-        type: release.type,
-        totalTracks: release.metadata.totalTracks
-      }
+    return res.status(200).json({
+      message: `Release ${status}`,
+      data: updatedRelease
     });
 
   } catch (error) {
     await session.abortTransaction();
     return res.status(500).json({
-      message: "Error creating release",
-      error: error.message,
-      details: error.errors ? Object.values(error.errors).map(err => err.message) : null
+      message: "Error verifying release",
+      error: error.message
     });
   } finally {
     session.endSession();
   }
 };
+
+// New endpoints for verification workflow
+export const verifyUpload = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { verificationId } = req.params;
+    const { status, moderationNotes } = req.body;
+    const moderatorId = req.user._id;
+
+    const verification = await UploadVerification.findById(verificationId);
+    if (!verification) {
+      throw new Error('Verification record not found');
+    }
+
+    // Check retry limits for rejected uploads
+    if (status === 'rejected' && verification.retryCount >= uploadConfig.maxRetries) {
+      throw new Error('Maximum retry attempts reached');
+    }
+
+    const updatedVerification = await UploadVerification.findByIdAndUpdate(
+      verificationId,
+      {
+        status,
+        moderatorId,
+        moderationNotes,
+        verifiedAt: new Date(),
+        $inc: { retryCount: status === 'rejected' ? 1 : 0 }
+      },
+      { session, new: true }
+    );
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      message: `Upload ${status}`,
+      data: updatedVerification
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(500).json({
+      message: "Error during verification",
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
+// Get verification status
+export const getVerificationStatus = async (req, res) => {
+  try {
+    const { songId } = req.params;
+    const verification = await UploadVerification.findOne({ songId })
+      .populate('moderatorId', 'username email');
+
+    if (!verification) {
+      return res.status(404).json({
+        message: "Verification record not found"
+      });
+    }
+
+    return res.status(200).json({
+      message: "Verification status retrieved",
+      data: verification
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching verification status",
+      error: error.message
+    });
+  }
+};
+
+// Resubmit rejected upload
+export const resubmitUpload = async (req, res) => {
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
+  try {
+    const { songId } = req.params;
+    const { newFile } = req.body;
+
+    const verification = await UploadVerification.findOne({ songId });
+    if (!verification) {
+      throw new Error('Verification record not found');
+    }
+
+    if (verification.retryCount >= uploadConfig.maxRetries) {
+      throw new Error('Maximum retry attempts reached');
+    }
+
+    // Validate new file
+    const fileValidation = await validateFile(newFile);
+    if (!fileValidation.isValid) {
+      throw new Error(`File validation failed: ${fileValidation.errors.join(', ')}`);
+    }
+
+    // Update song and verification records
+    await Song.findByIdAndUpdate(songId, {
+      fileUrl: newFile.path,
+      'metadata.fileHash': fileValidation.metadata.fileHash
+    }, { session });
+
+    await UploadVerification.findByIdAndUpdate(verification._id, {
+      status: 'pending',
+      moderationNotes: null,
+      verifiedAt: null,
+      'metadata.fileHash': fileValidation.metadata.fileHash
+    }, { session });
+
+    await session.commitTransaction();
+    return res.status(200).json({
+      message: "Upload resubmitted successfully",
+      status: 'pending'
+    });
+
+  } catch (error) {
+    await session.abortTransaction();
+    return res.status(500).json({
+      message: "Error resubmitting upload",
+      error: error.message
+    });
+  } finally {
+    session.endSession();
+  }
+};
+
 
 // Analytics and Interactions
 export const streamSong = async (req, res) => {

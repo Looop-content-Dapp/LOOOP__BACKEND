@@ -9,13 +9,14 @@ const songSchema = new Schema({
       type: Number,
       required: true,
     },
+
     bitrate: {
       type: Number,
       required: true,
     },
     format: {
       type: String,
-      enum: ['mp3', 'wav', 'aac', 'flac'],
+      enum: ['mp3', 'wav', 'aac', 'flac', 'mpeg'],
       required: true,
     },
     // Enhanced analytics tracking
@@ -84,8 +85,11 @@ const songSchema = new Schema({
     },
     isrc: {
       type: String,
-      unique: true
+      unique: true,
+      null:true,
+      sparse: true, // Allows multiple null values
     },
+
     // Quality metrics
     audioQuality: {
       peak: Number,
@@ -127,5 +131,13 @@ songSchema.index({ 'streamHistory.timestamp': -1 }); // For streaming history qu
 songSchema.index({ 'streamHistory.userId': 1, 'streamHistory.timestamp': -1 }); // For user history
 songSchema.index({ 'playlists.playlistId': 1 }); // For playlist queries
 
+
+
+
+
+
+
 export const Song = model("songs", songSchema);
+
+
 
