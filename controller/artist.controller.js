@@ -19,6 +19,7 @@ import {
 } from "../validations_schemas/artist.validation.js";
 import XionWalletService from "../xion/wallet.service.js";
 import sendEmail from "../script.cjs";
+import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -296,6 +297,9 @@ export const signContract = async (req, res) => {
 
     const validateArtistName = await Artist.findOne({ name: artistname });
 
+    const artistEmail = validateArtistName.email;
+    console.log("artist email", artistEmail)
+
     if (validateArtistName) {
       const msg = {
         sign_agreement: {
@@ -304,9 +308,9 @@ export const signContract = async (req, res) => {
         },
       };
 
-      const sign = await XionWalletService.executeTransaction(
-        validateArtistName.email,
-        "xion10242qq55873xumkvfm6yth0yg92z66f6uv7qnez5fzz89tk30lesqg5s2m",
+      await AbstraxionAuth.login(artistEmail);
+      const sign = await AbstraxionAuth.executeSmartContract(
+        "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
         msg,
         undefined
       );

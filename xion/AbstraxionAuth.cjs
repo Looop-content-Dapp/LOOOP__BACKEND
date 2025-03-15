@@ -13,6 +13,9 @@ const { Wallet } = require("../models/wallet.model.js");
 const { Bip39 } = require("@cosmjs/crypto");
 const { Registry } = require("@cosmjs/proto-signing/build");
 const { CosmWasmClient } = require("@cosmjs/cosmwasm-stargate/build");
+const { MsgGrantAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/tx");
+const { BasicAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/feegrant");
+const { Any } = require("cosmjs-types/google/protobuf/any");
 
 class AbstraxionAuth {
 
@@ -349,14 +352,10 @@ class AbstraxionAuth {
   }
 
   async getSigner() {
-    if (!this.rpcUrl) throw new Error("Configuration not initialized");
-    if (!this.abstractAccount) throw new Error("No abstract account found");
-
-    const accounts = await this.abstractAccount.getAccounts();
-    const granteeAddress = accounts[0].address;
-    const granterAddress = this.getGranter();
-
     let useGranter = false;
+    const granterAddress = this.getGranter();
+    const granteeAddress = await this.getKeypairAddress();
+
     if (granterAddress) {
       const grants = await this.getFeeGrants(granteeAddress);
       useGranter = grants.some(
@@ -371,16 +370,7 @@ class AbstraxionAuth {
       });
     }
 
-    console.log(
-      "Granter:",
-      granterAddress,
-      "Grantee:",
-      granteeAddress,
-      "Using Granter:",
-      useGranter
-    );
-
-    return await GranteeSignerClient.connectWithSigner(
+    const signer = await GranteeSignerClient.connectWithSigner(
       this.rpcUrl,
       this.abstractAccount,
       {
@@ -390,6 +380,7 @@ class AbstraxionAuth {
         treasuryAddress: this.treasury,
       }
     );
+    return { signer, useGranter };
   }
 
   async getNFTsForAddress(walletAddress, contractAddress) {
@@ -437,16 +428,18 @@ class AbstraxionAuth {
       throw new Error("User must be logged in to execute a smart contract");
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
-    const signer = await this.getSigner();
-    const accounts = await this.abstractAccount.getAccounts();
-    const senderAddress = accounts[0].address;
+    const { signer, useGranter } = await this.getSigner();
+   const accounts = await this.abstractAccount.getAccounts();
+   const senderAddress = accounts[0].address;
 
     try {
-      const client = await CosmWasmClient.connect(this.rpcUrl);
-      const balance = await client.getBalance(senderAddress, "uxion");
-      if (BigInt(balance.amount) < 5000n) {
-        throw new Error("Insufficient uxion balance to cover fees");
-      }
+        if (!useGranter) {
+            const client = await CosmWasmClient.connect(this.rpcUrl);
+            const balance = await client.getBalance(senderAddress, "uxion");
+            if (BigInt(balance.amount) < 5000n) {
+              throw new Error("Insufficient uxion balance to cover fees");
+            }
+        }
 
       const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
       const result = await signer.execute(
@@ -469,6 +462,7 @@ class AbstraxionAuth {
         sender: senderAddress,
         contractAddress,
         msg,
+        result
       };
     } catch (error) {
       console.error("Error executing smart contract:", error);
@@ -553,9 +547,8 @@ class AbstraxionAuth {
         { prefix: "xion" }
       );
       const registry = new Registry();
-      // Note: These registrations need proper JS equivalents or external definitions
-      // registry.register("/cosmos.feegrant.v1beta1.MsgGrantAllowance", MsgGrantAllowance);
-      // registry.register("/cosmos.feegrant.v1beta1.BasicAllowance", BasicAllowance);
+      registry.register("/cosmos.feegrant.v1beta1.MsgGrantAllowance", MsgGrantAllowance);
+      registry.register("/cosmos.feegrant.v1beta1.BasicAllowance", BasicAllowance);
 
       const client = await SigningStargateClient.connectWithSigner(
         this.rpcUrl,
@@ -565,23 +558,22 @@ class AbstraxionAuth {
       const [granterAccount] = await granterWallet.getAccounts();
       const granterAddress = granterAccount.address;
 
-      const allowance = {
-        typeUrl: "/cosmos.feegrant.v1beta1.BasicAllowance",
-        value: { spendLimit: coins(1000000, "uxion") },
-      };
+      const allowanceValue = BasicAllowance.fromPartial({
+        spendLimit: coins(1000000, "uxion"),
+      });
 
-      const packedAllowance = {
-        typeUrl: allowance.typeUrl,
-        value: Buffer.from(JSON.stringify(allowance.value)), // Simplified; needs proper encoding in practice
-      };
+      const packedAllowance = Any.fromPartial({
+        typeUrl: "/cosmos.feegrant.v1beta1.BasicAllowance",
+        value: BasicAllowance.encode(allowanceValue).finish(),
+      });
 
       const msg = {
         typeUrl: "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
-        value: {
+        value: MsgGrantAllowance.fromPartial({
           granter: granterAddress,
           grantee: granteeAddress,
           allowance: packedAllowance,
-        },
+        }),
       };
 
       const fee = { amount: coins(5000, "uxion"), gas: "200000" };
@@ -599,6 +591,7 @@ class AbstraxionAuth {
         `Failed to grant fee allowance to ${granteeAddress}:`,
         error
       );
+      throw error; // Re-throw to allow the caller (e.g., signup) to handle it
     }
   }
 }

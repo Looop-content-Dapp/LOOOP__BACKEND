@@ -9,6 +9,7 @@ import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import { PayAzaCardPayment } from "../utils/helpers/payaza.js";
 import XionWalletService from "../xion/wallet.service.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -207,38 +208,44 @@ export const createCommunity = async (req, res) => {
       }
 
       if (artist.verified === true) {
-        // const msg = {
-        //   create_collection: {
-        //     name: communityName,
-        //     symbol: communitySymbol,
-        //     artist: artistAddress,
-        //     minter: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
-        //     collection_info: coverImage,
-        //   },
-        // };
+        const msg = {
+            create_collection: {
+              name: communityName,
+              symbol: communitySymbol,
+              collection_info: coverImage,
+            },
+          };
 
-        // const createCollection = await XionWalletService.executeTransaction(
-        //   "fireboy@gmail.com",
-        //   "xion106z7nrejkjzps0qmpwkykg8w6nryxyht9nsu0j3t5kcmd4v0sfks9har0d",
-        //   msg
-        // );
+        await AbstraxionAuth.login(artist.email);
+        console.log("artist email", artist.email);
+        const execute = await AbstraxionAuth.executeSmartContract(
+          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
+          msg,
+          "auto"
+        );
 
-        // console.log(createCollection, "createCollection");
+        console.log(execute, "execute");
 
-        // return res.status(200).json({
-        //   status: "success",
-        //   message: "Community created successfully",
-        //   data: createCollection,
-        // });
+        const CollectionMsg = {
+            query_artist_collections: {
+              name: communityName,
+              symbol: communitySymbol,
+              collection_info: coverImage,
+            },
+          };
 
-        // const transactionHash = xionCreateCommunity.transactionHash;
+        const transactionHash = execute.transactionHash;
 
-        // const getArtistCollection = await contractHelper.getCollection(
-        //   artistAddress
-        // );
+        const getArtistCollection = await AbstraxionAuth.executeSmartContract(
+            "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
+            CollectionMsg,
+            "auto"
+          );
 
-        // const contractAddress = getArtistCollection.collection.contract_address;
-        // const contractSymbol = getArtistCollection.collection.symbol;
+        console.log(getArtistCollection, "getArtistCollection");
+
+        const contractAddress = getArtistCollection.result.collection.contract_address;
+        const contractSymbol = getArtistCollection.result.collection.symbol;
 
         const validateImageType = isValidImageType(collectibleType);
 
@@ -252,9 +259,9 @@ export const createCommunity = async (req, res) => {
               collectibleDescription,
               collectibleImage,
               collectibleType,
-              contractAddress: "contractAddress",
-              communitySymbol: "contractSymbol",
-              transactionHash: "transactionHash",
+              contractAddress: contractAddress,
+              communitySymbol: contractSymbol,
+              transactionHash: transactionHash,
             },
             createdBy: artistId,
             NFTToken: nextTokenId,
