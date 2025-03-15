@@ -53,7 +53,7 @@ app.use("/api/referral", referralRouter);
 // app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
 
-const PORT = process.env.NODE_ENV === "production" ? process.env.PORT : 8000;
+const PORT = 3000;
 const mongoURI =
   process.env.MONGODB_URI ||
   "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";

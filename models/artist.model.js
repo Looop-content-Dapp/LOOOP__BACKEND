@@ -33,7 +33,11 @@ const artistSchema = new Schema(
     city: { type: String, required: true, default: null },
     websiteurl: { type: String, required: false, default: null },
     monthlyListeners: { type: Number, default: 0 },
-    followers: { type: Number, default: 0 },
+    followers: { type: Number, default: 0 }, // Simplified followers field
+    isFollowed: {
+      type: Boolean,
+      default: false,
+    },
     verified: { type: Boolean, default: false },
     socialLinks: socialLinksSchema,
     popularity: { type: Number, min: 0, max: 100, default: 0 },
@@ -65,6 +69,11 @@ const artistSchema = new Schema(
     toJSON: { virtuals: true },
   }
 );
+
+// Add virtual for isFollowed
+artistSchema.virtual('isFollowedByUser').get(function() {
+  return this.isFollowed;
+});
 
 // Indexes
 // artistSchema.index({ name: "text", biography: "text" });

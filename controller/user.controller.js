@@ -16,13 +16,12 @@ import { Follow } from "../models/followers.model.js";
 import { Friends } from "../models/friends.model.js";
 import { matchUser } from "../utils/helpers/searchquery.js";
 import { LastPlayed } from "../models/lastplayed.model.js";
-import { walletService } from "../xion/walletservice.js";
+import { Favorites } from "../models/favorites.model.js";
 
 import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
-import contractHelper from "../xion/contractConfig.js";
 import sendEmail from "../script.cjs";
 import { generateOtp } from "../utils/helpers/generateotp.js";
 import {
@@ -37,6 +36,8 @@ import referralConfig from "../config/referral.config.js";
 import XionWalletService from "../xion/wallet.service.js";
 
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+import { Track } from "../models/track.model.js";
+import { Release } from "../models/releases.model.js";
 
 // Loads .env
 config();
@@ -1243,6 +1244,462 @@ export const oauth = async (req, res) => {
   }
 };
 
+// Add track to favorites
+const addToLibrary = async (req, res) => {
+    try {
+      const { userId } = req.body;
+      const { id } = req.params;
+
+      if (!validator.isMongoId(id)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid ID format"
+        });
+      }
+
+      let userLibrary = await Favorites.findOne({ userId });
+      if (!userLibrary) {
+        userLibrary = new Favorites({ userId, tracks: [], releases: [] });
+      }
+
+      // Check if ID is a track
+      const track = await Track.findById(id);
+      if (track) {
+        const trackExists = userLibrary.tracks.some(
+          t => t.trackId.toString() === id
+        );
+
+        if (trackExists) {
+          userLibrary.tracks = userLibrary.tracks.filter(
+            t => t.trackId.toString() !== id
+          );
+        } else {
+          userLibrary.tracks.push({
+            trackId: id,
+            addedAt: new Date()
+          });
+        }
+
+        await userLibrary.save();
+        return res.status(200).json({
+          status: "success",
+          message: trackExists ? "Track removed from library" : "Track added to library",
+          data: {
+            id: track._id,
+            type: 'track',
+            addedToLibrary: !trackExists
+          }
+        });
+      }
+
+      // Check if ID is a release
+      const release = await Release.findById(id);
+      if (release) {
+        const releaseExists = userLibrary.releases.some(
+          r => r.releaseId.toString() === id
+        );
+
+        if (releaseExists) {
+          userLibrary.releases = userLibrary.releases.filter(
+            r => r.releaseId.toString() !== id
+          );
+          // Also remove all tracks from this release
+          const releaseTracks = await Track.find({ releaseId: id });
+          const releaseTrackIds = releaseTracks.map(t => t._id.toString());
+          userLibrary.tracks = userLibrary.tracks.filter(
+            t => !releaseTrackIds.includes(t.trackId.toString())
+          );
+        } else {
+          userLibrary.releases.push({
+            releaseId: id,
+            addedAt: new Date()
+          });
+
+          // Add all tracks from the release
+          const releaseTracks = await Track.find({ releaseId: id });
+          const newTracks = releaseTracks.map(track => ({
+            trackId: track._id,
+            addedAt: new Date()
+          }));
+
+          userLibrary.tracks.push(...newTracks);
+        }
+
+        await userLibrary.save();
+        return res.status(200).json({
+          status: "success",
+          message: releaseExists ? "Release removed from library" : "Release added to library",
+          data: {
+            id: release._id,
+            type: 'release',
+            addedToLibrary: !releaseExists
+          }
+        });
+      }
+
+      return res.status(404).json({
+        status: "failed",
+        message: "No track or release found with the provided ID"
+      });
+
+    } catch (error) {
+      return res.status(500).json({
+        status: "failed",
+        message: "Error updating library",
+        error: error.message
+      });
+    }
+};
+
+const getUserLibrary = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const {
+        page = 1,
+        limit = 20,
+        type = 'all', // 'all', 'tracks', 'releases'
+        sort = 'recent' // 'recent', 'name', 'artist'
+      } = req.query;
+
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid user ID"
+        });
+      }
+
+      const skip = (page - 1) * limit;
+
+      // Build sort options
+      let sortOption = {};
+      switch (sort) {
+        case 'name':
+          sortOption = { 'name': 1 };
+          break;
+        case 'artist':
+          sortOption = { 'artistId.name': 1 };
+          break;
+        default: // recent
+          sortOption = { 'addedAt': -1 };
+      }
+
+      const library = await Favorites.findOne({ userId })
+        .populate({
+          path: 'tracks.trackId',
+          populate: [
+            {
+              path: 'artistId',
+              model: 'artist',
+              select: 'name profileImage'
+            },
+            {
+              path: 'releaseId',
+              model: 'releases',
+              select: 'title coverImage type'
+            }
+          ]
+        })
+        .populate({
+          path: 'releases.releaseId',
+          populate: {
+            path: 'artistId',
+            model: 'artist',
+            select: 'name profileImage'
+          }
+        });
+
+      if (!library) {
+        return res.status(200).json({
+          status: "success",
+          message: "User library is empty",
+          data: {
+            items: [],
+            pagination: {
+              total: 0,
+              page: parseInt(page),
+              pages: 0
+            }
+          }
+        });
+      }
+
+      // Process and format the data based on type
+      let items = [];
+      if (type === 'all' || type === 'tracks') {
+        const tracks = library.tracks
+          .filter(track => track.trackId && track.trackId._id)
+          .map(track => ({
+            id: track.trackId._id,
+            type: 'track',
+            title: track.trackId.title || 'Unknown Title',
+            duration: track.trackId.duration,
+            addedAt: track.addedAt,
+            artist: track.trackId.artistId ? {
+              id: track.trackId.artistId._id,
+              name: track.trackId.artistId.name || 'Unknown Artist',
+              image: track.trackId.artistId.profileImage
+            } : null,
+            release: track.trackId.releaseId ? {
+              id: track.trackId.releaseId._id,
+              title: track.trackId.releaseId.title || 'Unknown Release',
+              image: track.trackId.releaseId.coverImage,
+              type: track.trackId.releaseId.type
+            } : null
+          }));
+        items = [...items, ...tracks];
+      }
+
+      if (type === 'all' || type === 'releases') {
+        const releases = library.releases
+          .filter(release => release.releaseId && release.releaseId._id)
+          .map(release => ({
+            id: release.releaseId._id,
+            type: 'release',
+            title: release.releaseId.title || 'Unknown Title',
+            addedAt: release.addedAt,
+            coverImage: release.releaseId.coverImage,
+            releaseType: release.releaseId.type,
+            artist: release.releaseId.artistId ? {
+              id: release.releaseId.artistId._id,
+              name: release.releaseId.artistId.name || 'Unknown Artist',
+              image: release.releaseId.artistId.profileImage
+            } : null
+          }));
+        items = [...items, ...releases];
+      }
+
+      // Sort items
+      items.sort((a, b) => {
+        if (sort === 'name') return a.title.localeCompare(b.title);
+        if (sort === 'artist') return a.artist.name.localeCompare(b.artist.name);
+        return new Date(b.addedAt) - new Date(a.addedAt);
+      });
+
+      const total = items.length;
+      const paginatedItems = items.slice(skip, skip + parseInt(limit));
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully retrieved user library",
+        data: {
+          items: paginatedItems,
+          pagination: {
+            total,
+            page: parseInt(page),
+            pages: Math.ceil(total / limit)
+          }
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: "failed",
+        message: "Error fetching library",
+        error: error.message
+      });
+    }
+};
+
+// Generate personalized feed based on followed artists
+const generateUserFeed = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    if (!validator.isMongoId(userId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid user ID"
+      });
+    }
+
+    // Get all artists the user follows
+    const followedArtists = await Follow.find({ follower: userId })
+      .select('following')
+      .lean();
+
+    const artistIds = followedArtists.map(f => f.following);
+
+    // Get recent releases from followed artists
+    const recentReleases = await Release.find({
+      artistId: { $in: artistIds },
+      'dates.release_date': {
+        $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+      }
+    })
+    .populate('artistId')
+    .sort({ 'dates.release_date': -1 })
+    .limit(10);
+
+    // Get user's favorite genres
+    const userGenres = await Preferences.find({ userId })
+      .select('genreId')
+      .lean();
+
+    const genreIds = userGenres.map(g => g.genreId);
+
+    // Get recommended artists based on user's genre preferences
+    const recommendedArtists = await Artist.find({
+      _id: { $nin: artistIds }, // Exclude already followed artists
+      genres: { $in: genreIds }
+    })
+    .limit(5);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully generated user feed",
+      data: {
+        recentReleases,
+        recommendedArtists
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "failed",
+      message: "Error generating feed",
+      error: error.message
+    });
+  }
+};
+
+const followArtist = async (req, res) => {
+    try {
+      const { userId, artistId } = req.params;
+
+      if (!validator.isMongoId(userId) || !validator.isMongoId(artistId)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid ID format"
+        });
+      }
+
+      // Check if already following
+      const existingFollow = await Follow.findOne({
+        follower: userId,
+        following: artistId
+      });
+
+      if (existingFollow) {
+        // Unfollow
+        await Follow.deleteOne({ _id: existingFollow._id });
+        await Artist.findByIdAndUpdate(artistId, {
+          $inc: { followers: -1 }  // Updated to match model structure
+        });
+
+        return res.status(200).json({
+          status: "success",
+          message: "Successfully unfollowed artist",
+          isFollowing: false
+        });
+      }
+
+      // Create new follow
+      const newFollow = new Follow({
+        follower: userId,
+        following: artistId,
+        followedAt: new Date()
+      });
+      await newFollow.save();
+
+      // Update artist followers count
+      await Artist.findByIdAndUpdate(artistId, {
+        $inc: { followers: 1 }  // Updated to match model structure
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully followed artist",
+        isFollowing: true
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: "failed",
+        message: "Error following artist",
+        error: error.message
+      });
+    }
+  };
+
+  const getFollowedArtists = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
+
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid user ID"
+        });
+      }
+
+      const skip = (page - 1) * limit;
+
+      const followedArtists = await Follow.aggregate([
+        {
+          $match: { follower: new Types.ObjectId(userId) }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "following",
+            foreignField: "_id",
+            as: "artistDetails"
+          }
+        },
+        {
+          $unwind: "$artistDetails"
+        },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "artistDetails._id",
+            foreignField: "createdBy",
+            as: "community"
+          }
+        },
+        {
+          $addFields: {
+            "artistDetails.isFollowed": true,
+            "artistDetails.community": { $arrayElemAt: ["$community", 0] }
+          }
+        },
+        {
+          $project: {
+            _id: "$artistDetails._id",
+            name: "$artistDetails.name",
+            profileImage: "$artistDetails.profileImage",
+            followers: "$artistDetails.followers",
+            isFollowed: "$artistDetails.isFollowed",
+            communityName: "$artistDetails.community.communityName",
+            tribestars: "$artistDetails.community.NFTToken",
+            followedAt: "$followedAt"
+          }
+        },
+        { $skip: skip },
+        { $limit: parseInt(limit) }
+      ]);
+
+      const total = await Follow.countDocuments({ follower: userId });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully retrieved followed artists",
+        data: {
+          artists: followedArtists,
+          pagination: {
+            current: parseInt(page),
+            total: Math.ceil(total / limit),
+            hasMore: skip + followedArtists.length < total
+          }
+        }
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: "failed",
+        message: "Error fetching followed artists",
+        error: error.message
+      });
+    }
+  };
+
 export {
   getAllUsers,
   getUser,
@@ -1264,4 +1721,9 @@ export {
   checkIfUserNameExist,
   verifyEmailOTP,
   verifyOtp,
+  generateUserFeed,
+  followArtist,
+  getFollowedArtists,
+  addToLibrary,
+  getUserLibrary
 };

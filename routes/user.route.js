@@ -20,6 +20,11 @@ import {
   checkIfUserNameExist,
   verifyEmailOTP,
   verifyOtp,
+  generateUserFeed,
+  followArtist,
+  getFollowedArtists,
+  addToLibrary,
+  getUserLibrary,
 } from "../controller/user.controller.js";
 import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
@@ -52,5 +57,16 @@ userRouter.post("/signin", signIn);
 userRouter.post("/check", checkIfUserNameExist);
 userRouter.post("/verify-email", verifyEmailOTP);
 userRouter.post("/verify-otp", verifyOtp);
+
+// Add this new route
+userRouter.post('/favorites/:id', isUser, addToLibrary);
+userRouter.get('/favorites/:userId', isUser, getUserLibrary);
+userRouter.get('/feed/:userId', isUser, generateUserFeed);
+
+// Follow/Unfollow artist
+userRouter.post('/follow/:userId/:artistId', isUser, followArtist);
+
+// Get followed artists
+userRouter.get('/following/:userId', isUser, getFollowedArtists);
 
 export default userRouter;

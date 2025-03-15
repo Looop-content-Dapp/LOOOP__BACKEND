@@ -297,6 +297,9 @@ export const signContract = async (req, res) => {
 
     const validateArtistName = await Artist.findOne({ name: artistname });
 
+    const artistEmail = validateArtistName.email;
+    console.log("artist email", artistEmail)
+
     if (validateArtistName) {
       const msg = {
         sign_agreement: {
@@ -305,6 +308,7 @@ export const signContract = async (req, res) => {
         },
       };
 
+      await AbstraxionAuth.login(artistEmail);
       const sign = await AbstraxionAuth.executeSmartContract(
         "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
         msg,

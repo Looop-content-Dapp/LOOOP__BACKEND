@@ -209,14 +209,12 @@ export const createCommunity = async (req, res) => {
 
       if (artist.verified === true) {
         const msg = {
-          create_collection: {
-            name: communityName,
-            symbol: communitySymbol,
-            artist: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
-            minter: "xion1wcdn75jm3hgyyau03znymaatm3m7uutucwzda8",
-            collection_info: coverImage,
-          },
-        };
+            create_collection: {
+              name: communityName,
+              symbol: communitySymbol,
+              collection_info: coverImage,
+            },
+          };
 
         // const createCollection = await XionWalletService.executeTransaction(
         //   "fireboy@gmail.com",
@@ -225,31 +223,31 @@ export const createCommunity = async (req, res) => {
         // );
 
         await AbstraxionAuth.login(artist.email);
-
+        console.log("artist email", artist.email);
         const execute = await AbstraxionAuth.executeSmartContract(
-          "xion1pr46zcmdy830sk4pj6ug2wqrkjywm4nzqcqlmd5nkqz3xg0wjf5s76ms6h",
+          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
           msg,
           "auto"
         );
 
         console.log(execute, "execute");
 
-        // console.log(createCollection, "createCollection");
+        console.log(createCollection, "createCollection");
 
-        // return res.status(200).json({
-        //   status: "success",
-        //   message: "Community created successfully",
-        //   data: createCollection,
-        // });
+        return res.status(200).json({
+          status: "success",
+          message: "Community created successfully",
+          data: createCollection,
+        });
 
-        // const transactionHash = xionCreateCommunity.transactionHash;
+        const transactionHash = xionCreateCommunity.transactionHash;
 
-        // const getArtistCollection = await contractHelper.getCollection(
-        //   artistAddress
-        // );
+        const getArtistCollection = await contractHelper.getCollection(
+          artistAddress
+        );
 
-        // const contractAddress = getArtistCollection.collection.contract_address;
-        // const contractSymbol = getArtistCollection.collection.symbol;
+        const contractAddress = getArtistCollection.collection.contract_address;
+        const contractSymbol = getArtistCollection.collection.symbol;
 
         const validateImageType = isValidImageType(collectibleType);
 
