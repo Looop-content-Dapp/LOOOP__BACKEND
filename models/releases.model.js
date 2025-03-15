@@ -28,6 +28,18 @@ const releaseSchema = new Schema({
     recordingDate: Date,
     lastModified: Date
   },
+  // Verification  Status
+verificationStatus: {
+  type: String,
+  enum: ['pending', 'approved', 'rejected'],
+  default: 'pending'
+},
+moderationNotes: String,
+moderatorId: {
+  type: Schema.Types.ObjectId,
+  ref: 'users'
+},
+verifiedAt: Date,
   // Enhanced cover art system
   artwork: {
     cover_image: {

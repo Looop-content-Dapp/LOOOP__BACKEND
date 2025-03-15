@@ -89,7 +89,7 @@ const transformSpotifyAlbum = (spotifyAlbum, artistId) => ({
   }
 });
 
-export default {
+export {
   spotifyApi,
   getValidToken,
   transformSpotifyArtist,

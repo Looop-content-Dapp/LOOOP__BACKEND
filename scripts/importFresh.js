@@ -1,6 +1,6 @@
 // scripts/importFresh.js
-import { clearAllData } from './clearDatabase';
-import { importSpotifyData } from './importSpotifyData';
+import { clearAllData } from './clearDatabase.js';
+import { importSpotifyData } from './importSpotifyData.js';
 
 const importFresh = async () => {
   try {
@@ -11,8 +11,8 @@ const importFresh = async () => {
     console.log('Database cleared successfully');
 
     // Then import new data
-    console.log('Starting Spotify data import...');
-    await importSpotifyData();
+    // console.log('Starting Spotify data import...');
+    // await importSpotifyData();
 
     console.log('Import process completed successfully');
     process.exit(0);

@@ -57,11 +57,6 @@ const artistSchema = new Schema(
     ],
     labels: [String],
     isActive: { type: Boolean, default: true },
-    userId: {
-      type: Schema.Types.ObjectId,
-      required: true,
-      ref: "User",
-    },
     genres: [{ type: Schema.Types.ObjectId, ref: "genres", required: true }],
   },
   {
