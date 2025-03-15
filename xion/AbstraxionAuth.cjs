@@ -462,6 +462,7 @@ class AbstraxionAuth {
         sender: senderAddress,
         contractAddress,
         msg,
+        result
       };
     } catch (error) {
       console.error("Error executing smart contract:", error);

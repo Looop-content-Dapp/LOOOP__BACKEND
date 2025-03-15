@@ -1501,64 +1501,136 @@ const getUserLibrary = async (req, res) => {
 
 // Generate personalized feed based on followed artists
 const generateUserFeed = async (req, res) => {
-  try {
-    const { userId } = req.params;
+    try {
+      const { userId } = req.params;
 
-    if (!validator.isMongoId(userId)) {
-      return res.status(400).json({
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid user ID"
+        });
+      }
+
+      // Get all artists the user follows with full artist details
+      const followedArtists = await Follow.find({ follower: userId })
+        .select('following')
+        .lean();
+
+      const artistIds = followedArtists.map(f => f.following);
+
+      // Get complete details of followed artists - only select needed fields
+      const followedArtistsDetails = await Artist.find({
+        _id: { $in: artistIds }
+      })
+      .select('_id name profileImage verified followers')
+      .limit(10);
+
+      // Get recent releases from followed artists - only select needed fields
+      const recentReleases = await Release.find({
+        artistId: { $in: artistIds },
+        'dates.release_date': {
+          $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
+        }
+      })
+      .select('_id title artwork type dates.release_date')
+      .populate({
+        path: 'artistId',
+        model: 'artist',
+        select: '_id name profileImage'
+      })
+      .sort({ 'dates.release_date': -1 })
+      .limit(10);
+
+      // Get user's favorite genres
+      const userGenres = await Preferences.find({ userId })
+        .select('genreId')
+        .lean();
+
+      const genreIds = userGenres.map(g => g.genreId);
+
+      // Get genres of followed artists to find similar artists
+      const followedArtistsGenres = await Artist.find({ _id: { $in: artistIds } })
+        .select('genres')
+        .lean();
+
+      const followedGenreIds = [...new Set(
+        followedArtistsGenres.flatMap(artist => artist.genres)
+      )];
+
+      // Get recommended artists based on genre overlap with followed artists
+      const recommendedArtists = await Artist.find({
+        _id: { $nin: artistIds }, // Exclude already followed artists
+        genres: { $in: [...genreIds, ...followedGenreIds] }
+      })
+      .select('_id name profileImage verified followers')
+      .limit(10);
+
+      // Get songs from both followed and recommended artists
+      const allArtistIds = [...artistIds, ...recommendedArtists.map(a => a._id)];
+
+      // Get tracks from these artists - only select needed fields
+      const tracks = await Track.find({
+        artistId: { $in: allArtistIds }
+      })
+      .select('_id title duration')
+      .populate({
+        path: 'artistId',
+        model: 'artist',
+        select: '_id name profileImage verified'
+      })
+      .populate({
+        path: 'releaseId',
+        model: 'releases',
+        select: '_id title artwork type'
+      })
+      .limit(10);
+
+      // Transform tracks to a more minimal format
+      const formattedTracks = tracks.map(track => ({
+        _id: track._id,
+        title: track.title,
+        duration: track.duration,
+        artist: {
+          _id: track.artistId._id,
+          name: track.artistId.name,
+          profileImage: track.artistId.profileImage,
+          verified: track.artistId.verified
+        },
+        release: track.releaseId ? {
+          _id: track.releaseId._id,
+          title: track.releaseId.title,
+          artwork: track.releaseId.artwork,
+          type: track.releaseId.type
+        } : null,
+        isFromFollowedArtist: artistIds.some(id => id.equals(track.artistId._id))
+      }));
+
+      // Sort tracks to prioritize those from followed artists
+      formattedTracks.sort((a, b) => {
+        if (a.isFromFollowedArtist && !b.isFromFollowedArtist) return -1;
+        if (!a.isFromFollowedArtist && b.isFromFollowedArtist) return 1;
+        return 0;
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully generated user feed",
+        data: {
+          followedArtists: followedArtistsDetails,
+          recentReleases,
+          recommendedArtists,
+          suggestedTracks: formattedTracks
+        }
+      });
+    } catch (error) {
+      console.error("Feed generation error:", error);
+      return res.status(500).json({
         status: "failed",
-        message: "Invalid user ID"
+        message: "Error generating feed",
+        error: error.message
       });
     }
-
-    // Get all artists the user follows
-    const followedArtists = await Follow.find({ follower: userId })
-      .select('following')
-      .lean();
-
-    const artistIds = followedArtists.map(f => f.following);
-
-    // Get recent releases from followed artists
-    const recentReleases = await Release.find({
-      artistId: { $in: artistIds },
-      'dates.release_date': {
-        $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // Last 30 days
-      }
-    })
-    .populate('artistId')
-    .sort({ 'dates.release_date': -1 })
-    .limit(10);
-
-    // Get user's favorite genres
-    const userGenres = await Preferences.find({ userId })
-      .select('genreId')
-      .lean();
-
-    const genreIds = userGenres.map(g => g.genreId);
-
-    // Get recommended artists based on user's genre preferences
-    const recommendedArtists = await Artist.find({
-      _id: { $nin: artistIds }, // Exclude already followed artists
-      genres: { $in: genreIds }
-    })
-    .limit(5);
-
-    return res.status(200).json({
-      status: "success",
-      message: "Successfully generated user feed",
-      data: {
-        recentReleases,
-        recommendedArtists
-      }
-    });
-  } catch (error) {
-    return res.status(500).json({
-      status: "failed",
-      message: "Error generating feed",
-      error: error.message
-    });
-  }
-};
+  };
 
 const followArtist = async (req, res) => {
     try {

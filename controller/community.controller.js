@@ -216,12 +216,6 @@ export const createCommunity = async (req, res) => {
             },
           };
 
-        // const createCollection = await XionWalletService.executeTransaction(
-        //   "fireboy@gmail.com",
-        //   "xion106z7nrejkjzps0qmpwkykg8w6nryxyht9nsu0j3t5kcmd4v0sfks9har0d",
-        //   msg
-        // );
-
         await AbstraxionAuth.login(artist.email);
         console.log("artist email", artist.email);
         const execute = await AbstraxionAuth.executeSmartContract(
@@ -232,22 +226,26 @@ export const createCommunity = async (req, res) => {
 
         console.log(execute, "execute");
 
-        console.log(createCollection, "createCollection");
+        const CollectionMsg = {
+            query_artist_collections: {
+              name: communityName,
+              symbol: communitySymbol,
+              collection_info: coverImage,
+            },
+          };
 
-        return res.status(200).json({
-          status: "success",
-          message: "Community created successfully",
-          data: createCollection,
-        });
+        const transactionHash = execute.transactionHash;
 
-        const transactionHash = xionCreateCommunity.transactionHash;
+        const getArtistCollection = await AbstraxionAuth.executeSmartContract(
+            "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
+            CollectionMsg,
+            "auto"
+          );
 
-        const getArtistCollection = await contractHelper.getCollection(
-          artistAddress
-        );
+        console.log(getArtistCollection, "getArtistCollection");
 
-        const contractAddress = getArtistCollection.collection.contract_address;
-        const contractSymbol = getArtistCollection.collection.symbol;
+        const contractAddress = getArtistCollection.result.collection.contract_address;
+        const contractSymbol = getArtistCollection.result.collection.symbol;
 
         const validateImageType = isValidImageType(collectibleType);
 
@@ -261,9 +259,9 @@ export const createCommunity = async (req, res) => {
               collectibleDescription,
               collectibleImage,
               collectibleType,
-              contractAddress: "contractAddress",
-              communitySymbol: "contractSymbol",
-              transactionHash: "transactionHash",
+              contractAddress: contractAddress,
+              communitySymbol: contractSymbol,
+              transactionHash: transactionHash,
             },
             createdBy: artistId,
             NFTToken: nextTokenId,
