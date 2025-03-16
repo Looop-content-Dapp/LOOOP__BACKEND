@@ -1513,22 +1513,41 @@ const generateUserFeed = async (req, res) => {
 
       // Get all artists the user follows with full artist details
       const followedArtists = await Follow.find({ follower: userId })
-        .select('following')
-        .lean();
+      .select('following')
+      .lean();
 
-      const artistIds = followedArtists.map(f => f.following);
+    const artistIds = followedArtists.map(f => f.following);
 
-      // Get complete details of followed artists - only select needed fields
-      const followedArtistsDetails = await Artist.find({
-        _id: { $in: artistIds }
-      })
-      .select('_id name profileImage verified followers')
-      .limit(10)
-      .lean()  // Convert to plain objects
-      .then(artists => artists.map(artist => ({
-        ...artist,
-        isUserFollowing: true  // Add isUserFollowing state
-      })));
+    // Get complete details of followed artists - only select needed fields
+    const followedArtistsDetails = await Artist.aggregate([
+      {
+        $match: { _id: { $in: artistIds } }
+      },
+      {
+        // Get all followers for each artist
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "following",
+          as: "followers"
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          profileImage: 1,
+          verified: 1,
+          followers: { $map: {
+            input: "$followers",
+            as: "follower",
+            in: "$$follower.follower"
+          }},
+          isUserFollowing: true
+        }
+      },
+      { $limit: 10 }
+    ]);
 
       // Get recent releases from followed artists - only select needed fields
       const recentReleases = await Release.find({
