@@ -16,7 +16,6 @@ import postRouter from "./routes/post.route.js";
 import searchRoutes from "./routes/search.routes.js";
 // import OAuthRouter from "./routes/oauth.route.js";
 import adminRouter from "./routes/admin-route/admin.route.js";
-import paymentRouter from "./routes/payment.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
 import AbstraxionAuth from "./xion/AbstraxionAuth.cjs";
@@ -53,7 +52,7 @@ app.use("/api/referral", referralRouter);
 // app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
 
-const PORT = 3000;
+const PORT = 9000;
 const mongoURI =
   process.env.MONGODB_URI ||
   "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";

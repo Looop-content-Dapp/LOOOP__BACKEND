@@ -16,6 +16,18 @@ const { CosmWasmClient } = require("@cosmjs/cosmwasm-stargate/build");
 const { MsgGrantAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/tx");
 const { BasicAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/feegrant");
 const { Any } = require("cosmjs-types/google/protobuf/any");
+const { HermesClient } = require("@pythnetwork/hermes-client");
+const { RpcProvider, Contract } = require("starknet");
+
+const USDC_ABI = [
+    {
+      name: "balanceOf",
+      type: "function",
+      inputs: [{ name: "account", type: "felt" }],
+      outputs: [{ name: "balance", type: "Uint256" }],
+      stateMutability: "view"
+    }
+  ];
 
 class AbstraxionAuth {
 
@@ -41,7 +53,14 @@ class AbstraxionAuth {
     this.sessionToken = undefined;
     this.sessionTimeout = undefined;
     this.authStateChangeSubscribers = [];
+    this.hermesClient = new HermesClient("https://hermes.pyth.network", {
 
+    });
+    this.starknetProvider = new RpcProvider({
+        nodeUrl: process.env.STARKNET_RPC_URL || "https://starknet-mainnet.public.blastapi.io"
+      });
+      this.usdcContractAddress = process.env.STARKNET_USDC_ADDRESS || "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
+    this.usdcPriceId = "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
 
     console.log("Initialized with Server Secret:", this.serverSecret);
   }
@@ -252,9 +271,9 @@ class AbstraxionAuth {
   async getBalances(
     address,
     denoms = [
-      "uxion",
-      "ibc/57097251ED81A232CE3C9D899E7C8096D6D87EF84BA203E12E424AA4C9B57A64",
-    ]
+      "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4",
+    ],
+    starknetAddress = null
   ) {
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
@@ -262,7 +281,48 @@ class AbstraxionAuth {
     const balances = await Promise.all(
       denoms.map((denom) => client.getBalance(address, denom))
     );
-    return balances.filter((b) => BigInt(b.amount) > 0);
+
+    // Get USDC price from Pyth
+    try {
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const pythPrice = priceUpdate.parsed[0]?.price;
+      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+
+      // Get Cosmos balances
+      const cosmosBalances = balances.map((balance) => ({
+        denom: balance.denom,
+        amount: balance.amount,
+        amountFloat: Number(balance.amount) / 1e6,
+        usdValue: (Number(balance.amount) / 1e6) * usdcPrice || 0
+      }));
+      console.log("Cosmos Balances:", cosmosBalances);
+
+      // Get StarkNet balance if address is provided
+      let starknetBalance = 0;
+      if (starknetAddress) {
+        starknetBalance = await this.getStarkNetUSDCBalance(starknetAddress);
+        console.log("StarkNet Balance:", starknetBalance);
+      }
+
+      return {
+        cosmos: cosmosBalances,
+        starknet: starknetBalance,
+        usdcPrice
+      };
+
+    } catch (error) {
+      console.error("Failed to fetch prices or balances:", error);
+      return {
+        cosmos: balances.map((balance) => ({
+          denom: balance.denom,
+          amount: balance.amount,
+          amountFloat: Number(balance.amount) / 1e6,
+          usdValue: 0
+        })),
+        starknet: null,
+        usdcPrice: 1
+      };
+    }
   }
 
   async getTransactionHistory(address, limit = 10) {
@@ -592,6 +652,46 @@ class AbstraxionAuth {
         error
       );
       throw error; // Re-throw to allow the caller (e.g., signup) to handle it
+    }
+  }
+
+  async getStarkNetUSDCBalance(starknetAddress) {
+    try {
+      const contract = new Contract(USDC_ABI, this.usdcContractAddress, this.starknetProvider);
+      const response = await contract.balanceOf(starknetAddress);
+
+      // StarkNet response structure is different, need to handle it properly
+      const balance = response.balance;
+      console.log("balance:", balance);
+      // Check if balance is undefined or null (e.g., if the account doesn)
+      if (!balance || !balance.low) {
+        return {
+          address: starknetAddress,
+          balance: "0",
+          balanceFloat: 0,
+          usdcPrice: 1,
+          usdValue: 0
+        };
+      }
+
+      // Convert balance to number (assuming 6 decimals for USDC)
+      const balanceFloat = Number(balance.low.toString()) / 1e6;
+
+      // Get USDC price from Pyth
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const pythPrice = priceUpdate.parsed[0]?.price;
+      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+
+      return {
+        address: starknetAddress,
+        balance: balance.low.toString(),
+        balanceFloat,
+        usdcPrice,
+        usdValue: balanceFloat * usdcPrice,
+      };
+    } catch (error) {
+      console.error("Error fetching StarkNet USDC balance:", error);
+      throw new Error("Failed to fetch StarkNet USDC balance");
     }
   }
 }

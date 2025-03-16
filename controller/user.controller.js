@@ -306,7 +306,7 @@ const createUser = async (req, res) => {
     let starknetTokenBoundAccount = await tokenbound.createAccount({
       tokenContract: process.env.NFT_CONTRACT_ADDRESS,
       tokenId: process.env.NFT_TOKEN_ID,
-      salt: shortSalt,
+      salt: username,
     });
 
     if (xionwallet || starknetTokenBoundAccount) {
@@ -1568,25 +1568,64 @@ const generateUserFeed = async (req, res) => {
       // Get songs from both followed and recommended artists
       const allArtistIds = [...artistIds, ...recommendedArtists.map(a => a._id)];
 
-      // Get tracks from these artists - only select needed fields
-      const tracks = await Track.find({
-        artistId: { $in: allArtistIds }
-      })
-      .select('_id title duration')
-      .populate({
-        path: 'artistId',
-        model: 'artist',
-        select: '_id name profileImage verified'
-      })
-      .populate({
-        path: 'releaseId',
-        model: 'releases',
-        select: '_id title artwork type'
-      })
-      .limit(10);
+      // IMPROVED: Get tracks with better distribution across artists
+      // First, get a sample of tracks from each followed artist (up to 2 per artist)
+      let tracksFromFollowed = [];
+      for (const artistId of artistIds) {
+        const artistTracks = await Track.find({ artistId })
+          .select('_id title duration artistId releaseId')
+          .populate({
+            path: 'artistId',
+            model: 'artist',
+            select: '_id name profileImage verified'
+          })
+          .populate({
+            path: 'releaseId',
+            model: 'releases',
+            select: '_id title artwork type'
+          })
+          .sort({ createdAt: -1 }) // Prefer newer tracks
+          .limit(2); // Limit to 2 tracks per followed artist
+
+        tracksFromFollowed = [...tracksFromFollowed, ...artistTracks];
+      }
+
+      // Then get tracks from recommended artists (1 per artist)
+      let tracksFromRecommended = [];
+      for (const artist of recommendedArtists) {
+        const artistTrack = await Track.findOne({ artistId: artist._id })
+          .select('_id title duration artistId releaseId')
+          .populate({
+            path: 'artistId',
+            model: 'artist',
+            select: '_id name profileImage verified'
+          })
+          .populate({
+            path: 'releaseId',
+            model: 'releases',
+            select: '_id title artwork type'
+          })
+          .sort({ playCount: -1 }); // Get the most popular track
+
+        if (artistTrack) {
+          tracksFromRecommended.push(artistTrack);
+        }
+      }
+
+      // Combine and shuffle to create variety
+      const allTracks = [...tracksFromFollowed, ...tracksFromRecommended];
+
+      // Fisher-Yates shuffle algorithm for randomizing track order
+      for (let i = allTracks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [allTracks[i], allTracks[j]] = [allTracks[j], allTracks[i]];
+      }
+
+      // Limit to 10 tracks total
+      const limitedTracks = allTracks.slice(0, 10);
 
       // Transform tracks to a more minimal format
-      const formattedTracks = tracks.map(track => ({
+      const formattedTracks = limitedTracks.map(track => ({
         _id: track._id,
         title: track.title,
         duration: track.duration,
@@ -1605,7 +1644,7 @@ const generateUserFeed = async (req, res) => {
         isFromFollowedArtist: artistIds.some(id => id.equals(track.artistId._id))
       }));
 
-      // Sort tracks to prioritize those from followed artists
+      // Still prioritize followed artists but maintain the variety
       formattedTracks.sort((a, b) => {
         if (a.isFromFollowedArtist && !b.isFromFollowedArtist) return -1;
         if (!a.isFromFollowedArtist && b.isFromFollowedArtist) return 1;
@@ -1772,6 +1811,64 @@ const followArtist = async (req, res) => {
     }
   };
 
+  const getUserWalletBalance = async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      if (!validator.isMongoId(userId)) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid user ID format"
+        });
+      }
+
+      // Get user document to fetch wallet addresses
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          status: "failed",
+          message: "User not found"
+        });
+      }
+
+      const xionAddress = user.wallets?.xion?.address;
+      const starknetAddress = user.wallets?.starknet?.address;
+
+      if (!xionAddress || !xionAddress.startsWith('xion')) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Invalid or missing XION wallet address"
+        });
+      }
+
+      // Get both XION and StarkNet balances using AbstraxionAuth
+      const balanceData = await AbstraxionAuth.getBalances(xionAddress, undefined, starknetAddress);
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully retrieved wallet balances",
+        data: {
+          xion: {
+            address: xionAddress,
+            balances: balanceData.cosmos
+          },
+          starknet: starknetAddress ? {
+            address: starknetAddress,
+            balance: balanceData.starknet
+          } : null,
+          usdcPrice: balanceData.usdcPrice
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching wallet balances:", error);
+      return res.status(500).json({
+        status: "failed",
+        message: "Error fetching wallet balances",
+        error: error.message
+      });
+    }
+  };
+
 export {
   getAllUsers,
   getUser,
@@ -1797,5 +1894,6 @@ export {
   followArtist,
   getFollowedArtists,
   addToLibrary,
-  getUserLibrary
+  getUserLibrary,
+  getUserWalletBalance
 };
