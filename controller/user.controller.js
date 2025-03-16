@@ -1582,12 +1582,36 @@ const generateUserFeed = async (req, res) => {
       )];
 
       // Get recommended artists based on genre overlap with followed artists
-      const recommendedArtists = await Artist.find({
-        _id: { $nin: artistIds }, // Exclude already followed artists
-        genres: { $in: [...genreIds, ...followedGenreIds] }
-      })
-      .select('_id name profileImage verified followers')
-      .limit(10);
+      const recommendedArtists = await Artist.aggregate([
+        {
+          $match: {
+            _id: { $nin: artistIds },
+            genres: { $in: [...genreIds, ...followedGenreIds] }
+          }
+        },
+        {
+          $lookup: {
+            from: "follows",
+            localField: "_id",
+            foreignField: "following",
+            as: "followers"
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            profileImage: 1,
+            verified: 1,
+            followers: { $map: {
+              input: "$followers",
+              as: "follower",
+              in: "$$follower.follower"
+            }}
+          }
+        },
+        { $limit: 10 }
+      ]);
 
       // Get songs from both followed and recommended artists
       const allArtistIds = [...artistIds, ...recommendedArtists.map(a => a._id)];
