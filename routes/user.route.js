@@ -25,6 +25,7 @@ import {
   getFollowedArtists,
   addToLibrary,
   getUserLibrary,
+  getUserWalletBalance,
 } from "../controller/user.controller.js";
 import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
@@ -68,5 +69,8 @@ userRouter.post('/follow/:userId/:artistId', isUser, followArtist);
 
 // Get followed artists
 userRouter.get('/following/:userId', isUser, getFollowedArtists);
+
+
+userRouter.get('/wallet-balance/:userId', getUserWalletBalance);
 
 export default userRouter;

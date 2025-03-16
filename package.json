@@ -25,6 +25,7 @@
     "@google-cloud/kms": "^4.5.0",
     "@keplr-wallet/cosmos": "^0.12.192",
     "@keplr-wallet/crypto": "^0.12.192",
+    "@pythnetwork/hermes-client": "^2.0.0",
     "apple-signin-auth": "^1.7.8",
     "axios": "^1.7.7",
     "bcryptjs": "^2.4.3",
