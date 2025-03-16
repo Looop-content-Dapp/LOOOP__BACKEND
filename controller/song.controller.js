@@ -4109,136 +4109,43 @@ export const getFollowedArtistsReleases = async (req, res) => {
   }
 };
 
-// Get daily mix playlists based on user's listening habits
+
 // Get daily mix playlists based on user's listening habits
 export const getDailyMixes = async (req, res) => {
     try {
       const { userId } = req.params;
       const { mixCount = 6, songsPerMix = 25 } = req.query;
 
-      // Get user's listening history from last 90 days
-      const listeningHistory = await LastPlayed.aggregate([
-        {
-          $match: {
-            userId: new mongoose.Types.ObjectId(userId),
-            timestamp: {
-              $gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
-            }
-          }
-        },
-        {
-          $lookup: {
-            from: "tracks",
-            localField: "trackId",
-            foreignField: "_id",
-            as: "track"
-          }
-        },
-        {
-          $unwind: {
-            path: "$track",
-            preserveNullAndEmptyArrays: false
-          }
-        }
-      ]);
+      // Get followed artists using correct field names
+      const followedArtists = await Follow.find({
+        follower: new mongoose.Types.ObjectId(userId)
+      })
+      .populate({
+        path: 'following',
+        model: 'artist',
+        select: '_id name profileImage followers monthlyListeners'
+      });
 
-      let genresToUse = [];
-
-      // If user has listening history, use their preferred genres
-      if (listeningHistory.length > 0) {
-        // Create a map to count genre occurrences
-        const genreCount = {};
-
-        listeningHistory.forEach(item => {
-          if (item.track && item.track.metadata && item.track.metadata.genre) {
-            // Handle both array and string genre formats
-            const genres = Array.isArray(item.track.metadata.genre)
-              ? item.track.metadata.genre
-              : [item.track.metadata.genre];
-
-            genres.forEach(genre => {
-              if (genre) {
-                genreCount[genre] = (genreCount[genre] || 0) + 1;
-              }
-            });
-          }
+      // If no followed artists, return appropriate response
+      if (!followedArtists.length) {
+        return res.status(200).json({
+          message: "No mixes available - follow some artists to get personalized mixes",
+          data: { mixes: [] }
         });
-
-        // Sort genres by frequency and take top ones
-        genresToUse = Object.entries(genreCount)
-          .sort(([, a], [, b]) => b - a)
-          .slice(0, parseInt(mixCount))
-          .map(([genre]) => genre);
       }
 
-      // If no genres found from history, get popular genres
-      if (genresToUse.length === 0) {
-        // Get most popular genres based on overall streaming data
-        const popularGenres = await Track.aggregate([
-          {
-            $match: {
-              "metadata.genre": { $exists: true, $ne: [] }
-            }
-          },
-          {
-            $lookup: {
-              from: "songs",
-              localField: "songId",
-              foreignField: "_id",
-              as: "songData"
-            }
-          },
-          {
-            $unwind: {
-              path: "$songData",
-              preserveNullAndEmptyArrays: true
-            }
-          },
-          {
-            $unwind: {
-              path: "$metadata.genre",
-              preserveNullAndEmptyArrays: true
-            }
-          },
-          {
-            $group: {
-              _id: "$metadata.genre",
-              totalStreams: {
-                $sum: { $ifNull: ["$songData.analytics.totalStreams", 0] }
-              }
-            }
-          },
-          {
-            $match: {
-              _id: { $ne: null }
-            }
-          },
-          {
-            $sort: { totalStreams: -1 }
-          },
-          {
-            $limit: parseInt(mixCount)
-          }
-        ]);
+      // Select random artists from followed artists up to mixCount
+      const selectedArtists = followedArtists
+        .sort(() => 0.5 - Math.random())
+        .slice(0, parseInt(mixCount));
 
-        genresToUse = popularGenres
-          .filter(genre => genre._id)
-          .map(genre => genre._id);
-      }
-
-      // Generate mix for each genre
-      const mixes = await Promise.all(genresToUse.map(async (genre) => {
-        // Get top tracks for this genre
+      // Generate mix for each selected artist
+      const mixes = await Promise.all(selectedArtists.map(async ({ following: artist }) => {
+        // Get top tracks for this artist
         const mixTracks = await Track.aggregate([
           {
             $match: {
-              "metadata.genre": genre,
-              // Exclude tracks from user's recent history if any
-              ...(listeningHistory.length > 0 && {
-                _id: {
-                  $nin: listeningHistory.map(item => item.trackId)
-                }
-              })
+              artistId: artist._id
             }
           },
           {
@@ -4263,150 +4170,11 @@ export const getDailyMixes = async (req, res) => {
           {
             $unwind: "$release"
           },
-          {
-            $lookup: {
-              from: "artists",
-              localField: "artistId",
-              foreignField: "_id",
-              as: "artist"
-            }
-          },
-          {
-            $unwind: "$artist"
-          },
-          // Add engagement score for better track selection
           {
             $addFields: {
               score: {
                 $add: [
                   { $multiply: [{ $ifNull: ["$songData.analytics.totalStreams", 0] }, 1] },
-                  { $multiply: [{ $ifNull: ["$songData.analytics.playlistAdditions", 0] }, 2] },
-                  { $multiply: [{ $ifNull: ["$songData.analytics.likes", 0] }, 1.5] },
-                  // Boost recent releases
-                  {
-                    $cond: {
-                      if: {
-                        $gte: [
-                          { $ifNull: ["$release.dates.release_date", new Date(0)] },
-                          new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
-                        ]
-                      },
-                      then: 500,
-                      else: 0
-                    }
-                  }
-                ]
-              }
-            }
-          },
-          {
-            $sort: { score: -1 }
-          },
-          {
-            $limit: parseInt(songsPerMix)
-          },
-          {
-            $project: {
-              _id: 1,
-              title: 1,
-              duration: 1,
-              artist: {
-                _id: "$artist._id",
-                name: "$artist.name",
-                image: "$artist.profileImage"
-              },
-              release: {
-                _id: "$release._id",
-                title: "$release.title",
-                artwork: "$release.artwork.cover_image",
-                type: "$release.type",
-                releaseDate: "$release.dates.release_date"
-              },
-              analytics: {
-                streams: "$songData.analytics.totalStreams",
-                likes: "$songData.analytics.likes"
-              }
-            }
-          }
-        ]);
-
-        // Get representative artwork for the mix
-        const artworks = mixTracks
-          .slice(0, 4)
-          .map(track => track.release.artwork)
-          .filter(Boolean);
-
-        // Calculate mix stats
-        const totalDuration = mixTracks.reduce((sum, track) => sum + (track.duration || 0), 0);
-        const uniqueArtists = new Set(mixTracks.map(track => track.artist._id.toString())).size;
-
-        return {
-          id: new mongoose.Types.ObjectId(),
-          name: `${genre} Mix`,
-          description: listeningHistory.length > 0
-            ? `A personalized mix of ${genre} music based on your listening history`
-            : `Popular ${genre} tracks we think you'll love`,
-          genre,
-          artwork: {
-            main: artworks[0] || null,
-            mosaic: artworks
-          },
-          stats: {
-            totalTracks: mixTracks.length,
-            totalDuration,
-            uniqueArtists
-          },
-          tracks: mixTracks,
-          generatedAt: new Date(),
-          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
-          refreshAvailableAt: new Date(Date.now() + 12 * 60 * 60 * 1000) // 12 hours from now
-        };
-      }));
-
-      // Filter out any mixes that didn't get enough tracks
-      const validMixes = mixes.filter(mix => mix.tracks.length >= 10);
-
-      if (validMixes.length === 0) {
-        // If no valid mixes, create a general top tracks mix
-        const topTracks = await Track.aggregate([
-          {
-            $lookup: {
-              from: "songs",
-              localField: "songId",
-              foreignField: "_id",
-              as: "songData"
-            }
-          },
-          {
-            $unwind: "$songData"
-          },
-          {
-            $lookup: {
-              from: "releases",
-              localField: "releaseId",
-              foreignField: "_id",
-              as: "release"
-            }
-          },
-          {
-            $unwind: "$release"
-          },
-          {
-            $lookup: {
-              from: "artists",
-              localField: "artistId",
-              foreignField: "_id",
-              as: "artist"
-            }
-          },
-          {
-            $unwind: "$artist"
-          },
-          {
-            $addFields: {
-              score: {
-                $add: [
-                  { $ifNull: ["$songData.analytics.totalStreams", 0] },
                   { $multiply: [{ $ifNull: ["$songData.analytics.playlistAdditions", 0] }, 2] },
                   { $multiply: [{ $ifNull: ["$songData.analytics.likes", 0] }, 1.5] }
                 ]
@@ -4425,9 +4193,9 @@ export const getDailyMixes = async (req, res) => {
               title: 1,
               duration: 1,
               artist: {
-                _id: "$artist._id",
-                name: "$artist.name",
-                image: "$artist.profileImage"
+                _id: artist._id,
+                name: artist.name,
+                image: artist.profileImage
               },
               release: {
                 _id: "$release._id",
@@ -4444,35 +4212,39 @@ export const getDailyMixes = async (req, res) => {
           }
         ]);
 
-        const totalDuration = topTracks.reduce((sum, track) => sum + (track.duration || 0), 0);
-        const uniqueArtists = new Set(topTracks.map(track => track.artist._id.toString())).size;
+        // Calculate mix stats
+        const totalDuration = mixTracks.reduce((sum, track) => sum + (track.duration || 0), 0);
 
-        validMixes.push({
+        return {
           id: new mongoose.Types.ObjectId(),
-          name: "Today's Top Hits",
-          description: "The most popular tracks right now",
-          artwork: {
-            main: topTracks[0]?.release.artwork || null,
-            mosaic: topTracks.slice(0, 4).map(track => track.release.artwork).filter(Boolean)
-          },
+          name: `${artist.name} Mix`,
+          description: `A personalized mix featuring ${artist.name}'s top tracks`,
+          artwork: artist.profileImage,
           stats: {
-            totalTracks: topTracks.length,
+            totalTracks: mixTracks.length,
             totalDuration,
-            uniqueArtists
+            artist: {
+              name: artist.name,
+              followers: artist.followers,
+              monthlyListeners: artist.monthlyListeners
+            }
           },
-          tracks: topTracks,
+          tracks: mixTracks,
           generatedAt: new Date(),
           expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
           refreshAvailableAt: new Date(Date.now() + 12 * 60 * 60 * 1000)
-        });
-      }
+        };
+      }));
+
+      // Filter out any mixes that didn't get enough tracks
+      const validMixes = mixes.filter(mix => mix.tracks.length > 0);
 
       return res.status(200).json({
-        message: "Successfully generated daily mixes",
+        message: "Successfully generated artist mixes",
         data: {
           mixes: validMixes,
           meta: {
-            source: listeningHistory.length > 0 ? 'personalized' : 'popular',
+            source: 'followed_artists',
             totalMixes: validMixes.length,
             refreshAvailable: validMixes[0]?.refreshAvailableAt
           }
@@ -4486,7 +4258,7 @@ export const getDailyMixes = async (req, res) => {
         error: error.message
       });
     }
-  };
+};
 
 export const getLastPlayed = async (req, res) => {
   try {

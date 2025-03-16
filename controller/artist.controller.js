@@ -102,17 +102,29 @@ export const getArtist = async (req, res) => {
       },
       { __v: 0 }
     );
-    const userHasFavouriteArtist = await FaveArtist.find({
-      artistId: isartist._id,
-    });
-    const followers = userHasFavouriteArtist.map(
-      (faveArtist) => faveArtist.userId
-    );
+
+    // Get followers using aggregation
+    const followersData = await Follow.aggregate([
+      {
+        $match: {
+          following: new Types.ObjectId(isartist._id)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          followers: { $push: "$follower" }
+        }
+      }
+    ]);
+
+    const followers = followersData.length > 0 ? followersData[0].followers : [];
 
     const getCommunityMembers = await CommunityMember.find({
       communityId: getArtisCommunity?._id,
     });
     const communityMembers = getCommunityMembers.map((g) => g.userId);
+
     const artistData = {
       artist: {
         ...isartist._doc,
