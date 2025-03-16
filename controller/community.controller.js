@@ -226,26 +226,26 @@ export const createCommunity = async (req, res) => {
 
         console.log(execute, "execute");
 
-        const CollectionMsg = {
-            query_artist_collections: {
-              name: communityName,
-              symbol: communitySymbol,
-              collection_info: coverImage,
-            },
-          };
+
 
         const transactionHash = execute.transactionHash;
 
-        const getArtistCollection = await AbstraxionAuth.executeSmartContract(
+        const CollectionMsg = {
+            artist_collections: {
+              artist: artistAddress,
+            },
+          };
+
+        const getArtistCollection = await AbstraxionAuth.querySmartContract(
             "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-            CollectionMsg,
-            "auto"
+            CollectionMsg
           );
 
         console.log(getArtistCollection, "getArtistCollection");
 
-        const contractAddress = getArtistCollection.result.collection.contract_address;
-        const contractSymbol = getArtistCollection.result.collection.symbol;
+        const collection = getArtistCollection.collections[0];
+        const contractAddress = collection.contract_address;
+        const contractSymbol = collection.symbol;
 
         const validateImageType = isValidImageType(collectibleType);
 

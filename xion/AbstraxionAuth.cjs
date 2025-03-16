@@ -548,6 +548,31 @@ class AbstraxionAuth {
     }
   }
 
+  async querySmartContract(contractAddress, queryMsg) {
+    if (!this.rpcUrl) throw new Error("RPC URL must be configured");
+
+    try {
+      const client = await CosmWasmClient.connect(this.rpcUrl);
+      const response = await client.queryContractSmart(contractAddress, queryMsg);
+
+      console.log("Smart Contract Query Result:", {
+        contractAddress,
+        queryMsg,
+        response,
+      });
+
+      return response;
+    } catch (error) {
+      console.error("Error querying smart contract:", error);
+      if (error.message.includes("not found")) {
+        throw new Error(
+          "Contract not found - ensure the contract address is valid"
+        );
+      }
+      throw error;
+    }
+  }
+
   logout() {
     this.abstractAccount = undefined;
     this.sessionToken = undefined;
