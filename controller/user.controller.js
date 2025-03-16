@@ -1523,7 +1523,12 @@ const generateUserFeed = async (req, res) => {
         _id: { $in: artistIds }
       })
       .select('_id name profileImage verified followers')
-      .limit(10);
+      .limit(10)
+      .lean()  // Convert to plain objects
+      .then(artists => artists.map(artist => ({
+        ...artist,
+        isUserFollowing: true  // Add isUserFollowing state
+      })));
 
       // Get recent releases from followed artists - only select needed fields
       const recentReleases = await Release.find({
