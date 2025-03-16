@@ -408,10 +408,15 @@ export const joinCommunity = async (req, res) => {
           .json({ message: "User already exists in community" });
       }
 
-      const mint = await contractHelper.mintNFTPass({
-        collectionAddress: collectionAddress,
-        userAddress: userAddress,
-      });
+      const joinMesg = {
+        mint_pass: {},
+      }
+
+      const mint = await AbstraxionAuth.executeSmartContract(
+        collectionAddress,
+        joinMesg,
+        "auto"
+      )
 
       console.log(mint, "minted");
 
