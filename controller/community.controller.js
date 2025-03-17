@@ -120,7 +120,6 @@ export const createCommunity = async (req, res) => {
       collectibleImage,
       collectibleType,
       artistId,
-      artistAddress,
       communitySymbol,
     } = req.body;
 
@@ -147,7 +146,6 @@ export const createCommunity = async (req, res) => {
       collectibleDescription: "Collectible description is required",
       collectibleType: "Collectible type is required",
       artistId: "Artist ID is required",
-      artistAddress: "Artist address is required",
       communitySymbol: "Community symbol is required",
     };
     const missingFields = Object.entries(requiredFields)
@@ -229,10 +227,11 @@ export const createCommunity = async (req, res) => {
 
 
         const transactionHash = execute.transactionHash;
+        const artistWallet = execute.sender
 
         const CollectionMsg = {
             artist_collections: {
-              artist: artistAddress,
+              artist: artistWallet,
             },
           };
 
@@ -349,93 +348,115 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const {
-      userId,
-      communityId,
-      userAddress,
-      type,
-      collectionAddress,
-      transactionReference,
-    } = req.body;
+    // Debug log
+    console.log('Raw request body:', req.body);
 
-    const payment = await PayAzaCardPayment(transactionReference);
-
-    if (payment.status === "success") {
-      if (!["starknet", "xion"].includes(type)) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Type must be either 'starknet' or 'xion'",
-        });
-      }
-
-      if (!validator.isLength(userAddress, { min: 1 })) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Recipient address is required",
-        });
-      }
-
-      const user = await User.findById(userId);
-
-      if (!validator.isMongoId(userId) || user === null) {
-        return res.status(400).json({
-          status: "failed",
-          message: user === null ? "user not found" : "Invalid userID",
-        });
-      }
-
-      if (!validator.isMongoId(communityId)) {
-        return res
-          .status(400)
-          .json({ status: "failed", message: "Invalid communityID" });
-      }
-
-      const community = await Community.findById(communityId);
-      if (!community) {
-        return res
-          .status(400)
-          .json({ status: "failed", message: "community doesn't exist" });
-      }
-
-      const userAlreadyExistinCommunity = await CommunityMember.findOne({
-        userId: userId,
-        communityId: communityId,
-      });
-
-      if (userAlreadyExistinCommunity) {
-        return res
-          .status(400)
-          .json({ message: "User already exists in community" });
-      }
-
-      const mint = await contractHelper.mintNFTPass({
-        collectionAddress: collectionAddress,
-        userAddress: userAddress,
-      });
-
-      console.log(mint, "minted");
-
-      const communitymember = new CommunityMember({
-        userId,
-        communityId,
-      });
-
-      await communitymember.save();
-
-      community.memberCount += 1;
-      await community.save();
-
-      return res.status(200).json({
-        status: "success",
-        message: "Successfully minted community",
-        data: { communitymember, nftmint: mint.transactionHash },
+    // Validate request body
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Request body is empty or invalid JSON format",
       });
     }
+
+    const { userId, communityId, type, collectionAddress } = req.body;
+
+    // Validate required fields
+    if (!userId || !communityId || !type || !collectionAddress) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Missing required fields: userId, communityId, type, and collectionAddress are required",
+      });
+    }
+
+    if (!["starknet", "xion"].includes(type)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Type must be either 'starknet' or 'xion'",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!validator.isMongoId(userId) || !user) {
+      return res.status(400).json({
+        status: "failed",
+        message: !user ? "User not found" : "Invalid userID",
+      });
+    }
+
+    // Get user's wallet address from their document
+    const userAddress = user.wallets?.[type]?.address;
+    if (!userAddress) {
+      return res.status(400).json({
+        status: "failed",
+        message: `User does not have a ${type} wallet address`,
+      });
+    }
+
+    if (!validator.isMongoId(communityId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid communityID",
+      });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Community doesn't exist",
+      });
+    }
+
+    const userAlreadyExistinCommunity = await CommunityMember.findOne({
+      userId: userId,
+      communityId: communityId,
+    });
+
+    if (userAlreadyExistinCommunity) {
+      return res.status(400).json({
+        status: "failed",
+        message: "User already exists in community",
+      });
+    }
+
+    // Login with user's email before minting
+    await AbstraxionAuth.login(user.email);
+
+    const joinMesg = {
+        mint: {},
+    };
+
+    const mint = await AbstraxionAuth.executeSmartContract(
+      collectionAddress,
+      joinMesg,
+      "auto"
+    );
+
+    console.log(mint, "minted");
+
+    const communitymember = new CommunityMember({
+      userId,
+      communityId,
+    });
+
+    await communitymember.save();
+
+    community.memberCount += 1;
+    await community.save();
+
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully minted community",
+      data: { communitymember, nftmint: mint.transactionHash },
+    });
   } catch (error) {
-    console.log(error);
-    return res
-      .status(500)
-      .json({ message: "Error joining community", error: error.message });
+    console.error("Error in joinCommunity:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error joining community",
+      error: error.message,
+    });
   }
 };
 

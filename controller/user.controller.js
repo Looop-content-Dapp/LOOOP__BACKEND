@@ -1686,7 +1686,7 @@ const generateUserFeed = async (req, res) => {
         release: track.releaseId ? {
           _id: track.releaseId._id,
           title: track.releaseId.title,
-          artwork: track.releaseId.artwork,
+          image: track.releaseId.artwork.cover_image.high,
           type: track.releaseId.type
         } : null,
         isFromFollowedArtist: artistIds.some(id => id.equals(track.artistId._id))
