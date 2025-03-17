@@ -348,24 +348,13 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    // Debug log
-    console.log('Raw request body:', req.body);
-
-    // Validate request body
-    if (!req.body || Object.keys(req.body).length === 0) {
-      return res.status(400).json({
-        status: "failed",
-        message: "Request body is empty or invalid JSON format",
-      });
-    }
-
-    const { userId, communityId, type, collectionAddress } = req.body;
+    const { userId, communityId, type } = req.body;
 
     // Validate required fields
-    if (!userId || !communityId || !type || !collectionAddress) {
+    if (!userId || !communityId || !type) {
       return res.status(400).json({
         status: "failed",
-        message: "Missing required fields: userId, communityId, type, and collectionAddress are required",
+        message: "Missing required fields: userId, communityId, type are required",
       });
     }
 
@@ -424,7 +413,7 @@ export const joinCommunity = async (req, res) => {
     await AbstraxionAuth.login(user.email);
 
     const mint = await AbstraxionAuth.mintPass(
-      collectionAddress,
+      community.tribePass.contractAddress,
     );
 
     console.log(mint, "minted");
