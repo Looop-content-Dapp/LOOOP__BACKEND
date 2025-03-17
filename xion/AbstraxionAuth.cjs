@@ -719,6 +719,58 @@ class AbstraxionAuth {
       throw new Error("Failed to fetch StarkNet USDC balance");
     }
   }
+
+  async mintPass(collectionAddress) {
+    if (!this.isLoggedIn || !this.abstractAccount) {
+      throw new Error("User must be logged in to mint a pass");
+    }
+    if (!this.rpcUrl) throw new Error("RPC URL must be configured");
+
+    try {
+      const { signer, useGranter } = await this.getSigner();
+      const accounts = await this.abstractAccount.getAccounts();
+      const senderAddress = accounts[0].address;
+
+      const mintMsg = {
+       extension: {
+            msg: {
+                mint_pass: {}
+            }
+        }
+      };
+
+      // Using the correct USDC denomination for Xion testnet 2
+      const funds = coins(100, "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4");
+
+      const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
+      const result = await signer.execute(
+        senderAddress,
+        collectionAddress,
+        mintMsg,
+        fee,
+        "Minting pass via Looop Music Wallet",
+
+      );
+
+      console.log("Pass Mint Result:", {
+        transactionHash: result.transactionHash,
+        sender: senderAddress,
+        contractAddress: collectionAddress,
+        payment: funds
+      });
+
+      return {
+        success: true,
+        transactionHash: result.transactionHash,
+        sender: senderAddress,
+        contractAddress: collectionAddress
+      };
+
+    } catch (error) {
+      console.error("Error minting pass:", error);
+      throw new Error(`Failed to mint pass: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new AbstraxionAuth();
