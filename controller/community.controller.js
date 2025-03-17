@@ -120,7 +120,6 @@ export const createCommunity = async (req, res) => {
       collectibleImage,
       collectibleType,
       artistId,
-      artistAddress,
       communitySymbol,
     } = req.body;
 
@@ -147,7 +146,6 @@ export const createCommunity = async (req, res) => {
       collectibleDescription: "Collectible description is required",
       collectibleType: "Collectible type is required",
       artistId: "Artist ID is required",
-      artistAddress: "Artist address is required",
       communitySymbol: "Community symbol is required",
     };
     const missingFields = Object.entries(requiredFields)
@@ -229,10 +227,11 @@ export const createCommunity = async (req, res) => {
 
 
         const transactionHash = execute.transactionHash;
+        const artistWallet = execute.sender
 
         const CollectionMsg = {
             artist_collections: {
-              artist: artistAddress,
+              artist: artistWallet,
             },
           };
 
@@ -358,9 +357,8 @@ export const joinCommunity = async (req, res) => {
       transactionReference,
     } = req.body;
 
-    const payment = await PayAzaCardPayment(transactionReference);
 
-    if (payment.status === "success") {
+
       if (!["starknet", "xion"].includes(type)) {
         return res.status(400).json({
           status: "failed",
@@ -435,7 +433,7 @@ export const joinCommunity = async (req, res) => {
         message: "Successfully minted community",
         data: { communitymember, nftmint: mint.transactionHash },
       });
-    }
+
   } catch (error) {
     console.log(error);
     return res
