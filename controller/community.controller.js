@@ -423,14 +423,8 @@ export const joinCommunity = async (req, res) => {
     // Login with user's email before minting
     await AbstraxionAuth.login(user.email);
 
-    const joinMesg = {
-        mint: {},
-    };
-
-    const mint = await AbstraxionAuth.executeSmartContract(
+    const mint = await AbstraxionAuth.mintPass(
       collectionAddress,
-      joinMesg,
-      "auto"
     );
 
     console.log(mint, "minted");
