@@ -62,7 +62,7 @@ const mongoURI =
 (async () => {
   try {
     AbstraxionAuth.configureAbstraxionInstance(
-      process.env.RPC_URL || "https://rpc.xion-testnet-2.burnt.com:443",
+      process.env.RPC_URL || "https://rpc.xion-testnet-2.burnt.com/",
       process.env.REST_URL || "https://api.xion-testnet-2.burnt.com",
       process.env.TREASURY_ADDRESS
     );

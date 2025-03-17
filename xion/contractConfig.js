@@ -226,10 +226,10 @@ export class ContractHelper {
 const CONTRACT_CONFIG = {
   factoryAddress:
     "xion106z7nrejkjzps0qmpwkykg8w6nryxyht9nsu0j3t5kcmd4v0sfks9har0d",
-  rpcEndpoint: "https://rpc.xion-testnet-1.burnt.com:443",
+  rpcEndpoint: "https://rpc.xion-testnet-2.burnt.com:443",
   network: {
     denom: "uxion",
-    chainId: "xion-testnet-1",
+    chainId: "xion-testnet-2",
   },
   fee: {
     gas: "387561",
