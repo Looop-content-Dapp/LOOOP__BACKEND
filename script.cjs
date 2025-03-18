@@ -8,7 +8,7 @@ const transporter = nodemailer.createTransport({
   port: 465,
   auth: {
     user: "official@looopmusic.com",
-    pass: "Looopmusic@$123",
+    pass: "Looopmusic@$12",
   },
   logger: true,
   debug: true,
