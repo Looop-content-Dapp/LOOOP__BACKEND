@@ -402,8 +402,46 @@ const createUser = async (req, res) => {
         }
       }
 
+      const followedArtists = await Follow.find({ follower: savedUser._id })
+      .select('following')
+      .lean();
+
+    const artistIds = followedArtists.map(f => f.following);
+
+    // Get complete details of followed artists
+    const followingArtists = await Artist.aggregate([
+      {
+        $match: { _id: { $in: artistIds } }
+      },
+      {
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "following",
+          as: "followers"
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          profileImage: 1,
+          verified: 1,
+          followers: { $map: {
+            input: "$followers",
+            as: "follower",
+            in: "$$follower.follower"
+          }},
+          isUserFollowing: true
+        }
+      }
+    ]);
+
       const userWithoutPassword = user.toObject();
       delete userWithoutPassword.password;
+
+      userWithoutPassword.following = followingArtists.length;
+      userWithoutPassword.followingArtists = followingArtists;
 
       return res.status(200).json({
         status: "success",
@@ -1078,94 +1116,130 @@ const getUserByEmail = async (req, res) => {
 };
 
 const signIn = async (req, res) => {
-  try {
-    await signInSchema.validate(req.body);
-    const { email, password } = req.body;
+    try {
+        await signInSchema.validate(req.body);
+        const { email, password } = req.body;
 
-    const user = await User.find({
-      email: email,
-    });
+        const user = await User.find({
+          email: email,
+        });
 
-    if (!user || user.length === 0) {
-      return res.status(404).json({
-        status: "failed",
-        message: "User not found",
-      });
-    }
-
-    const isArtist = await Artist.findOne({
-      userId: user[0]._id,
-      verified: true,
-    });
-
-    const hasClaim = await ArtistClaim.findOne({
-      userId: user[0]._id,
-    });
-
-    const isPasswordValid = await bcrypt.compare(password, user[0].password);
-
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        status: "failed",
-        message: "Invalid password",
-      });
-    }
-
-    const xionLoggedInUser = await AbstraxionAuth.login(email);
-
-    if (xionLoggedInUser) {
-      const userData = {
-        ...user[0]._doc,
-        wallets: {
-          ...user[0]._doc.wallets,
-          xion: {
-            address: xionLoggedInUser.address,
-          },
-        },
-        artist: isArtist === null ? null : isArtist?.id,
-        artistClaim: hasClaim === null ? null : hasClaim?.id,
-      };
-      delete userData.password;
-      delete userData.referralCode;
-      delete userData.referralCount;
-      delete userData.referralCodeUsed;
-
-      const emailResult = await sendEmail(
-        user[0].email,
-        "New Login Detected",
-        "login",
-        {
-          username: user[0].username,
-          loginTime: new Date().toLocaleString(),
-          deviceInfo: req.headers["user-agent"],
-          ipAddress: req.ip,
+        if (!user || user.length === 0) {
+          return res.status(404).json({
+            status: "failed",
+            message: "User not found",
+          });
         }
-      );
 
-      console.log(emailResult);
+        const isArtist = await Artist.findOne({
+          userId: user[0]._id,
+          verified: true,
+        });
 
-      return res.status(200).json({
-        status: "success",
-        message: "Sign in successful",
-        data: {
-          ...userData,
-        },
-      });
-    } else {
-      return res.status(400).json({
-        status: "failed",
-        message: "An Error Occired",
-        data: null,
+        const hasClaim = await ArtistClaim.findOne({
+          userId: user[0]._id,
+        });
+
+        const isPasswordValid = await bcrypt.compare(password, user[0].password);
+
+        if (!isPasswordValid) {
+          return res.status(401).json({
+            status: "failed",
+            message: "Invalid password",
+          });
+        }
+
+        // Get followed artists with details
+        const followedArtists = await Follow.find({ follower: user[0]._id })
+          .select('following')
+          .lean();
+
+        const artistIds = followedArtists.map(f => f.following);
+
+        // Get complete details of followed artists
+        const followingArtists = await Artist.aggregate([
+          {
+            $match: { _id: { $in: artistIds } }
+          },
+          {
+            $lookup: {
+              from: "follows",
+              localField: "_id",
+              foreignField: "following",
+              as: "followers"
+            }
+          },
+          {
+            $project: {
+              _id: 1,
+              name: 1,
+              profileImage: 1,
+              verified: 1,
+              followers: { $map: {
+                input: "$followers",
+                as: "follower",
+                in: "$$follower.follower"
+              }},
+              isUserFollowing: true
+            }
+          }
+        ]);
+
+        const xionLoggedInUser = await AbstraxionAuth.login(email);
+
+        if (xionLoggedInUser) {
+          const userData = {
+            ...user[0]._doc,
+            wallets: {
+              ...user[0]._doc.wallets,
+              xion: {
+                address: user[0]._doc.wallets.xion.address,
+              },
+            },
+            artist: isArtist === null ? null : isArtist?.id,
+            artistClaim: hasClaim === null ? null : hasClaim?.id,
+            following: followingArtists.length,
+            followingArtists: followingArtists,
+          };
+        delete userData.password;
+        delete userData.referralCode;
+        delete userData.referralCount;
+        delete userData.referralCodeUsed;
+
+        const emailResult = await sendEmail(
+          user[0].email,
+          "New Login Detected",
+          "login",
+          {
+            username: user[0].username,
+            loginTime: new Date().toLocaleString(),
+            deviceInfo: req.headers["user-agent"],
+            ipAddress: req.ip,
+          }
+        );
+
+        return res.status(200).json({
+          status: "success",
+          message: "Sign in successful",
+          data: {
+            ...userData,
+          },
+        });
+      } else {
+        return res.status(400).json({
+          status: "failed",
+          message: "An Error Occired",
+          data: null,
+        });
+      }
+    } catch (error) {
+      console.log(error);
+      return res.status(500).json({
+        message: "Error signing in",
+        error: error.message,
       });
     }
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "Error signing in",
-      error: error.message,
-    });
-  }
-};
+  };
 
 export const oauth = async (req, res) => {
   try {
