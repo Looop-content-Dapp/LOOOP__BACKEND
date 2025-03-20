@@ -1,11 +1,9 @@
-// controllers/post.controller.js
-
 import { Post } from "../models/post.model.js";
 import { Artist } from "../models/artist.model.js";
 import { Comment } from "../models/comment.model.js";
 import { Like } from "../models/likes.model.js";
 import { Community } from "../models/community.model.js";
-import { User } from "../models/user.model.js";  
+import { User } from "../models/user.model.js";
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {
@@ -559,7 +557,7 @@ export const getCommentReplies = async (req, res) => {
     if (!parentComment) {
       return res.status(404).json({ message: "Comment not found" });
     }
-    
+
     if (parentComment.parentCommentId) {
       return res.status(400).json({ message: "Can only get replies for top-level comments" });
     }
