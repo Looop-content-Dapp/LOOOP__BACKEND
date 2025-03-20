@@ -1,7 +1,9 @@
+import { createServer } from 'http';
 import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
 import { config } from "dotenv";
+import { websocketService } from './utils/websocket/websocketServer.js';
 
 import userRouter from "./routes/user.route.js";
 import artistRouter from "./routes/artist.route.js";
@@ -23,6 +25,10 @@ import AbstraxionAuth from "./xion/AbstraxionAuth.cjs";
 config();
 
 const app = express();
+const server = createServer(app);
+
+// Initialize WebSocket
+websocketService.initialize(server);
 
 app.use(urlencoded({ extended: true }));
 app.use(json());
@@ -52,12 +58,8 @@ app.use("/api/referral", referralRouter);
 // app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
 
-const PORT = 9000;
-const mongoURI =
-  process.env.MONGODB_URI ||
-  "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
-
-// "mongodb://localhost:27017/"
+const PORT = 9001;
+const mongoURI = process.env.MONGODB_URI || "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
 (async () => {
   try {
@@ -74,7 +76,7 @@ const mongoURI =
 
     mongoose.connection.on("open", () => {
       console.log("Connected to MongoDB successfully.");
-      app.listen(PORT, () => {
+      server.listen(PORT, () => {
         console.log(`Server is running on http://localhost:${PORT}`);
       });
     });

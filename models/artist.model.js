@@ -17,6 +17,12 @@ const artistSchema = new Schema(
       index: true,
       sparse: true,
     },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'users',
+      required: false,
+      default: null
+    },
     name: { type: String, required: true },
     email: { type: String, unique: true, required: true },
     profileImage: {
@@ -39,6 +45,7 @@ const artistSchema = new Schema(
       default: false,
     },
     verified: { type: Boolean, default: false },
+    verifiedAt: { type: Date, default: null },
     socialLinks: socialLinksSchema,
     popularity: { type: Number, min: 0, max: 100, default: 0 },
     topTracks: [
