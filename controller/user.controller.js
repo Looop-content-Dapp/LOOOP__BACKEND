@@ -309,45 +309,53 @@ const createUser = async (req, res) => {
     });
 
     if (xionwallet || starknetTokenBoundAccount) {
-      let user;
-      if (oauthprovider === "oauth") {
-        user = new User({
-          email,
-          username,
-          fullname,
-          age,
-          gender,
-          wallets: {
-            starknet: {
-              address: starknetTokenBoundAccount.account,
+        let user;
+        if (oauthprovider === "oauth") {
+          user = new User({
+            email,
+            username,
+            fullname,
+            age,
+            gender,
+            wallets: {
+              starknet: {
+                address: starknetTokenBoundAccount.account,
+              },
+              xion: {
+                address: xionwallet.address,
+                mnemonic: xionwallet.mnemonic,
+              },
             },
-            xion: {
-              address: xionwallet.address,
-              mnemonic: xionwallet.mnemonic,
+            referralCode: refcode,
+          });
+        } else {
+          // Check if password exists before creating user
+          if (!hashedPassword && !oauthprovider) {
+            return res.status(400).json({
+              status: "failed",
+              message: "Password is required for email registration",
+            });
+          }
+
+          user = new User({
+            email,
+            username,
+            password: hashedPassword,
+            fullname,
+            age,
+            gender,
+            wallets: {
+              starknet: {
+                address: starknetTokenBoundAccount.account,
+              },
+              xion: {
+                address: xionwallet.address,
+                mnemonic: xionwallet.mnemonic,
+              },
             },
-          },
-          referralCode: refcode,
-        });
-      } else {
-        user = new User({
-          email,
-          username,
-          password: hashedPassword,
-          fullname,
-          age,
-          gender,
-          wallets: {
-            starknet: {
-              address: starknetTokenBoundAccount.account,
-            },
-            xion: {
-              address: xionwallet.address,
-              mnemonic: xionwallet.mnemonic,
-            },
-          },
-          referralCode: refcode,
-        });
-      }
+            referralCode: refcode,
+          });
+        }
 
       const savedUser = await user.save();
 
