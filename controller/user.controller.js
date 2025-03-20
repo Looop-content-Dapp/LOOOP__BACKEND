@@ -60,148 +60,144 @@ const getAllUsers = async (req, res) => {
 };
 
 const getUser = async (req, res) => {
-  try {
-    if (!validator.isMongoId(req.params.id)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid user ID" });
-    }
+    try {
+      if (!validator.isMongoId(req.params.id)) {
+        return res
+          .status(400)
+          .json({ status: "failed", message: "Invalid user ID" });
+      }
 
-    const user = await User.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$_id",
-              {
-                $toObjectId: req.params.id,
-              },
-            ],
+      const user = await User.aggregate([
+        {
+          $match: {
+            $expr: {
+              $eq: [
+                "$_id",
+                {
+                  $toObjectId: req.params.id,
+                },
+              ],
+            },
           },
         },
-      },
-      {
-        $lookup: {
-          from: "preferences",
-          localField: "_id",
-          foreignField: "userId",
-          as: "preferences",
+        {
+          $lookup: {
+            from: "preferences",
+            localField: "_id",
+            foreignField: "userId",
+            as: "preferences",
+          },
         },
-      },
-      {
-        $unwind: {
-          path: "$faveArtists",
-          preserveNullAndEmptyArrays: true,
+        {
+          $lookup: {
+            from: "faveartists", // Changed from follows to faveartists
+            localField: "_id",
+            foreignField: "userId",
+            as: "faveArtists",
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "follows",
-          localField: "_id",
-          foreignField: "follower",
-          as: "following",
+        {
+          $lookup: {
+            from: "friends",
+            localField: "_id",
+            foreignField: "userId",
+            as: "friends",
+          },
         },
-      },
-      {
-        $lookup: {
-          from: "friends",
-          localField: "_id",
-          foreignField: "userId",
-          as: "friends",
+        {
+          $addFields: {
+            following: { $size: "$faveArtists" }, // Now counts favorite artists
+            friendsCount: { $size: "$friends" },
+            artistPlayed: { $size: "$friends" },
+          },
         },
-      },
-      {
-        $addFields: {
-          following: { $size: "$following" },
-          friendsCount: { $size: "$friends" },
-          artistPlayed: { $size: "$friends" },
-        },
-      },
-    ]);
+      ]);
 
-    const favouriteArtists = await FaveArtist.find({
-      userId: new Types.ObjectId(req.params.id),
-    });
+      // Get favorite artists with populated artist data
+      const favouriteArtists = await FaveArtist.find({
+        userId: new Types.ObjectId(req.params.id),
+      }).populate('_id', 'name profileImage'); // Add fields you want to populate from Artist model
 
-    const processedFavorites = new Set();
-    const uniqueFavorites = favouriteArtists.filter((favorite) => {
-      const artistId = favorite.artistId.toString();
-      if (!processedFavorites.has(artistId)) {
-        processedFavorites.add(artistId);
-        return true;
+      const processedFavorites = new Set();
+      const uniqueFavorites = favouriteArtists.filter((favorite) => {
+        const artistId = favorite.artistId._id.toString();
+        if (!processedFavorites.has(artistId)) {
+          processedFavorites.add(artistId);
+          return true;
+        }
+        return false;
+      });
+
+      if (user.length === 0) {
+        return res
+          .status(404)
+          .json({ status: "failed", message: "User not found" });
       }
-      return false;
-    });
 
-    if (user.length === 0) {
+      // Rest of the code remains the same
+      const isArtist = await Artist.findOne({
+        userId: user[0]._id,
+        verified: true,
+      });
+
+      const hasClaim = await ArtistClaim.findOne({
+        userId: user[0]._id,
+      });
+
+      const getUserTribe = await CommunityMember.aggregate([
+        {
+          $match: {
+            userId: user[0]._id,
+          },
+        },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "communityId",
+            foreignField: "_id",
+            as: "community",
+          },
+        },
+        {
+          $unwind: "$community",
+        },
+        {
+          $project: {
+            _id: "$community._id",
+            communityName: "$community.communityName",
+            NFTToken: "$community.NFTToken",
+            createdBy: "$community.createdBy",
+            memberCount: "$community.memberCount",
+            coverImage: "$community.coverImage",
+          },
+        },
+      ]);
+
+      const userData = {
+        ...user[0],
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+        favouriteArtists: uniqueFavorites,
+        communities: getUserTribe,
+      };
+      delete userData.password;
+      delete userData.wallets.xion.mnemonic;
+      delete userData.wallets.xion._id;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
+
+      return res.status(200).json({
+        status: "success",
+        message: "User data fetched successfully",
+        data: userData,
+      });
+    } catch (error) {
       return res
-        .status(404)
-        .json({ status: "failed", message: "User not found" });
+        .status(500)
+        .json({ message: "Error fetching user", error: error.message });
     }
-
-    const isArtist = await Artist.findOne({
-      userId: user[0]._id,
-      verified: true,
-    });
-
-    const hasClaim = await ArtistClaim.findOne({
-      userId: user[0]._id,
-    });
-
-    const getUserTribe = await CommunityMember.aggregate([
-      {
-        $match: {
-          userId: user[0]._id,
-        },
-      },
-      {
-        $lookup: {
-          from: "communities",
-          localField: "communityId",
-          foreignField: "_id",
-          as: "community",
-        },
-      },
-      {
-        $unwind: "$community",
-      },
-      {
-        $project: {
-          _id: "$community._id",
-          communityName: "$community.communityName",
-          NFTToken: "$community.NFTToken",
-          createdBy: "$community.createdBy",
-          memberCount: "$community.memberCount",
-          coverImage: "$community.coverImage",
-        },
-      },
-    ]);
-
-    const userData = {
-      ...user[0],
-      artist: isArtist === null ? null : isArtist?.id,
-      artistClaim: hasClaim === null ? null : hasClaim?.id,
-      favouriteArtists: uniqueFavorites,
-      communities: getUserTribe,
-    };
-    delete userData.password;
-    delete userData.wallets.xion.mnemonic;
-    delete userData.wallets.xion._id;
-    delete userData.referralCode;
-    delete userData.referralCount;
-    delete userData.referralCodeUsed;
-
-    return res.status(200).json({
-      status: "success",
-      message: "User data fetched successfully",
-      data: userData,
-    });
-  } catch (error) {
-    return res
-      .status(500)
-      .json({ message: "Error fetching user", error: error.message });
-  }
-};
+  };
 
 const checkIfUserNameExist = async (req, res) => {
   try {
