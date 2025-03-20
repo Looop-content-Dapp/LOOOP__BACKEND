@@ -71,12 +71,7 @@ const getUser = async (req, res) => {
         {
           $match: {
             $expr: {
-              $eq: [
-                "$_id",
-                {
-                  $toObjectId: req.params.id,
-                },
-              ],
+              $eq: ["$_id", { $toObjectId: req.params.id }],
             },
           },
         },
@@ -90,43 +85,13 @@ const getUser = async (req, res) => {
         },
         {
           $lookup: {
-            from: "faveartists", // Changed from follows to faveartists
-            localField: "_id",
-            foreignField: "userId",
-            as: "faveArtists",
-          },
-        },
-        {
-          $lookup: {
             from: "friends",
             localField: "_id",
             foreignField: "userId",
             as: "friends",
           },
         },
-        {
-          $addFields: {
-            following: { $size: "$faveArtists" }, // Now counts favorite artists
-            friendsCount: { $size: "$friends" },
-            artistPlayed: { $size: "$friends" },
-          },
-        },
       ]);
-
-      // Get favorite artists with populated artist data
-      const favouriteArtists = await FaveArtist.find({
-        userId: new Types.ObjectId(req.params.id),
-      }).populate('_id', 'name profileImage'); // Add fields you want to populate from Artist model
-
-      const processedFavorites = new Set();
-      const uniqueFavorites = favouriteArtists.filter((favorite) => {
-        const artistId = favorite.artistId._id.toString();
-        if (!processedFavorites.has(artistId)) {
-          processedFavorites.add(artistId);
-          return true;
-        }
-        return false;
-      });
 
       if (user.length === 0) {
         return res
@@ -134,7 +99,42 @@ const getUser = async (req, res) => {
           .json({ status: "failed", message: "User not found" });
       }
 
-      // Rest of the code remains the same
+      // Get followed artists with details
+      const followedArtists = await Follow.find({ follower: req.params.id })
+        .select('following')
+        .lean();
+
+      const artistIds = followedArtists.map(f => f.following);
+
+      // Get complete details of followed artists
+      const followingArtists = await Artist.aggregate([
+        {
+          $match: { _id: { $in: artistIds } }
+        },
+        {
+          $lookup: {
+            from: "follows",
+            localField: "_id",
+            foreignField: "following",
+            as: "followers"
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            profileImage: 1,
+            verified: 1,
+            followers: { $map: {
+              input: "$followers",
+              as: "follower",
+              in: "$$follower.follower"
+            }},
+            isUserFollowing: true
+          }
+        }
+      ]);
+
       const isArtist = await Artist.findOne({
         userId: user[0]._id,
         verified: true,
@@ -175,11 +175,14 @@ const getUser = async (req, res) => {
 
       const userData = {
         ...user[0],
+        following: followingArtists.length,
         artist: isArtist === null ? null : isArtist?.id,
         artistClaim: hasClaim === null ? null : hasClaim?.id,
-        favouriteArtists: uniqueFavorites,
+        followingArtists: followingArtists,
         communities: getUserTribe,
+        friendsCount: user[0].friends.length,
       };
+
       delete userData.password;
       delete userData.wallets.xion.mnemonic;
       delete userData.wallets.xion._id;
