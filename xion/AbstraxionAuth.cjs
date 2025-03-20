@@ -739,7 +739,7 @@ class AbstraxionAuth {
             );
             console.log("USDC Balance:", balance)
 
-            if (BigInt(balance.amount) < 100n) {
+            if (BigInt(balance.amount) < 5000000n) {
               throw new Error("Insufficient USDC balance to mint pass");
             }
 
