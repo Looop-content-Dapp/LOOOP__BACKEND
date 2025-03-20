@@ -7,17 +7,31 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
-import { PayAzaCardPayment } from "../utils/helpers/payaza.js";
-import XionWalletService from "../xion/wallet.service.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 
 export const getAllCommunity = async (req, res) => {
   try {
-    const communities = await Community.find({});
+    // Find all communities and populate creator details
+    const communities = await Community.find({})
+      .populate("createdBy", "name email profileImage genre verified");
+
+    // Get members for each community
+    const communitiesData = await Promise.all(
+      communities.map(async (community) => {
+        const members = await CommunityMember.find({
+          communityId: community._id
+        }).populate('userId', 'name email profileImage');
+
+        const communityData = community.toObject();
+        communityData.members = members;
+        return communityData;
+      })
+    );
+
     return res.status(200).json({
       status: "success",
       message: "Communities fetch successfully",
-      data: communities,
+      data: communitiesData,
     });
   } catch (error) {
     res
