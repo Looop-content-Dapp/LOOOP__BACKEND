@@ -2,7 +2,7 @@ import mongoose, { Types, model } from "mongoose";
 const { Schema } = mongoose;
 
 const memberSchema = new Schema({
-  userId: { type: Types.ObjectId, ref: "User", required: true }, // references to communities the user has joined
+  userId: { type: Types.ObjectId, ref: "users", required: true }, // Changed from "User" to "users"
   communityId: {
     type: Types.ObjectId,
     ref: "Community",
@@ -12,4 +12,3 @@ const memberSchema = new Schema({
 });
 
 export const CommunityMember = model("communitymember", memberSchema);
-

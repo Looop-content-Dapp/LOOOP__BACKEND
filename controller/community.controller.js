@@ -37,9 +37,10 @@ export const getCommunityByArtistId = async (req, res) => {
 
     const checkIfArtistExist = await Artist.findById(artistid);
     if (checkIfArtistExist !== null) {
+      // Find community and populate creator details
       const communities = await Community.findOne({
         createdBy: new Types.ObjectId(artistid),
-      });
+      }).populate("createdBy", "name email profileImage genre verified");
 
       if (!communities) {
         return res.status(200).json({
@@ -49,10 +50,19 @@ export const getCommunityByArtistId = async (req, res) => {
         });
       }
 
+      // Get community members with user details
+      const members = await CommunityMember.find({
+        communityId: communities._id
+      }).populate('userId', 'name email profileImage');
+
+      // Combine community data with members
+      const communityData = communities.toObject();
+      communityData.members = members;
+
       return res.status(200).json({
         status: "success",
         message: "successfully gotten a community",
-        data: communities,
+        data: communityData,
       });
     } else {
       return res.status(404).json({
