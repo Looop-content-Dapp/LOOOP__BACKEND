@@ -731,6 +731,19 @@ class AbstraxionAuth {
       const accounts = await this.abstractAccount.getAccounts();
       const senderAddress = accounts[0].address;
 
+            // Check USDC balance before minting
+            const client = await CosmWasmClient.connect(this.rpcUrl);
+            const balance = await client.getBalance(
+              senderAddress,
+              "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4"
+            );
+            console.log("USDC Balance:", balance)
+
+            if (BigInt(balance.amount) < 5000000n) {
+              throw new Error("Insufficient USDC balance to mint pass");
+            }
+
+
       const mintMsg = {
        extension: {
             msg: {
@@ -740,7 +753,7 @@ class AbstraxionAuth {
       };
 
       // Using the correct USDC denomination for Xion testnet 2
-      const funds = coins(100, "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4");
+      const funds = coins(5000000, "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4");
 
       const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
       const result = await signer.execute(
@@ -749,7 +762,7 @@ class AbstraxionAuth {
         mintMsg,
         fee,
         "Minting pass via Looop Music Wallet",
-
+        funds
       );
 
       console.log("Pass Mint Result:", {

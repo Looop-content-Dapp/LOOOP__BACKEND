@@ -12,12 +12,10 @@ import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { FaveArtist } from "../models/faveartist.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
-import contractHelper from "../xion/contractConfig.js";
 import {
   createArtistSchema,
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
-import XionWalletService from "../xion/wallet.service.js";
 import sendEmail from "../script.cjs";
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 
@@ -188,70 +186,63 @@ export const createArtist = async (req, res) => {
       });
     }
 
-    const existingArtistAccount = await Artist.findOne({ userId: id });
-    if (existingArtistAccount) {
+    // Check if user already has a pending claim
+    const existingUserClaim = await ArtistClaim.findOne({
+      userId: id,
+      status: "pending",
+    });
+
+    if (existingUserClaim) {
       return res.status(400).json({
         status: "failed",
-        message: "User already has an artist account",
+        message: "You already have a pending artist claim",
       });
     }
 
-    const existingArtist = await Artist.findOne({ email });
-    if (existingArtist) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Artist already exists" });
-    }
-
-    if (!validator.isURL(profileImage)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid profile image URL" });
-    }
-
-    if (!validator.isURL(websiteurl)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid website URL" });
-    }
-
-    if (!validator.isURL(twitter)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid Twitter URL" });
-    }
-
-    if (!validator.isURL(tiktok)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid TikTok URL" });
-    }
-
-    if (!validator.isURL(instagram)) {
-      return res
-        .status(400)
-        .json({ status: "failed", message: "Invalid Instagram URL" });
-    }
-
-    const artist = new Artist({
-      name: artistname,
-      email,
-      profileImage,
-      biography: bio,
-      genres,
-      address1: address1,
-      address2,
-      country,
-      city,
-      postalcode,
-      websiteurl,
-      userId: id,
-      artistId: user.id + Math.floor(Math.random() * 1000),
+    // Check if artist profile exists by name and email
+    let artist = await Artist.findOne({
+      $or: [
+        { name: { $regex: new RegExp(`^${artistname}$`, 'i') } },
+        { email: email.toLowerCase() }
+      ]
     });
 
-    await artist.save();
+    let isNewArtist = false;
 
-    const claimresult = await submitClaim({
+    // If artist doesn't exist, create new profile
+    if (!artist) {
+      isNewArtist = true;
+      artist = new Artist({
+        name: artistname,
+        email: email.toLowerCase(),
+        profileImage,
+        biography: bio,
+        genres,
+        address1,
+        address2,
+        country,
+        city,
+        postalcode,
+        websiteurl,
+        verified: false,
+        artistId: user.id + Math.floor(Math.random() * 1000),
+      });
+
+      await artist.save();
+
+      // Create social media links
+      const socials = new Social({
+        artistId: artist._id,
+        twitter,
+        tiktok,
+        instagram,
+      });
+
+      await socials.save();
+    }
+
+    // Create claim request
+    const claimResult = await submitClaim({
       verificationDocuments: {
         email,
         profileImage,
@@ -264,44 +255,48 @@ export const createArtist = async (req, res) => {
       },
       userId: user.id,
       socialMediaHandles: {
-        tiktok: tiktok,
-        instagram: instagram,
-        twitter: twitter,
+        tiktok,
+        instagram,
+        twitter,
       },
       artistId: artist._id,
     });
 
-    const socials = await Social({
-      artistId: artist._doc._id,
-      twitter,
-      tiktok,
-      instagram,
-    });
-
-    await socials.save();
-
+    // Get genre names for response
     const getGenre = await Genre.find({ _id: { $in: genres } });
     const genreNames = getGenre.map((genre) => genre.name);
 
-    const artistData = { artist: { ...artist._doc, genres: genreNames } };
+    const artistData = {
+      artist: {
+        ...artist._doc,
+        genres: genreNames,
+        isNewProfile: isNewArtist
+      }
+    };
     delete artistData.artist.artistId;
 
-    await sendEmail(email, "Congratulations", "artist", {
+    // Send email notification
+    await sendEmail(email, "Artist Profile Claim Request", "artist", {
       artist_name: artistname,
-      support_email: "https://localhost:3000",
+      support_email: "support@looop.com",
     });
 
     return res.status(200).json({
       status: "success",
-      message: "Artist created successfully",
-      data: { ...artistData, claimresult },
+      message: isNewArtist
+        ? "Artist profile created and claim submitted successfully"
+        : "Claim request submitted for existing artist profile",
+      data: { ...artistData, claimResult },
     });
   } catch (error) {
+    console.error("Error in createArtist:", error);
     return res
       .status(500)
-      .json({ message: "Error creating artist", error: error.message });
+      .json({ message: "Error processing artist request", error: error.message });
   }
 };
+
+
 export const signContract = async (req, res) => {
   try {
     const { artistname, artistAddress } = req.body;
@@ -312,7 +307,6 @@ export const signContract = async (req, res) => {
     const artistEmail = validateArtistName.email;
     console.log("artist email", artistEmail)
 
-    if (validateArtistName) {
       const msg = {
         sign_agreement: {
           artist_address: artistAddress,
@@ -333,14 +327,8 @@ export const signContract = async (req, res) => {
           updatedAt: new Date(),
         });
       }
-    } else {
-      return res.status(400).json({
-        status: "failed",
-        message: "Artist not found",
-      });
-    }
 
-    return res.status(200).json({
+     return res.status(200).json({
       status: "success",
       message: "Contract created & signed successfully",
       data: null,
@@ -357,6 +345,8 @@ export const signContract = async (req, res) => {
     });
   }
 };
+
+
 export const verifyArtistEmail = async (req, res) => {
   try {
     const { email = "", name = "" } = req.body;
@@ -409,6 +399,8 @@ export const verifyArtistEmail = async (req, res) => {
       .json({ message: "Error verifying artist", error: error.message });
   }
 };
+
+
 export const getArtistSubcribers = async (req, res) => {
   try {
     const { artistId } = req.params;
@@ -430,127 +422,6 @@ export const getArtistSubcribers = async (req, res) => {
   }
 };
 
-export const followArtist = async (req, res) => {
-  try {
-    const { userId, artistId } = req.params;
-
-    const alreadySubcribed = await Follow.findOne({
-      following: artistId, // get total followers for artist
-      follower: userId,
-    });
-
-    console.log("follow");
-    if (alreadySubcribed) {
-      await Follow.deleteOne({
-        following: artistId, // get total followers for artist
-        follower: userId,
-      });
-    } else {
-      const follower = new Follow({
-        following: artistId, // get total followers for artist
-        follower: userId,
-      });
-      await follower.save();
-    }
-
-    return res.status(200).json({
-      message: `successfully ${
-        alreadySubcribed ? "unfollowed" : "followed"
-      } artist`,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "Error occured",
-      error: error.message,
-    });
-  }
-};
-
-export const getFollow = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const isArtist = await Artist.findOne({ _id: id });
-
-    console.log(isArtist);
-    let follow;
-    if (isArtist) {
-      // get artist followers
-      follow = await Follow.aggregate([
-        {
-          $match: {
-            $expr: {
-              $eq: ["$following", { $toObjectId: id }],
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "follower",
-            foreignField: "_id",
-            as: "follower",
-          },
-        },
-        {
-          $unwind: {
-            path: "$follower",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $project: {
-            following: 0,
-          },
-        },
-      ]);
-    } else {
-      // get artist following
-      follow = await Follow.aggregate([
-        {
-          $match: {
-            $expr: {
-              $eq: ["$follower", { $toObjectId: id }],
-            },
-          },
-        },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "following",
-            foreignField: "_id",
-            as: "artist",
-          },
-        },
-        {
-          $unwind: {
-            path: "$artist",
-            preserveNullAndEmptyArrays: true,
-          },
-        },
-        {
-          $project: {
-            follower: 0,
-          },
-        },
-      ]);
-    }
-
-    return res.status(200).json({
-      message: `successfully ${
-        isArtist ? "gotten artist followers" : "gotten user following"
-      } `,
-      data: follow,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "Error occured",
-      error: error.message,
-    });
-  }
-};
 
 export const getArtistPost = async (req, res) => {
   try {
