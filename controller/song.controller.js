@@ -3335,6 +3335,12 @@ export const getTracksFromRelease = async (req, res) => {
         const isTrack = await Track.findById(releaseId);
         const isRelease = !isTrack ? await Release.findById(releaseId) : null;
 
+        if (!isTrack && !isRelease) {
+          return res.status(404).json({
+            message: "No track or release found with this ID"
+          });
+        }
+
         if (isTrack) {
           determinedIdType = 'track';
           isSingleTrack = true;
@@ -3347,10 +3353,8 @@ export const getTracksFromRelease = async (req, res) => {
 
       // Build match stage based on ID type
       if (isSingleTrack) {
-        // If it's a track ID, match that specific track
         matchStage = { _id: new mongoose.Types.ObjectId(releaseId) };
       } else {
-        // For release types (album, EP, single), match by releaseId
         matchStage = { releaseId: new mongoose.Types.ObjectId(releaseId) };
       }
 
@@ -3506,7 +3510,7 @@ export const getTracksFromRelease = async (req, res) => {
               completionRate: "$completionRate",
               skipRate: {
                 $multiply: [
-                  { $divide: [{ $ifNull: ["$interactions.skipCount", 0] }, { $max: [{ $ifNull: ["$interactions.totalStreams", 0] }, 1] }] },
+                  { $divide: [{ $ifNull: ["$interactions.skipCount", 0] }, { $max: [{ $ifNull: ["$interactions.totalStreams", 1] }, 1] }] },
                   100
                 ]
               },
