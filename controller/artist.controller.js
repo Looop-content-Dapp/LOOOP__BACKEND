@@ -18,6 +18,7 @@ import {
 } from "../validations_schemas/artist.validation.js";
 import sendEmail from "../script.cjs";
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+import { ArtistClaim } from "../models/artistClaim.model.js";
 
 export const getAllArtists = async (req, res) => {
   try {
@@ -278,7 +279,7 @@ export const createArtist = async (req, res) => {
     // Send email notification
     await sendEmail(email, "Artist Profile Claim Request", "artist", {
       artist_name: artistname,
-      support_email: "support@looop.com",
+      support_email: "official@looopmusic.com",
     });
 
     return res.status(200).json({

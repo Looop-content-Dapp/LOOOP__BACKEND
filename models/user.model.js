@@ -38,6 +38,11 @@ const userSchema = new Schema(
         default: null,
       },
     },
+    nftContracts: [{
+      contractAddress: { type: String, required: true },
+      communityId: { type: SchemaTypes.ObjectId, ref: 'Community', required: true },
+      mintedAt: { type: Date, default: Date.now }
+    }],
     oauthTokens: [{ type: SchemaTypes.ObjectId, ref: "OAuthToken" }],
     artist: { type: SchemaTypes.ObjectId, ref: "artist" },
     referralCode: { type: String, required: true, unique: true },

@@ -442,6 +442,7 @@ export const joinCommunity = async (req, res) => {
 
     console.log(mint, "minted");
 
+    // Create community member
     const communitymember = new CommunityMember({
       userId,
       communityId,
@@ -449,13 +450,25 @@ export const joinCommunity = async (req, res) => {
 
     await communitymember.save();
 
+    // Add NFT contract to user's collection
+    user.nftContracts.push({
+      contractAddress: community.tribePass.contractAddress,
+      communityId: communityId
+    });
+    await user.save();
+
+    // Update community member count
     community.memberCount += 1;
     await community.save();
 
     return res.status(200).json({
       status: "success",
       message: "Successfully minted community",
-      data: { communitymember, nftmint: mint.transactionHash },
+      data: {
+        communitymember,
+        nftmint: mint.transactionHash,
+        contractAddress: community.tribePass.contractAddress
+      },
     });
   } catch (error) {
     console.error("Error in joinCommunity:", error);

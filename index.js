@@ -21,6 +21,7 @@ import adminRouter from "./routes/admin-route/admin.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
 import AbstraxionAuth from "./xion/AbstraxionAuth.cjs";
+import nftRoutes from "./routes/nft.routes.js";
 
 config();
 
@@ -55,6 +56,7 @@ app.use("/api/artistclaim", artistClaimRouter);
 app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRouter);
 app.use("/api/referral", referralRouter);
+app.use("/api/nfts", nftRoutes);
 // app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
 

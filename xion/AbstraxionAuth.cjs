@@ -784,6 +784,71 @@ class AbstraxionAuth {
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
   }
+
+  async getNFTDetailsByContracts(contractAddresses) {
+    if (!this.rpcUrl) throw new Error("RPC URL must be configured");
+    if (!Array.isArray(contractAddresses)) {
+      throw new Error("Contract addresses must be provided as an array");
+    }
+
+    try {
+      const client = await CosmWasmClient.connect(this.rpcUrl);
+
+      const nftDetails = await Promise.all(contractAddresses.map(async (contractAddress) => {
+        try {
+          // Query contract info
+          const contractInfo = await client.getContractCodeHistory(contractAddress);
+
+          // Query NFT collection info
+          const collectionInfo = await client.queryContractSmart(contractAddress, {
+            collection_info: {}
+          });
+
+          // Get total supply
+          const totalSupply = await client.queryContractSmart(contractAddress, {
+            num_tokens: {}
+          });
+
+          // Get contract configuration
+          const config = await client.queryContractSmart(contractAddress, {
+            config: {}
+          });
+
+          return {
+            contractAddress,
+            collectionInfo,
+            totalSupply,
+            config,
+            lastUpdated: contractInfo[contractInfo.length - 1]?.updated,
+            status: "success"
+          };
+        } catch (error) {
+          console.error(`Error fetching NFT details for ${contractAddress}:`, error);
+          return {
+            contractAddress,
+            error: error.message,
+            status: "failed"
+          };
+        }
+      }));
+
+      console.log("NFT Details Retrieved:", {
+        totalContracts: contractAddresses.length,
+        successfulQueries: nftDetails.filter(detail => detail.status === "success").length,
+        failedQueries: nftDetails.filter(detail => detail.status === "failed").length
+      });
+
+      return {
+        success: true,
+        data: nftDetails,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      console.error("Error in getNFTDetailsByContracts:", error);
+      throw new Error(`Failed to fetch NFT details: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new AbstraxionAuth();
