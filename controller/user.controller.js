@@ -1248,89 +1248,166 @@ const verifyOtp = async (req, res) => {
       }
     };
 
-  export const oauth = async (req, res) => {
-    try {
-      const { email, token, channel } = req.body;
+    export const oauth = async (req, res) => {
+        try {
+          const { email, token, channel } = req.body;
 
-      let isTokenValid;
+          let isTokenValid;
 
-      if (channel === "google") {
-        isTokenValid = await validateGoogleToken(token, email);
-      } else {
-        isTokenValid = await validateAppleToken(token, email);
-      }
+          if (channel === "google") {
+            isTokenValid = await validateGoogleToken(token, email);
+          } else {
+            isTokenValid = await validateAppleToken(token, email);
+          }
 
-      if (!isTokenValid) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Invalid token",
-        });
-      }
+          if (!isTokenValid) {
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid token",
+            });
+          }
 
-      let user = await User.findOne({ email: email });
+          let user = await User.findOne({ email: email });
 
-      if (!user) {
-        const newUser = new User({
-          email: email,
-        });
+          if (!user) {
+            const newUser = new User({
+              email: email,
+            });
 
-        return res.status(200).json({
-          status: "success",
-          message: "User created successfully",
-          data: {
-            user: {
-              ...(newUser?.toObject ? newUser.toObject() : newUser),
+            return res.status(200).json({
+              status: "success",
+              message: "User created successfully",
+              data: {
+                user: {
+                  ...(newUser?.toObject ? newUser.toObject() : newUser),
+                },
+                isNewUser: true,
+              },
+            });
+          }
+
+          // Get followed artists with details
+          const followedArtists = await Follow.find({ follower: user._id })
+            .select('following')
+            .lean();
+
+          const artistIds = followedArtists.map(f => f.following);
+
+          // Get complete details of followed artists
+          const followingArtists = await Artist.aggregate([
+            {
+              $match: { _id: { $in: artistIds } }
             },
-            isNewUser: true,
-          },
-        });
-      }
-
-      /// existing user
-      const isArtist = await Artist.findOne({
-        userId: user._id,
-        verified: true,
-      });
-
-      const hasClaim = await ArtistClaim.findOne({
-        userId: user._id,
-      });
-
-      const xionLoggedInUser = await XionWalletService.loginAccount(email);
-
-      if (xionLoggedInUser) {
-        const userData = {
-          ...user._doc,
-          wallets: {
-            ...user._doc.wallets,
-            xion: {
-              address: xionLoggedInUser.walletAddress,
+            {
+              $lookup: {
+                from: "follows",
+                localField: "_id",
+                foreignField: "following",
+                as: "followers"
+              }
             },
-          },
-          artist: isArtist === null ? null : isArtist?.id,
-          artistClaim: hasClaim === null ? null : hasClaim?.id,
-        };
-        delete userData.password;
-        delete userData.referralCode;
-        delete userData.referralCount;
-        delete userData.referralCodeUsed;
+            {
+              $project: {
+                _id: 1,
+                name: 1,
+                profileImage: 1,
+                verified: 1,
+                followers: { $map: {
+                  input: "$followers",
+                  as: "follower",
+                  in: "$$follower.follower"
+                }},
+                isUserFollowing: true
+              }
+            }
+          ]);
 
-        return res.status(200).json({
-          status: "success",
-          message: "Sign in successful",
-          data: {
-            ...userData,
-          },
-        });
-      }
-    } catch (error) {
-      return res.status(500).json({
-        status: "failed",
-        message: "Error signing in",
-        error: error.message,
-      });
-    }
-  };
+          // existing user checks
+          const isArtist = await Artist.findOne({
+            userId: user._id,
+            verified: true,
+          });
+
+          const hasClaim = await ArtistClaim.findOne({
+            userId: user._id,
+          });
+
+          try {
+            const xionLoggedInUser = await XionWalletService.loginAccount(email);
+
+            if (!xionLoggedInUser) {
+              const userData = {
+                ...user._doc,
+                artist: isArtist === null ? null : isArtist?.id,
+                artistClaim: hasClaim === null ? null : hasClaim?.id,
+                following: followingArtists.length,
+                followingArtists: followingArtists,
+              };
+              delete userData.password;
+              delete userData.referralCode;
+              delete userData.referralCount;
+              delete userData.referralCodeUsed;
+
+              return res.status(200).json({
+                status: "success",
+                message: "Sign in successful (wallet service unavailable)",
+                data: userData,
+              });
+            }
+
+            const userData = {
+              ...user._doc,
+              wallets: {
+                ...user._doc.wallets,
+                xion: {
+                  address: xionLoggedInUser.walletAddress,
+                },
+              },
+              artist: isArtist === null ? null : isArtist?.id,
+              artistClaim: hasClaim === null ? null : hasClaim?.id,
+              following: followingArtists.length,
+              followingArtists: followingArtists,
+            };
+            delete userData.password;
+            delete userData.referralCode;
+            delete userData.referralCount;
+            delete userData.referralCodeUsed;
+
+            return res.status(200).json({
+              status: "success",
+              message: "Sign in successful",
+              data: userData,
+            });
+          } catch (walletError) {
+            console.error("Wallet service error:", walletError);
+
+            const userData = {
+              ...user._doc,
+              artist: isArtist === null ? null : isArtist?.id,
+              artistClaim: hasClaim === null ? null : hasClaim?.id,
+              following: followingArtists.length,
+              followingArtists: followingArtists,
+            };
+            delete userData.password;
+            delete userData.referralCode;
+            delete userData.referralCount;
+            delete userData.referralCodeUsed;
+
+            return res.status(200).json({
+              status: "success",
+              message: "Sign in successful (wallet service unavailable)",
+              data: userData,
+            });
+          }
+        } catch (error) {
+          console.error("OAuth error:", error);
+          return res.status(500).json({
+            status: "failed",
+            message: "Error signing in",
+            error: error.message,
+          });
+        }
+    };
 
   // Add track to favorites
   const addToLibrary = async (req, res) => {
