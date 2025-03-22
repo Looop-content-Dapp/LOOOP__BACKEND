@@ -37,7 +37,17 @@ const artistSchema = new Schema(
     country: { type: String, required: true, default: null },
     postalcode: { type: String, required: false, default: null },
     city: { type: String, required: true, default: null },
-    websiteurl: { type: String, required: false, default: null },
+    websiteurl: {
+      type: String,
+      required: false,
+      default: null,
+      set: (value) => {
+        if (value && !/^https?:\/\//i.test(value)) {
+          return `http://${value}`;
+        }
+        return value;
+      }
+    },
     monthlyListeners: { type: Number, default: 0 },
     followers: { type: Number, default: 0 }, // Simplified followers field
     isFollowed: {
