@@ -34,6 +34,26 @@ const userSchema = new Schema(
       notifications: {
         email: { type: Boolean, default: true },
         push: { type: Boolean, default: true }
+      },
+      currency: {
+        type: String,
+        default: 'USD',
+        enum: ['USD', 'EUR', 'GBP', 'NGN', 'GHS', 'KES', 'ZAR']
+      },
+      chain: {
+        type: String,
+        default: 'XION',
+        enum: ['XION', 'STARKNET']
+      },
+      theme: {
+        type: String,
+        default: 'system',
+        enum: ['light', 'dark', 'system']
+      },
+      displayMode: {
+        type: String,
+        default: 'comfortable',
+        enum: ['compact', 'comfortable']
       }
     },
     role: {
