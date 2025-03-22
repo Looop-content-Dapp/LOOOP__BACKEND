@@ -2082,6 +2082,93 @@ const verifyOtp = async (req, res) => {
       }
     };
 
+    const updateUserProfile = async (req, res) => {
+        try {
+          const { userId } = req.params;
+          const updateData = req.body;
+
+          if (!validator.isMongoId(userId)) {
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid user ID format"
+            });
+          }
+
+          // Fields that are not allowed to be updated
+          const restrictedFields = [
+            'email',
+            'password',
+            'username',
+            'wallets',
+            'role',
+            'isPremium',
+            'referralCode',
+            'referralCount',
+            'referralCodeUsed'
+          ];
+
+          // Remove restricted fields from update data
+          restrictedFields.forEach(field => delete updateData[field]);
+
+          // Validate profile image URL if provided
+          if (updateData.profileImage && !validator.isURL(updateData.profileImage)) {
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid profile image URL format"
+            });
+          }
+
+          // Validate social links if provided
+          if (updateData.socialLinks) {
+            if (updateData.socialLinks.website && !validator.isURL(updateData.socialLinks.website)) {
+              return res.status(400).json({
+                status: "failed",
+                message: "Invalid website URL format"
+              });
+            }
+          }
+
+          // Validate phone number if provided
+          if (updateData.tel && !validator.isMobilePhone(updateData.tel.toString())) {
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid phone number format"
+            });
+          }
+
+          const user = await User.findById(userId);
+          if (!user) {
+            return res.status(404).json({
+              status: "failed",
+              message: "User not found"
+            });
+          }
+
+          // Update user profile
+          const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            { $set: updateData },
+            {
+              new: true,
+              select: '-password -wallets.xion.mnemonic -wallets.xion._id -referralCode -referralCount -referralCodeUsed'
+            }
+          );
+
+          return res.status(200).json({
+            status: "success",
+            message: "Profile updated successfully",
+            data: updatedUser
+          });
+        } catch (error) {
+          console.error("Profile update error:", error);
+          return res.status(500).json({
+            status: "failed",
+            message: "Error updating profile",
+            error: error.message
+          });
+        }
+      };
+
   export {
     getAllUsers,
     getUser,
@@ -2108,5 +2195,6 @@ const verifyOtp = async (req, res) => {
     getFollowedArtists,
     addToLibrary,
     getUserLibrary,
-    getUserWalletBalance
+    getUserWalletBalance,
+    updateUserProfile
   };
