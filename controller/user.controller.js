@@ -2136,6 +2136,41 @@ const verifyOtp = async (req, res) => {
             });
           }
 
+          // Validate preferences if provided
+          if (updateData.preferences) {
+            if (updateData.preferences.currency &&
+                !['USD', 'EUR', 'GBP', 'NGN', 'GHS', 'KES', 'ZAR'].includes(updateData.preferences.currency)) {
+              return res.status(400).json({
+                status: "failed",
+                message: "Invalid currency"
+              });
+            }
+
+            if (updateData.preferences.chain &&
+                !['XION', 'STARKNET', 'ETHEREUM', 'POLYGON'].includes(updateData.preferences.chain)) {
+              return res.status(400).json({
+                status: "failed",
+                message: "Invalid chain"
+              });
+            }
+
+            if (updateData.preferences.theme &&
+                !['light', 'dark', 'system'].includes(updateData.preferences.theme)) {
+              return res.status(400).json({
+                status: "failed",
+                message: "Invalid theme"
+              });
+            }
+
+            if (updateData.preferences.displayMode &&
+                !['compact', 'comfortable'].includes(updateData.preferences.displayMode)) {
+              return res.status(400).json({
+                status: "failed",
+                message: "Invalid display mode"
+              });
+            }
+          }
+
           const user = await User.findById(userId);
           if (!user) {
             return res.status(404).json({

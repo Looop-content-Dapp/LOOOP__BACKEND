@@ -39,9 +39,15 @@ export const createArtistSchema = yup.object().shape({
   postalcode: yup.string().trim().required("Postal code is required"),
   websiteurl: yup
     .string()
-    .trim()
-    .url("Invalid website URL")
-    .required("Website URL is required"),
+    .url('Invalid website URL')
+    .transform((value) => {
+      // Automatically add http:// if no protocol is present
+      if (value && !/^https?:\/\//i.test(value)) {
+        return `http://${value}`;
+      }
+      return value;
+    })
+    .nullable(),
   id: yup.string().trim().required("User ID is required"),
 });
 
