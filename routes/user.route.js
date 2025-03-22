@@ -26,6 +26,7 @@ import {
   addToLibrary,
   getUserLibrary,
   getUserWalletBalance,
+  updateUserProfile,
 } from "../controller/user.controller.js";
 import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
@@ -72,5 +73,7 @@ userRouter.get('/following/:userId', isUser, getFollowedArtists);
 
 
 userRouter.get('/wallet-balance/:userId', getUserWalletBalance);
+
+userRouter.patch("/profile/:userId", updateUserProfile);
 
 export default userRouter;

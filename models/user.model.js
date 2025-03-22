@@ -16,6 +16,26 @@ const userSchema = new Schema(
     bio: { type: String, default: null },
     isPremium: { type: Boolean, default: false },
     tel: { type: Number, default: null },
+    // New fields for enhanced profile
+    location: {
+      country: { type: String, default: null },
+      state: { type: String, default: null },
+      city: { type: String, default: null }
+    },
+    socialLinks: {
+      instagram: { type: String, default: null },
+      twitter: { type: String, default: null },
+      facebook: { type: String, default: null },
+      website: { type: String, default: null }
+    },
+    preferences: {
+      favoriteGenres: [{ type: SchemaTypes.ObjectId, ref: 'Genre' }],
+      language: { type: String, default: 'en' },
+      notifications: {
+        email: { type: Boolean, default: true },
+        push: { type: Boolean, default: true }
+      }
+    },
     role: {
       type: String,
       enum: ["LISTENER", "ARTIST", "ADMIN"],
