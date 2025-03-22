@@ -263,6 +263,10 @@ export const createArtist = async (req, res) => {
       artistId: artist._id,
     });
 
+    await Artist.findByIdAndUpdate(artist._id, {
+        claimStatus: claimResult.data.status
+      });
+
     // Get genre names for response
     const getGenre = await Genre.find({ _id: { $in: genres } });
     const genreNames = getGenre.map((genre) => genre.name);

@@ -92,57 +92,63 @@ export const submitArtistClaim = async (req, res) => {
 };
 
 export const submitClaim = async ({
-  userId,
-  artistId,
-  verificationDocuments,
-  socialMediaHandles,
-}) => {
-  try {
-    if (!userId || !verificationDocuments) {
-      return {
-        message: "Missing required fields",
-        required: ["userId", "artistId", "verificationDocuments"],
-      };
-    }
+    userId,
+    artistId,
+    verificationDocuments,
+    socialMediaHandles,
+  }) => {
+    try {
+      if (!userId || !verificationDocuments) {
+        return {
+          message: "Missing required fields",
+          required: ["userId", "artistId", "verificationDocuments"],
+        };
+      }
 
-    const existingClaim = await ArtistClaim.findOne({
-      userId,
-      status: "pending",
-    });
-
-    if (existingClaim) {
-      return {
-        isPending: true,
-        message: "A claim request is already pending for this artist profile",
-      };
-    } else {
-      const claim = new ArtistClaim({
+      const existingClaim = await ArtistClaim.findOne({
         userId,
-        artistId,
-        verificationDocuments,
-        socialMediaHandles,
-        websiteUrl: verificationDocuments.websiteurl,
         status: "pending",
       });
 
-      await claim.save();
-
-      if (claim) {
+      if (existingClaim) {
         return {
-          message: "Claim request submitted successfully",
-          data: { id: claim.id, status: claim.status },
-          isPending: false,
+          isPending: true,
+          message: "A claim request is already pending for this artist profile",
+          data: { status: "pending" }
         };
+      } else {
+        const claim = new ArtistClaim({
+          userId,
+          artistId,
+          verificationDocuments,
+          socialMediaHandles,
+          websiteUrl: verificationDocuments.websiteurl,
+          status: "pending",
+        });
+
+        await claim.save();
+
+        if (claim) {
+          return {
+            message: "Claim request submitted successfully",
+            data: {
+              id: claim.id,
+              status: claim.status,
+              artistId: claim.artistId
+            },
+            isPending: false,
+          };
+        }
       }
+    } catch (error) {
+      console.error("Error in submitClaim:", error);
+      return {
+        message: "Error submitting claim",
+        error: error.message,
+        data: { status: "error" }
+      };
     }
-  } catch (error) {
-    console.error("Error in submitClaim:", error);
-    return {
-      message: "Error submitting claim",
-      error: error.message,
-    };
-  }
-};
+  };
 
 // Get claim status
 export const getClaimStatus = async (req, res) => {
