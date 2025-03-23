@@ -192,4 +192,12 @@ PostSchema.pre('save', function(next) {
   next();
 });
 
+// Add this near the end of your schema definition
+PostSchema.index({
+  content: 'text',
+  title: 'text',
+  tags: 'text',
+  category: 'text'
+});
+
 export const Post = model("posts", PostSchema);
