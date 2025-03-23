@@ -8,6 +8,7 @@ import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+import { Post } from "../models/post.model.js";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -481,29 +482,196 @@ export const joinCommunity = async (req, res) => {
 };
 
 export const searchCommunity = async (req, res) => {
-  try {
-    const { query } = req.query;
+    try {
+      const { query, filter } = req.query;
+      const searchQuery = query || '';
 
-    const results = await Community.find(
-      {
-        $text: { $search: query },
-      },
-      {
-        score: { $meta: "textScore" },
+      // Search Communities
+      const communities = await Community.aggregate([
+        {
+          $match: {
+            $or: [
+              { communityName: { $regex: searchQuery, $options: 'i' } },
+              { description: { $regex: searchQuery, $options: 'i' } }
+            ]
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "createdBy",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        {
+          $project: {
+            _id: 1,
+            communityName: 1,
+            description: 1,
+            coverImage: 1,
+            memberCount: 1,
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              profileImage: "$artist.profileImage",
+              verified: "$artist.verified"
+            },
+            type: { $literal: "community" }
+          }
+        }
+      ]);
+
+      // Search Posts
+      const posts = await Post.aggregate([
+        {
+          $match: {
+            $or: [
+              { content: { $regex: searchQuery, $options: 'i' } },
+              { title: { $regex: searchQuery, $options: 'i' } }
+            ],
+            status: "published",
+            visibility: "public"
+          }
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "communityId",
+            foreignField: "_id",
+            as: "community"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        {
+          $unwind: "$community"
+        },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            media: {
+              $filter: {
+                input: "$media",
+                as: "m",
+                cond: { $in: ["$$m.type", ["image", "video"]] }
+              }
+            },
+            createdAt: 1,
+            stats: {
+              likes: "$likeCount",
+              comments: "$commentCount",
+              views: { $literal: "12.2k" }
+            },
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              profileImage: "$artist.profileImage",
+              verified: "$artist.verified",
+              handle: { $concat: ["@", "$artist.name", "FC"] }
+            },
+            community: {
+              _id: "$community._id",
+              name: "$community.communityName"
+            },
+            timeAgo: { $literal: "1h" },
+            type: { $literal: "post" }
+          }
+        },
+        {
+          $sort: { createdAt: -1 }
+        }
+      ]);
+
+      // Search Artists
+      const artists = await Artist.aggregate([
+        {
+          $match: {
+            name: { $regex: searchQuery, $options: 'i' }
+          }
+        },
+        {
+          $lookup: {
+            from: "communities",
+            localField: "_id",
+            foreignField: "createdBy",
+            as: "communities"
+          }
+        },
+        {
+          $lookup: {
+            from: "communitymembers",
+            localField: "communities._id",
+            foreignField: "communityId",
+            as: "tribeStars"
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            profileImage: 1,
+            verified: 1,
+            type: { $literal: "artist" },
+            tribeStars: {
+              $toString: {
+                $concat: [
+                  { $toString: { $divide: [{ $size: "$tribeStars" }, 1000] } },
+                  "K"
+                ]
+              }
+            }
+          }
+        }
+      ]);
+
+      // Filter results based on type
+      let results;
+      switch (filter?.toLowerCase()) {
+        case 'posts':
+          results = posts;
+          break;
+        case 'tribes':
+          results = communities;
+          break;
+        case 'artistes':
+          results = artists;
+          break;
+        default:
+          results = [...communities, ...posts, ...artists];
       }
-    ).sort({ score: 1 });
 
-    return res.status(200).json({
-      message: "success",
-      searchResults: results,
-    });
-  } catch (error) {
-    console.error("Error searching:", error);
-    return res
-      .status(500)
-      .json({ message: "Error searching", error: error.message });
-  }
-};
+      return res.status(200).json({
+        status: "success",
+        message: "Search completed successfully",
+        data: {
+          results,
+          total: results.length,
+          filter: filter || 'all'
+        }
+      });
+    } catch (error) {
+      console.error("Error searching:", error);
+      return res.status(500).json({
+        status: "error",
+        message: "Error performing search",
+        error: error.message
+      });
+    }
+  };
 
 export const getArtistCommunitiesByGenre = async (req, res) => {
   try {

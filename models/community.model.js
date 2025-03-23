@@ -87,6 +87,12 @@ const communitySchema = new Schema(
   }
 );
 
-communitySchema.index({ communityName: "text" });
+// Add this near the end of your schema definition
+communitySchema.index({
+  communityName: 'text',
+  description: 'text',
+  'tribePass.collectibleName': 'text',
+  'tribePass.collectibleDescription': 'text'
+});
 
 export const Community = model("community", communitySchema);

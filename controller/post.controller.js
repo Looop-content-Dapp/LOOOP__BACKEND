@@ -728,8 +728,6 @@ export const getUserFeed = async (req, res) => {
   }
 };
 
-
-
 // Get event attendees
 export const getEventAttendees = async (req, res) => {
   try {
@@ -940,21 +938,3 @@ export const getActiveAnnouncements = async (req, res) => {
     });
   }
 };
-
-// Export all controllers
-// export default {
-//   getAllPosts,
-//   getPost,
-//   getAllPostByArtist,
-//   getAllPostsByCommunity,
-//   createPost,
-//   updatePost,
-//   deletePost,
-//   likePost,
-//   commentOnPost,
-//   getPostComments,
-//   getEventAttendees,
-//   toggleEventAttendance,
-//   getUpcomingEvents,
-//   getActiveAnnouncements
-// };
