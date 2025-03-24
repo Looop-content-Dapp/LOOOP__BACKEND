@@ -452,16 +452,25 @@ export const joinCommunity = async (req, res) => {
 
     await communitymember.save();
 
-    // Add NFT contract to user's collection
-    user.nftContracts.push({
-      contractAddress: community.tribePass.contractAddress,
-      communityId: communityId
-    });
-    await user.save();
+    // Update user's NFT contracts using $push instead of direct array manipulation
+    await User.findByIdAndUpdate(
+      userId,
+      {
+        $push: {
+          nftContracts: {
+            contractAddress: community.tribePass.contractAddress,
+            communityId: communityId
+          }
+        }
+      },
+      { new: true }
+    );
 
     // Update community member count
-    community.memberCount += 1;
-    await community.save();
+    await Community.findByIdAndUpdate(
+      communityId,
+      { $inc: { memberCount: 1 } }
+    );
 
     return res.status(200).json({
       status: "success",
