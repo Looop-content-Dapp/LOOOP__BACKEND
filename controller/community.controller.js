@@ -652,11 +652,39 @@ export const searchCommunity = async (req, res) => {
           }
         },
         {
+          $lookup: {
+            from: "follows",
+            localField: "_id",
+            foreignField: "following",
+            as: "followers"
+          }
+        },
+        {
+          $lookup: {
+            from: "genres",
+            localField: "genres",
+            foreignField: "_id",
+            as: "genreDetails"
+          }
+        },
+        {
           $project: {
             _id: 1,
             name: 1,
+            email: 1,
             profileImage: 1,
+            biography: 1,
             verified: 1,
+            verifiedAt: 1,
+            monthlyListeners: 1,
+            popularity: 1,
+            websiteurl: 1,
+            socialLinks: 1,
+            roles: 1,
+            labels: 1,
+            country: 1,
+            city: 1,
+            genres: "$genreDetails",
             type: { $literal: "artist" },
             tribeStars: {
               $toString: {
@@ -665,6 +693,14 @@ export const searchCommunity = async (req, res) => {
                   "K"
                 ]
               }
+            },
+            followers: "$followers.follower",
+            followersCount: { $size: "$followers" },
+            topTracks: {
+              $slice: ["$topTracks", 5] // Get top 5 tracks
+            },
+            communities: {
+              $size: "$communities"
             }
           }
         }
@@ -1201,4 +1237,3 @@ export const getFollowedArtistsCommunities = async (req, res) => {
       });
     }
   };
-
