@@ -1224,6 +1224,7 @@ const verifyOtp = async (req, res) => {
               ipAddress: req.ip,
             }
           );
+          console.log("email result", emailResult);
 
           return res.status(200).json({
             status: "success",
