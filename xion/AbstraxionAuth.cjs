@@ -849,6 +849,78 @@ class AbstraxionAuth {
       throw new Error(`Failed to fetch NFT details: ${error.message}`);
     }
   }
+
+  async transferFunds(recipientAddress, amount, denom = "uxion") {
+    if (!this.isLoggedIn || !this.abstractAccount) {
+      throw new Error("User must be logged in to transfer funds");
+    }
+    if (!this.rpcUrl) throw new Error("RPC URL must be configured");
+
+    try {
+      const { signer, useGranter } = await this.getSigner();
+      const accounts = await this.abstractAccount.getAccounts();
+      const senderAddress = accounts[0].address;
+
+      // Validate addresses
+      if (!recipientAddress.startsWith('xion1')) {
+        throw new Error('Invalid recipient address: must start with "xion1"');
+      }
+
+      // Check sender's balance before transfer
+      const client = await CosmWasmClient.connect(this.rpcUrl);
+      const balance = await client.getBalance(senderAddress, denom);
+
+      if (BigInt(balance.amount) < BigInt(amount)) {
+        throw new Error(`Insufficient balance. Available: ${balance.amount} ${denom}`);
+      }
+
+      // Prepare transfer message
+      const transferMsg = {
+        typeUrl: "/cosmos.bank.v1beta1.MsgSend",
+        value: {
+          fromAddress: senderAddress,
+          toAddress: recipientAddress,
+          amount: [{ denom, amount: amount.toString() }]
+        }
+      };
+
+      // Calculate fee
+      const fee = {
+        amount: coins(5000, "uxion"),
+        gas: "200000"
+      };
+
+      // Execute transfer
+      const result = await signer.signAndBroadcast(
+        senderAddress,
+        [transferMsg],
+        fee,
+        "Transfer via Looop Music Wallet"
+      );
+
+      console.log("Transfer Result:", {
+        transactionHash: result.transactionHash,
+        sender: senderAddress,
+        recipient: recipientAddress,
+        amount: amount,
+        denom: denom
+      });
+
+      return {
+        success: true,
+        transactionHash: result.transactionHash,
+        sender: senderAddress,
+        recipient: recipientAddress,
+        amount: amount,
+        denom: denom
+      };
+
+    } catch (error) {
+      console.error("Error transferring funds:", error);
+      throw new Error(`Failed to transfer funds: ${error.message}`);
+    }
+  }
+
 }
 
 module.exports = new AbstraxionAuth();
