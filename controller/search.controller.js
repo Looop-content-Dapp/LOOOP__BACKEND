@@ -679,11 +679,3 @@ export const searchByCategory = async (req, res) => {
     });
   }
 };
-
-// export default {
-//   searchAll,
-//   getRecentSearches,
-//   clearRecentSearches,
-//   getTrendingSearches,
-//   searchByCategory
-// };

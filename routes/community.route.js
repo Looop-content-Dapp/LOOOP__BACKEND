@@ -9,6 +9,7 @@ import {
   getArtistCommunitiesByGenre,
   getTrendingArtistsByGenre,
   checkIfTokenSymbolExist,
+  getFollowedArtistsCommunities,
 } from "../controller/community.controller.js";
 
 const communityRouter = Router();
@@ -27,5 +28,6 @@ communityRouter.delete("/deletecommunity/:communityId", deleteCommunity);
 // New genre-based recommendation routes
 communityRouter.get("/artists-by-genre/:userId", getArtistCommunitiesByGenre);
 communityRouter.get("/trending-artists/:userId", getTrendingArtistsByGenre);
+communityRouter.get('/followed/:userId', getFollowedArtistsCommunities);
 
 export default communityRouter;

@@ -9,6 +9,7 @@ import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
 import { Post } from "../models/post.model.js";
+import { Follow } from "../models/followers.model.js";
 
 export const getAllCommunity = async (req, res) => {
   try {
@@ -508,22 +509,53 @@ export const searchCommunity = async (req, res) => {
           $unwind: "$artist"
         },
         {
+          $lookup: {
+            from: "communitymembers",
+            localField: "_id",
+            foreignField: "communityId",
+            as: "members"
+          }
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "members.userId",
+            foreignField: "_id",
+            as: "memberDetails"
+          }
+        },
+        {
           $project: {
             _id: 1,
             communityName: 1,
             description: 1,
             coverImage: 1,
             memberCount: 1,
+            tribePass: 1,  // Include tribePass details
             artist: {
               _id: "$artist._id",
               name: "$artist.name",
               profileImage: "$artist.profileImage",
               verified: "$artist.verified"
             },
+            members: {
+              $map: {
+                input: "$memberDetails",
+                as: "member",
+                in: {
+                  _id: "$$member._id",
+                  name: "$$member.name",
+                  email: "$$member.email",
+                  profileImage: "$$member.profileImage"
+                }
+              }
+            },
             type: { $literal: "community" }
           }
         }
       ]);
+
+      // ... rest of the code remains the same ...
 
       // Search Posts
       const posts = await Post.aggregate([
@@ -671,7 +703,7 @@ export const searchCommunity = async (req, res) => {
         error: error.message
       });
     }
-  };
+};
 
 export const getArtistCommunitiesByGenre = async (req, res) => {
   try {
@@ -1102,3 +1134,71 @@ const getNextNFTToken = async () => {
     throw new Error("Unable to calculate the next NFT token");
   }
 };
+
+export const getFollowedArtistsCommunities = async (req, res) => {
+    try {
+      const { userId } = req.params;
+
+      // First get all artists that the user follows using the Follow model
+      const followedArtists = await Follow.find({
+        follower: userId
+      }).populate({
+        path: 'following',
+        model: 'artist',
+        select: '_id name email profileImage genre verified'
+      });
+
+      if (!followedArtists.length) {
+        return res.status(200).json({
+          status: "success",
+          message: "User is not following any artists",
+          data: []
+        });
+      }
+
+      // Get the artist IDs
+      const followedArtistIds = followedArtists.map(follow => follow.following._id);
+
+      // Find communities created by followed artists
+      const communities = await Community.find({
+        createdBy: { $in: followedArtistIds }
+      })
+      .populate({
+        path: "createdBy",
+        model: 'artist',
+        select: "name email profileImage genre verified"
+      })
+      // Remove the members population since it's causing the error
+      .lean(); // Convert to plain JavaScript objects
+
+      // Now fetch members separately
+      const communitiesWithMembers = await Promise.all(communities.map(async (community) => {
+        const members = await CommunityMember.find({ communityId: community._id })
+          .populate({
+            path: 'userId',
+            model: 'users',
+            select: 'name email profileImage'
+          })
+          .lean();
+
+        return {
+          ...community,
+          members: members
+        };
+      }));
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully fetched followed artists' communities",
+        data: communitiesWithMembers
+      });
+    } catch (error) {
+      console.error("Error in getFollowedArtistsCommunities:", error);
+      return res.status(500).json({
+        status: "failed",
+        message: "Error fetching followed artists' communities",
+        error: error.message
+      });
+    }
+  };
+
