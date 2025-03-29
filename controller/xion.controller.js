@@ -1,5 +1,4 @@
-import AbstraxionAuth from '../xion/AbstraxionAuth.cjs';
-import { authenticateAPIRequest } from '../middlewares/authenticaterequest.middleware.js';
+import AbstraxionAuth from '../xion/abstraxionauth.cjs';
 
 export const transferFunds = async (req, res) => {
   try {
@@ -58,7 +57,21 @@ export const getTransactions = async (req, res) => {
     const { address } = req.params;
     const { limit = 10 } = req.query;
 
+    if (!address) {
+      return res.status(400).json({
+        success: false,
+        message: "Wallet address is required"
+      });
+    }
+
     const transactions = await AbstraxionAuth.getTransactionHistory(address, parseInt(limit));
+
+    if (!transactions) {
+      return res.status(404).json({
+        success: false,
+        message: "No transactions found for this address"
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -69,7 +82,8 @@ export const getTransactions = async (req, res) => {
     console.error("Transaction history error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message
+      message: "Failed to fetch transaction history",
+      error: error.message
     });
   }
 };

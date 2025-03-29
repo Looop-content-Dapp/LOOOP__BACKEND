@@ -20,9 +20,10 @@ import searchRoutes from "./routes/search.routes.js";
 import adminRouter from "./routes/admin-route/admin.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
-import AbstraxionAuth from "./xion/AbstraxionAuth.cjs";
+import AbstraxionAuth from "./xion/abstraxionauth.cjs";
 import nftRoutes from "./routes/nft.routes.js";
 import xionRoutes from './routes/xion.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
 
 config();
 
@@ -63,6 +64,7 @@ app.use("/api/oauth", oauthrouter);
 
 // Register Xion routes
 app.use('/api/xion', xionRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 const PORT = 9001;
 const mongoURI = process.env.MONGODB_URI || "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";

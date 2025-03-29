@@ -17,7 +17,7 @@ import {
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
 import sendEmail from "../script.cjs";
-import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+import AbstraxionAuth from "../xion/abstraxionauth.cjs";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
 export const getAllArtists = async (req, res) => {
@@ -155,7 +155,6 @@ export const createArtist = async (req, res) => {
   try {
     const {
       artistname,
-      email,
       profileImage,
       bio,
       genres,
@@ -204,7 +203,7 @@ export const createArtist = async (req, res) => {
     let artist = await Artist.findOne({
       $or: [
         { name: { $regex: new RegExp(`^${artistname}$`, 'i') } },
-        { email: email.toLowerCase() }
+        { email: user.email.toLowerCase() }
       ]
     });
 
@@ -215,7 +214,7 @@ export const createArtist = async (req, res) => {
       isNewArtist = true;
       artist = new Artist({
         name: artistname,
-        email: email.toLowerCase(),
+        email: user.email.toLowerCase(),
         profileImage,
         biography: bio,
         genres,
@@ -245,7 +244,7 @@ export const createArtist = async (req, res) => {
     // Create claim request
     const claimResult = await submitClaim({
       verificationDocuments: {
-        email,
+        email: user.email,
         profileImage,
         genres,
         address1,
@@ -265,7 +264,7 @@ export const createArtist = async (req, res) => {
 
     await Artist.findByIdAndUpdate(artist._id, {
         claimStatus: claimResult.data.status
-      });
+    });
 
     // Get genre names for response
     const getGenre = await Genre.find({ _id: { $in: genres } });
@@ -281,7 +280,7 @@ export const createArtist = async (req, res) => {
     delete artistData.artist.artistId;
 
     // Send email notification
-    await sendEmail(email, "Artist Profile Claim Request", "artist", {
+    await sendEmail(user.email, "Artist Profile Claim Request", "artist", {
       artist_name: artistname,
       support_email: "official@looopmusic.com",
     });
@@ -303,23 +302,36 @@ export const createArtist = async (req, res) => {
 
 
 export const signContract = async (req, res) => {
-  try {
-    const { artistname, artistAddress } = req.body;
-    await signContractSchema.validate(req.body);
+    try {
+      const { userId } = req.body;
+      await signContractSchema.validate(req.body);
 
-    const validateArtistName = await Artist.findOne({ name: artistname });
+      // Find user and validate
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({
+          status: "failed",
+          message: "User not found"
+        });
+      }
 
-    const artistEmail = validateArtistName.email;
-    console.log("artist email", artistEmail)
+      // Find artist by user email
+      const artist = await Artist.findOne({ email: user.email });
+      if (!artist) {
+        return res.status(404).json({
+          status: "failed",
+          message: "Artist profile not found for this user"
+        });
+      }
 
       const msg = {
         sign_agreement: {
-          artist_address: artistAddress,
-          artist_name: artistname,
+          artist_address: user.walletAddress,
+          artist_name: artist.name,
         },
       };
 
-      await AbstraxionAuth.login(artistEmail);
+      await AbstraxionAuth.login(user.email);
       const sign = await AbstraxionAuth.executeSmartContract(
         "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
         msg,
@@ -327,28 +339,28 @@ export const signContract = async (req, res) => {
       );
 
       if (sign) {
-        await User.findByIdAndUpdate(validateArtistName.userId, {
-          artist: new Types.ObjectId(validateArtistName._id),
+        await User.findByIdAndUpdate(userId, {
+          artist: new Types.ObjectId(artist._id),
           updatedAt: new Date(),
         });
       }
 
-     return res.status(200).json({
-      status: "success",
-      message: "Contract created & signed successfully",
-      data: null,
-    });
-  } catch (error) {
-    console.log(error);
-    const customerror = `Artist has already signed the agreement`;
-    return res.status(500).json({
-      status: "failed",
-      message: "Error creating artist",
-      error: error.message.includes(customerror)
-        ? "Artist have already signed the contract agreement"
-        : error.message,
-    });
-  }
+      return res.status(200).json({
+        status: "success",
+        message: "Contract created & signed successfully",
+        data: null,
+      });
+    } catch (error) {
+      console.log(error);
+      const customerror = `Artist has already signed the agreement`;
+      return res.status(500).json({
+        status: "failed",
+        message: "Error creating artist",
+        error: error.message.includes(customerror)
+          ? "Artist have already signed the contract agreement"
+          : error.message,
+      });
+    }
 };
 
 

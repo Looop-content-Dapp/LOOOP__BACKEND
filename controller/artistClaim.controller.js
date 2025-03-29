@@ -4,6 +4,7 @@ import { ArtistClaim } from "../models/artistClaim.model.js";
 import mongoose from "mongoose";
 import { websocketService } from '../utils/websocket/websocketServer.js';
 import sendEmail from "../script.cjs";
+import { notificationService } from '../services/notification.service.js';
 
 export const submitArtistClaim = async (req, res) => {
   try {
@@ -63,6 +64,19 @@ export const submitArtistClaim = async (req, res) => {
     });
 
     await claim.save();
+
+    // Create notification for user
+    await notificationService.createNotification({
+      userId,
+      type: 'artist_claim',
+      title: 'Artist Claim Submitted',
+      message: `Your claim request for ${artist.name} has been submitted and is under review.`,
+      data: {
+        claimId: claim._id,
+        artistId: artist._id,
+        artistName: artist.name
+      }
+    });
 
     // Send email notification for claim submission
     await sendEmail(user.email, "Artist Claim Submission", "artist", {
@@ -250,7 +264,7 @@ export const updateClaimStatus = async (req, res) => {
       claim.rejectionReason = rejectionReason;
 
       // Send rejection email
-      await sendEmail(claim.userId.email, "Artist Claim Rejected", "artist", {
+      await sendEmail(claim.userId.email, "Artist Claim Rejected", "claim", {
         artist_name: claim.userId.username,
         claimed_artist: claim.artistId.name,
         support_email: "support@looop.com",
@@ -273,18 +287,8 @@ export const updateClaimStatus = async (req, res) => {
         { session }
       );
 
-      // Update user profile
-      await User.findByIdAndUpdate(
-        claim.userId._id,
-        {
-          artist: claim.artistId._id,
-          updatedAt: new Date(),
-        },
-        { session }
-      );
-
       // Send approval email
-      await sendEmail(claim.userId.email, "Artist Claim Approved", "artist", {
+      await sendEmail(claim.userId.email, "Artist Claim Approved", "claim", {
         artist_name: claim.userId.username,
         claimed_artist: claim.artistId.name,
         support_email: "support@looop.com",

@@ -18,6 +18,10 @@ const { BasicAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/feegran
 const { Any } = require("cosmjs-types/google/protobuf/any");
 const { HermesClient } = require("@pythnetwork/hermes-client");
 const { RpcProvider, Contract } = require("starknet");
+const { websocketService } = require('../utils/websocket/websocketServer.js');
+const { WS_EVENTS } = require('../utils/websocket/eventTypes.js');
+const { PassSubscription } = require("../models/passSubscription.model.js");
+const Transaction = require('../models/Transaction.model.js');
 
 const USDC_ABI = [
     {
@@ -326,15 +330,43 @@ class AbstraxionAuth {
   }
 
   async getTransactionHistory(address, limit = 10) {
-    if (!this.rpcUrl || !this.restUrl)
+    if (!this.rpcUrl || !this.restUrl) {
+      console.error("Configuration error:", { rpcUrl: this.rpcUrl, restUrl: this.restUrl });
       throw new Error("RPC and REST URLs must be configured");
+    }
 
-    const url = `${this.restUrl}/cosmos/tx/v1beta1/txs?events=transfer.recipient='${address}'&order_by=2&pagination.limit=${limit}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("Failed to fetch transaction history");
+    try {
+      // Using the standard Cosmos SDK transaction query format
+      const encodedAddress = encodeURIComponent(address);
+      const url = `${this.restUrl}/cosmos/tx/v1beta1/txs?events=transfer.recipient='${encodedAddress}'&pagination.limit=${limit}&pagination.reverse=true`;
+      console.log("Fetching transactions from:", url);
 
-    const data = await res.json();
-    return data.tx_responses || [];
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("Transaction fetch failed:", {
+          status: res.status,
+          statusText: res.statusText,
+          error: errorText
+        });
+        throw new Error(`Failed to fetch transaction history: ${res.status} ${res.statusText}`);
+      }
+
+      const data = await res.json();
+      console.log("Transaction data received:", {
+        count: data.tx_responses?.length || 0,
+        address
+      });
+
+      return data.tx_responses || [];
+    } catch (error) {
+      console.error("Transaction history error details:", {
+        message: error.message,
+        address,
+        restUrl: this.restUrl
+      });
+      throw error;
+    }
   }
 
   async getFeeGrants(grantee) {
@@ -731,31 +763,55 @@ class AbstraxionAuth {
       const accounts = await this.abstractAccount.getAccounts();
       const senderAddress = accounts[0].address;
 
-            // Check USDC balance before minting
-            const client = await CosmWasmClient.connect(this.rpcUrl);
-            const balance = await client.getBalance(
-              senderAddress,
-              "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4"
-            );
-            console.log("USDC Balance:", balance)
+      // Create pending transaction record
+   const transaction = new Transaction.create({
+        userId: senderAddress,
+        amount: 5000000, // 5 USDC
+        currency: 'USDC',
+        status: 'pending',
+        paymentMethod: 'wallet',
+        type: 'mint_pass',
+        blockchain: 'XION',
+        title: 'Tribe Pass Minting',
+        message: 'Minting tribe pass on XION network',
+        metadata: {
+          communityId: collectionAddress
+        }
+      });
+      await transaction.save();
 
-            if (BigInt(balance.amount) < 5000000n) {
-              throw new Error("Insufficient USDC balance to mint pass");
-            }
+    // Notify client of pending transaction
+    websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+        status: 'pending',
+        transactionId: transaction._id,
+        type: 'mint_pass'
+      });
 
+      // Check USDC balance before minting
+      const client = await CosmWasmClient.connect(this.rpcUrl);
+      const balance = await client.getBalance(
+        senderAddress,
+        "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4"
+      );
+
+      if (BigInt(balance.amount) < 5000000n) {
+        transaction.status = 'failed';
+        transaction.message = 'Insufficient USDC balance';
+        await transaction.save();
+        throw new Error("Insufficient USDC balance to mint pass");
+      }
 
       const mintMsg = {
-       extension: {
-            msg: {
-                mint_pass: {}
-            }
+        extension: {
+          msg: {
+            mint_pass: {}
+          }
         }
       };
 
-      // Using the correct USDC denomination for Xion testnet 2
       const funds = coins(5000000, "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4");
-
       const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
+
       const result = await signer.execute(
         senderAddress,
         collectionAddress,
@@ -765,25 +821,64 @@ class AbstraxionAuth {
         funds
       );
 
-      console.log("Pass Mint Result:", {
+      // Update transaction with success status
+      transaction.status = 'success';
+      transaction.transactionHash = result.transactionHash;
+      await transaction.save();
+
+
+    // Notify client of successful transaction
+    websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+        status: 'success',
+        transactionId: transaction._id,
         transactionHash: result.transactionHash,
-        sender: senderAddress,
-        contractAddress: collectionAddress,
-        payment: funds
+        type: 'mint_pass'
       });
+
+         // Create subscription record after successful minting
+         const expiryDate = new Date();
+         expiryDate.setMonth(expiryDate.getMonth() + 1); // Set expiry to 1 month
+
+         await PassSubscription.create({
+           userId: senderAddress,
+           communityId: transaction.metadata.communityId,
+           contractAddress: collectionAddress,
+           tokenId: result.tokenId, // Assuming the result includes tokenId
+           expiryDate: expiryDate,
+           renewalPrice: 5000000 // 5 USDC in smallest unit
+         });
 
       return {
         success: true,
         transactionHash: result.transactionHash,
         sender: senderAddress,
-        contractAddress: collectionAddress
+        contractAddress: collectionAddress,
+        transactionId: transaction._id // Return transaction ID for UI tracking
       };
 
     } catch (error) {
       console.error("Error minting pass:", error);
+
+      // Update transaction with failed status if it exists
+      if (transaction) {
+        transaction.status = 'failed';
+        transaction.message = error.message;
+        await transaction.save();
+      }
+
+      // Notify client of failed transaction
+    if (transaction) {
+        websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+          status: 'failed',
+          transactionId: transaction._id,
+          error: error.message,
+          type: 'mint_pass'
+        });
+      }
+
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
-  }
+}
 
   async getNFTDetailsByContracts(contractAddresses) {
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
