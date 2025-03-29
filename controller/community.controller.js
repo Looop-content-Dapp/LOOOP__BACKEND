@@ -7,7 +7,7 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
-import AbstraxionAuth from "../xion/AbstraxionAuth.cjs";
+import AbstraxionAuth from "../xion/abstraxionauth.cjs";
 import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
 
@@ -185,8 +185,6 @@ export const createCommunity = async (req, res) => {
       });
     }
 
-    const nextTokenId = await getNextNFTToken();
-
     if (!validator.isURL(coverImage)) {
       return res
         .status(400)
@@ -289,7 +287,6 @@ export const createCommunity = async (req, res) => {
               transactionHash: transactionHash,
             },
             createdBy: artistId,
-            NFTToken: nextTokenId,
           });
 
           await community.save();

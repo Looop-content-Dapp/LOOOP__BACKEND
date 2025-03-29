@@ -1,0 +1,81 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Artist Profile Claim Update</title>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #FFF5F5; }
+      .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+      .logo { text-align: center; margin-bottom: 24px; }
+      .logo img { width: 80px; height: auto; }
+      .content { padding: 0 20px; }
+      h2 { font-size: 24px; margin-bottom: 16px; }
+      p { margin: 16px 0; }
+      .details {
+        background-color: #F8F8F8;
+        padding: 16px;
+        border-radius: 8px;
+        margin: 24px 0;
+      }
+      .cta-button {
+        display: inline-block;
+        background-color: #FF6B2C;
+        color: white;
+        padding: 12px 24px;
+        border-radius: 24px;
+        text-decoration: none;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+      }
+      .social-links {
+        text-align: center;
+        margin-top: 24px;
+        display: flex;
+        justify-content: center;
+        gap: 16px;
+      }
+      .social-links a {
+        color: #666;
+        text-decoration: none;
+      }
+      .footer {
+        text-align: center;
+        margin-top: 32px;
+        font-size: 12px;
+        color: #666;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">
+        <img src="https://media-hosting.imagekit.io//0bc6e0f051fe4d26/Looop%20Logomark.png?Expires=1837326955&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=1xx2KnzhD4tt0on~6C35JG4KJIboMdONhS1YyhvNkuqD6YOuFBVTJHvxggaWRFT1PMJ1hRBH8U9xtE~71SwWpJXiKMhZWNl7PWnKMdv1XDh43LKLj9FBISaGB26HNrnRPhjWhZt25V-RAf1U1UAbItFkJMqpPxdemo8fswzhT-O5S2KQtu1AyEWJ7NlSjCo4KEP81GHNZgDFBmwNbrR0E0fvvvPztXwlNx6bZ~wnGP3WPrIGePiy4AJYFg~HdIrXR2wWUjklV2lhU8zHMvXBRYnDCJ-a8sP0OYIxBOup4yK-GHGcjALYS5~VSlY7c2t3ws-ZklcGBXF3Q6RrMQRLaw__" alt="Looop Music Logo" />
+      </div>
+
+      <div class="content">
+        <h2>Hi {{artist_name}}!</h2>
+
+        <p>{{message}}</p>
+
+        <div style="text-align: center;">
+          <img src="https://media-hosting.imagekit.io//acb03929bcd84ac6/Looop%20Banner%20Black%202%20(1).png?Expires=1837326843&Key-Pair-Id=K2ZIVPTIP2VGHC&Signature=TJdeNXFW2klGuXmZ~IF-pd~wM4cPC1BUP-15sLoF1rq44ZpENChy4x0m6rU9PeyMTLZm2-gKOkQgOIGrG7rikLJbiRK1s6kzG7JQv2QvQfG1pdwQhLHQtq4QG8jS854oJ4JaGLqGYUb~kC8jZWVFr7gJ6bPBqJuihOzqS0R4GnB0sD9wGDM3OvgI9gJLz0uRPPzWkfzick67DPXgwf8yaruh6KHbJqcJwo3~6krv42IotKJk2Vq1E6OhdkVIan8RxdKdx9F7wg3jTjs21Qvbtni1fvg9xr5Av~0a4RiToRH4retsSG1RRGRvRvj1WZE3sv8Z9RGTWGfRJeNW2wvxjw__" alt="Stay in the looop" style="width: 100%; max-width: 500px; border-radius: 8px;" />
+        </div>
+
+        <p>If you have any questions, please contact our support team:</p>
+        <a href="mailto:{{support_email}}" class="cta-button">Contact Support</a>
+
+        <div class="footer">
+          <p>Sparkles,<br>The team at Looop 😊</p>
+
+          <div class="social-links">
+            <a href="https://x.com/looop_music">𝕏</a>
+            <a href="https://instagram.com/officaillooop">Instagram</a>
+            <a href="https://linkedin.com/company/looop">LinkedIn</a>
+          </div>
+
+          <p>©2024 Looop Music. All Rights Reserved</p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
