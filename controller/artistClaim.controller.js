@@ -277,10 +277,6 @@ export const updateClaimStatus = async (req, res) => {
       await Artist.findByIdAndUpdate(
         claim.artistId._id,
         {
-          verified: true,
-          verifiedAt: new Date(),
-          updatedAt: new Date(),
-          userId: claim.userId._id,
           ...claim.socialMediaHandles,
           websiteUrl: claim.websiteUrl,
         },
@@ -321,5 +317,68 @@ export const updateClaimStatus = async (req, res) => {
     });
   } finally {
     session.endSession();
+  }
+};
+
+export const getAllClaims = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    const query = {};
+    if (status) {
+      query.status = status;
+    }
+
+    const options = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      sort: { [sortBy]: sortOrder === 'desc' ? -1 : 1 },
+      populate: [
+        {
+          path: 'artistId',
+          select: 'name email profileImage genre'
+        },
+        {
+          path: 'userId',
+          select: 'username email profileImage'
+        }
+      ]
+    };
+
+    const claims = await ArtistClaim.find(query)
+      .populate(options.populate[0])
+      .populate(options.populate[1])
+      .sort(options.sort)
+      .skip((options.page - 1) * options.limit)
+      .limit(options.limit);
+
+    const totalClaims = await ArtistClaim.countDocuments(query);
+
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully retrieved all claims",
+      data: {
+        claims,
+        pagination: {
+          currentPage: options.page,
+          totalPages: Math.ceil(totalClaims / options.limit),
+          totalClaims,
+          hasMore: options.page * options.limit < totalClaims
+        }
+      }
+    });
+  } catch (error) {
+    console.error("Error in getAllClaims:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error fetching claims",
+      error: error.message
+    });
   }
 };
