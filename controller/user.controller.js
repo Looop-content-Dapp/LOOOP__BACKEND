@@ -22,7 +22,7 @@ import { Genre } from "../models/genre.model.js";
 import { Community } from "../models/community.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
-import sendEmail from "../script.cjs";
+import {sendEmail} from "../script.js";
 import { generateOtp } from "../utils/helpers/generateotp.js";
 import {
   createUserSchema,
@@ -30,12 +30,12 @@ import {
 } from "../validations_schemas/auth.validation.js";
 import { validateGoogleToken } from "../middlewares/googleauth.js";
 import { validateAppleToken } from "../middlewares/appleauth.js";
-import { generateUniqueReferralCode } from "../utils/helpers/referralcode.cjs";
+import { generateUniqueReferralCode } from "../utils/helpers/referralcode.js";
 import { ReferralCode } from "../models/referralcode.model.js";
 import referralConfig from "../config/referral.config.js";
 import XionWalletService from "../xion/wallet.service.js";
 
-import AbstraxionAuth from "../xion/abstraxionauth.cjs";
+import AbstraxionAuth from "../xion/abstraxionauth.js";
 import { Track } from "../models/track.model.js";
 import { Release } from "../models/releases.model.js";
 

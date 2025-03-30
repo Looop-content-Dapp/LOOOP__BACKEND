@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+import  crypto from "crypto";
 
 const decryptPrivateKey = (backup, password) => {
   const { encryptedPrivateKey, salt, iv, tag } = backup;

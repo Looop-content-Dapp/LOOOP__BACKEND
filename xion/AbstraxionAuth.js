@@ -1,27 +1,27 @@
-const {
-  GasPrice,
-  SigningStargateClient,
-  calculateFee,
-  coins,
-} = require("@cosmjs/stargate");
-const { fetchConfig } = require("@burnt-labs/constants");
-const { makeCosmoshubPath } = require("@cosmjs/amino");
-const { GranteeSignerClient } = require("./GranteeSignerClient.cjs");
-const { SignArbSecp256k1HdWallet } = require("./SignArbSecp256k1HdWallet.cjs");
-const crypto = require("crypto");
-const { Wallet } = require("../models/wallet.model.js");
-const { Bip39 } = require("@cosmjs/crypto");
-const { Registry } = require("@cosmjs/proto-signing/build");
-const { CosmWasmClient } = require("@cosmjs/cosmwasm-stargate/build");
-const { MsgGrantAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/tx");
-const { BasicAllowance } = require("cosmjs-types/cosmos/feegrant/v1beta1/feegrant");
-const { Any } = require("cosmjs-types/google/protobuf/any");
-const { HermesClient } = require("@pythnetwork/hermes-client");
-const { RpcProvider, Contract } = require("starknet");
-const { websocketService } = require('../utils/websocket/websocketServer.js');
-const { WS_EVENTS } = require('../utils/websocket/eventTypes.js');
-const { PassSubscription } = require("../models/passSubscription.model.js");
-const Transaction = require('../models/Transaction.model.js');
+import {
+    GasPrice,
+    SigningStargateClient,
+    calculateFee,
+    coins,
+  } from "@cosmjs/stargate";
+  import { fetchConfig } from "@burnt-labs/constants";
+  import { makeCosmoshubPath } from "@cosmjs/amino";
+  import { GranteeSignerClient } from "./GranteeSignerClient.js";
+  import { SignArbSecp256k1HdWallet } from "./SignArbSecp256k1HdWallet.js";
+  import crypto from "crypto";
+  import { Wallet } from "../models/wallet.model.js";
+  import { Bip39 } from "@cosmjs/crypto";
+  import { Registry } from "@cosmjs/proto-signing";
+  import { CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
+  import { MsgGrantAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/tx.js";
+  import { BasicAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/feegrant.js";
+  import { Any } from "cosmjs-types/google/protobuf/any.js";
+  import { HermesClient } from "@pythnetwork/hermes-client";
+  import { RpcProvider, Contract } from "starknet";
+  import { websocketService } from '../utils/websocket/websocketServer.js';
+  import { WS_EVENTS } from '../utils/websocket/eventTypes.js';
+  import { PassSubscription } from "../models/passSubscription.model.js";
+  import Transaction from '../models/Transaction.model.js';
 
 const USDC_ABI = [
     {
@@ -33,7 +33,7 @@ const USDC_ABI = [
     }
   ];
 
-class AbstraxionAuth {
+  export default class AbstraxionAuth  {
 
   // static instance = null;
 
@@ -69,10 +69,14 @@ class AbstraxionAuth {
     console.log("Initialized with Server Secret:", this.serverSecret);
   }
 
-  configureAbstraxionInstance(rpc, restUrl, treasury) {
-    this.rpcUrl = rpc;
-    this.restUrl = restUrl;
-    this.treasury = treasury;
+  static configureAbstraxionInstance(rpc, restUrl, treasury) {
+    if (!this.instance) {
+      this.instance = new AbstraxionAuth();
+    }
+    this.instance.rpcUrl = rpc;
+    this.instance.restUrl = restUrl;
+    this.instance.treasury = treasury;
+    return this.instance;
   }
 
   subscribeToAuthStateChange(callback) {
@@ -859,22 +863,22 @@ class AbstraxionAuth {
     } catch (error) {
       console.error("Error minting pass:", error);
 
-      // Update transaction with failed status if it exists
-      if (transaction) {
-        transaction.status = 'failed';
-        transaction.message = error.message;
-        await transaction.save();
-      }
+    //   // Update transaction with failed status if it exists
+    //   if (transaction) {
+    //     transaction.status = 'failed';
+    //     transaction.message = error.message;
+    //     await transaction.save();
+    //   }
 
-      // Notify client of failed transaction
-    if (transaction) {
-        websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-          status: 'failed',
-          transactionId: transaction._id,
-          error: error.message,
-          type: 'mint_pass'
-        });
-      }
+    //   // Notify client of failed transaction
+    // if (transaction) {
+    //     websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+    //       status: 'failed',
+    //       transactionId: transaction._id,
+    //       error: error.message,
+    //       type: 'mint_pass'
+    //     });
+    //   }
 
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
@@ -1017,5 +1021,3 @@ class AbstraxionAuth {
   }
 
 }
-
-module.exports = new AbstraxionAuth();

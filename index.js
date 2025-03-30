@@ -20,7 +20,7 @@ import searchRoutes from "./routes/search.routes.js";
 import adminRouter from "./routes/admin-route/admin.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
-import AbstraxionAuth from "./xion/abstraxionauth.cjs";
+import AbstraxionAuth from "./xion/abstraxionauth.js";
 import nftRoutes from "./routes/nft.routes.js";
 import xionRoutes from './routes/xion.routes.js';
 import notificationRoutes from './routes/notification.routes.js';

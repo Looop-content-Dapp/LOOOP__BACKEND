@@ -1,13 +1,13 @@
-const { Buffer } = require("buffer");
-const { makeSignBytes } = require("@cosmjs/proto-signing");
-const {
+import { Buffer } from "buffer";
+import { makeSignBytes, DirectSecp256k1HdWallet } from "@cosmjs/proto-signing";
+import {
   encodeSecp256k1Signature,
   makeCosmoshubPath,
   rawSecp256k1PubkeyToRawAddress,
-} = require("@cosmjs/amino");
-const { assert, isNonNullObject } = require("@cosmjs/utils");
-const { Hash, PrivKeySecp256k1 } = require("@keplr-wallet/crypto");
-const {
+} from "@cosmjs/amino";
+import { assert, isNonNullObject } from "@cosmjs/utils";
+import { Hash, PrivKeySecp256k1 } from "@keplr-wallet/crypto";
+import {
   Argon2id,
   Bip39,
   EnglishMnemonic,
@@ -18,23 +18,22 @@ const {
   Slip10,
   Slip10Curve,
   stringToPath,
-} = require("@cosmjs/crypto");
-const {
+} from "@cosmjs/crypto";
+import {
   fromBase64,
   fromUtf8,
   toBase64,
   toBech32,
   toUtf8,
-} = require("@cosmjs/encoding");
-const { makeADR36AminoSignDoc, serializeSignDoc } = require("@keplr-wallet/cosmos");
-const {
+} from "@cosmjs/encoding";
+import { makeADR36AminoSignDoc, serializeSignDoc } from "@keplr-wallet/cosmos";
+import {
   cosmjsSalt,
   decrypt,
   encrypt,
   executeKdf,
   supportedAlgorithms,
-} = require("@cosmjs/proto-signing/build/wallet");
-const { SignDoc } = require("cosmjs-types/cosmos/tx/v1beta1/tx");
+} from "@cosmjs/proto-signing/build/wallet.js";
 
 const serializationTypeV1 = "directsecp256k1hdwallet-v1";
 
@@ -60,7 +59,7 @@ function isDerivationJson(thing) {
   return true;
 }
 
-class SignArbSecp256k1HdWallet {
+export class SignArbSecp256k1HdWallet extends DirectSecp256k1HdWallet {
   constructor(mnemonic, options) {
     const prefix = options.prefix || defaultOptions.prefix;
     const hdPaths = options.hdPaths || defaultOptions.hdPaths;
@@ -271,5 +270,3 @@ class SignArbSecp256k1HdWallet {
     ).toString("base64");
   }
 }
-
-module.exports = { SignArbSecp256k1HdWallet };

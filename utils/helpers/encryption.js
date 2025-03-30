@@ -1,6 +1,6 @@
-const crypto = require("crypto");
+import crypto from "crypto";
 
-const encryptPrivateKey = (privateKey, password) => {
+export const encryptPrivateKey = (privateKey, password) => {
   const salt = crypto.randomBytes(16);
   const iv = crypto.randomBytes(16);
   const key = crypto.pbkdf2Sync(password, salt, 100000, 32, "sha256");
@@ -19,5 +19,3 @@ const encryptPrivateKey = (privateKey, password) => {
     tag: tag.toString("hex"),
   };
 };
-
-module.exports.encryptPrivateKey = encryptPrivateKey;

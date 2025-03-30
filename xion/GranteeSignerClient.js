@@ -1,15 +1,9 @@
-const {
-    SigningCosmWasmClient,
-  } = require("@cosmjs/cosmwasm-stargate");
-  const {
-    calculateFee,
-    GasPrice,
-  } = require("@cosmjs/stargate");
-  const { TxRaw } = require("cosmjs-types/cosmos/tx/v1beta1/tx");
-  const { MsgExec } = require("cosmjs-types/cosmos/authz/v1beta1/tx");
-  const { Tendermint37Client } = require("@cosmjs/tendermint-rpc");
-  const { customAccountFromAny } = require("@burnt-labs/signers");
-  const { fromBech32 } = require("@cosmjs/encoding/build");
+import { calculateFee, GasPrice, SigningStargateClient } from "@cosmjs/stargate";
+import { TxRaw } from "cosmjs-types/cosmos/tx/v1beta1/tx.js";
+import { MsgExec } from "cosmjs-types/cosmos/authz/v1beta1/tx.js";
+import { Tendermint37Client } from "@cosmjs/tendermint-rpc";
+import { customAccountFromAny } from "@burnt-labs/signers";
+import { fromBech32 } from "@cosmjs/encoding";
 
   function isValidBech32(address) {
     try {
@@ -20,7 +14,7 @@ const {
     }
   }
 
-  class GranteeSignerClient extends SigningCosmWasmClient {
+  export class GranteeSignerClient extends SigningStargateClient {
     constructor(cometClient, signer, options) {
       const { granterAddress, granteeAddress, gasPrice, treasuryAddress, ...restOptions } = options;
       super(cometClient, signer, { ...restOptions, gasPrice });
@@ -174,5 +168,3 @@ const {
       return super.sign(signerAddress, messages, fee, memo, explicitSignerData);
     }
   }
-
-  module.exports = { GranteeSignerClient };

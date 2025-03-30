@@ -3,7 +3,7 @@ import { User } from "../models/user.model.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import mongoose from "mongoose";
 import { websocketService } from '../utils/websocket/websocketServer.js';
-import sendEmail from "../script.cjs";
+import {sendEmail} from "../script.js";
 import { notificationService } from '../services/notification.service.js';
 
 export const submitArtistClaim = async (req, res) => {
