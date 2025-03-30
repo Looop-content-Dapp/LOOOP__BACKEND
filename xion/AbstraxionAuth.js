@@ -1,42 +1,40 @@
 import {
-    GasPrice,
-    SigningStargateClient,
-    calculateFee,
-    coins,
-  } from "@cosmjs/stargate";
-  import { fetchConfig } from "@burnt-labs/constants";
-  import { makeCosmoshubPath } from "@cosmjs/amino";
-  import { GranteeSignerClient } from "./GranteeSignerClient.js";
-  import { SignArbSecp256k1HdWallet } from "./SignArbSecp256k1HdWallet.js";
-  import crypto from "crypto";
-  import { Wallet } from "../models/wallet.model.js";
-  import { Bip39 } from "@cosmjs/crypto";
-  import { Registry } from "@cosmjs/proto-signing";
-  import { CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
-  import { MsgGrantAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/tx.js";
-  import { BasicAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/feegrant.js";
-  import { Any } from "cosmjs-types/google/protobuf/any.js";
-  import { HermesClient } from "@pythnetwork/hermes-client";
-  import { RpcProvider, Contract } from "starknet";
-  import { websocketService } from '../utils/websocket/websocketServer.js';
-  import { WS_EVENTS } from '../utils/websocket/eventTypes.js';
-  import { PassSubscription } from "../models/passSubscription.model.js";
-  import Transaction from '../models/Transaction.model.js';
+  GasPrice,
+  SigningStargateClient,
+  calculateFee,
+  coins,
+} from "@cosmjs/stargate";
+import { fetchConfig } from "@burnt-labs/constants";
+import { makeCosmoshubPath } from "@cosmjs/amino";
+import { GranteeSignerClient } from "./GranteeSignerClient.js";
+import { SignArbSecp256k1HdWallet } from "./SignArbSecp256k1HdWallet.js";
+import crypto from "crypto";
+import { Wallet } from "../models/wallet.model.js";
+import { Bip39 } from "@cosmjs/crypto";
+import { Registry } from "@cosmjs/proto-signing";
+import { CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
+import { MsgGrantAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/tx.js";
+import { BasicAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/feegrant.js";
+import { Any } from "cosmjs-types/google/protobuf/any.js";
+import { HermesClient } from "@pythnetwork/hermes-client";
+import { RpcProvider, Contract } from "starknet";
+import { websocketService } from "../utils/websocket/websocketServer.js";
+import { WS_EVENTS } from "../utils/websocket/eventTypes.js";
+import { PassSubscription } from "../models/passSubscription.model.js";
+import Transaction from "../models/Transaction.model.js";
 
 const USDC_ABI = [
-    {
-      name: "balanceOf",
-      type: "function",
-      inputs: [{ name: "account", type: "felt" }],
-      outputs: [{ name: "balance", type: "Uint256" }],
-      stateMutability: "view"
-    }
-  ];
+  {
+    name: "balanceOf",
+    type: "function",
+    inputs: [{ name: "account", type: "felt" }],
+    outputs: [{ name: "balance", type: "Uint256" }],
+    stateMutability: "view",
+  },
+];
 
-  export default class AbstraxionAuth  {
-
+export default class AbstraxionAuth {
   // static instance = null;
-
 
   constructor() {
     // if (AbstraxionAuth.instance) {
@@ -57,14 +55,17 @@ const USDC_ABI = [
     this.sessionToken = undefined;
     this.sessionTimeout = undefined;
     this.authStateChangeSubscribers = [];
-    this.hermesClient = new HermesClient("https://hermes.pyth.network", {
-
-    });
+    this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
     this.starknetProvider = new RpcProvider({
-        nodeUrl: process.env.STARKNET_RPC_URL || "https://starknet-mainnet.public.blastapi.io"
-      });
-      this.usdcContractAddress = process.env.STARKNET_USDC_ADDRESS || "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
-    this.usdcPriceId = "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
+      nodeUrl:
+        process.env.STARKNET_RPC_URL ||
+        "https://starknet-mainnet.public.blastapi.io",
+    });
+    this.usdcContractAddress =
+      process.env.STARKNET_USDC_ADDRESS ||
+      "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
+    this.usdcPriceId =
+      "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
 
     console.log("Initialized with Server Secret:", this.serverSecret);
   }
@@ -292,16 +293,20 @@ const USDC_ABI = [
 
     // Get USDC price from Pyth
     try {
-      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([
+        this.usdcPriceId,
+      ]);
       const pythPrice = priceUpdate.parsed[0]?.price;
-      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+      const usdcPrice = pythPrice
+        ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo))
+        : 1;
 
       // Get Cosmos balances
       const cosmosBalances = balances.map((balance) => ({
         denom: balance.denom,
         amount: balance.amount,
         amountFloat: Number(balance.amount) / 1e6,
-        usdValue: (Number(balance.amount) / 1e6) * usdcPrice || 0
+        usdValue: (Number(balance.amount) / 1e6) * usdcPrice || 0,
       }));
       console.log("Cosmos Balances:", cosmosBalances);
 
@@ -315,9 +320,8 @@ const USDC_ABI = [
       return {
         cosmos: cosmosBalances,
         starknet: starknetBalance,
-        usdcPrice
+        usdcPrice,
       };
-
     } catch (error) {
       console.error("Failed to fetch prices or balances:", error);
       return {
@@ -325,17 +329,20 @@ const USDC_ABI = [
           denom: balance.denom,
           amount: balance.amount,
           amountFloat: Number(balance.amount) / 1e6,
-          usdValue: 0
+          usdValue: 0,
         })),
         starknet: null,
-        usdcPrice: 1
+        usdcPrice: 1,
       };
     }
   }
 
   async getTransactionHistory(address, limit = 10) {
     if (!this.rpcUrl || !this.restUrl) {
-      console.error("Configuration error:", { rpcUrl: this.rpcUrl, restUrl: this.restUrl });
+      console.error("Configuration error:", {
+        rpcUrl: this.rpcUrl,
+        restUrl: this.restUrl,
+      });
       throw new Error("RPC and REST URLs must be configured");
     }
 
@@ -351,15 +358,17 @@ const USDC_ABI = [
         console.error("Transaction fetch failed:", {
           status: res.status,
           statusText: res.statusText,
-          error: errorText
+          error: errorText,
         });
-        throw new Error(`Failed to fetch transaction history: ${res.status} ${res.statusText}`);
+        throw new Error(
+          `Failed to fetch transaction history: ${res.status} ${res.statusText}`
+        );
       }
 
       const data = await res.json();
       console.log("Transaction data received:", {
         count: data.tx_responses?.length || 0,
-        address
+        address,
       });
 
       return data.tx_responses || [];
@@ -367,7 +376,7 @@ const USDC_ABI = [
       console.error("Transaction history error details:", {
         message: error.message,
         address,
-        restUrl: this.restUrl
+        restUrl: this.restUrl,
       });
       throw error;
     }
@@ -525,17 +534,17 @@ const USDC_ABI = [
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
     const { signer, useGranter } = await this.getSigner();
-   const accounts = await this.abstractAccount.getAccounts();
-   const senderAddress = accounts[0].address;
+    const accounts = await this.abstractAccount.getAccounts();
+    const senderAddress = accounts[0].address;
 
     try {
-        if (!useGranter) {
-            const client = await CosmWasmClient.connect(this.rpcUrl);
-            const balance = await client.getBalance(senderAddress, "uxion");
-            if (BigInt(balance.amount) < 5000n) {
-              throw new Error("Insufficient uxion balance to cover fees");
-            }
+      if (!useGranter) {
+        const client = await CosmWasmClient.connect(this.rpcUrl);
+        const balance = await client.getBalance(senderAddress, "uxion");
+        if (BigInt(balance.amount) < 5000n) {
+          throw new Error("Insufficient uxion balance to cover fees");
         }
+      }
 
       const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
       const result = await signer.execute(
@@ -558,7 +567,7 @@ const USDC_ABI = [
         sender: senderAddress,
         contractAddress,
         msg,
-        result
+        result,
       };
     } catch (error) {
       console.error("Error executing smart contract:", error);
@@ -589,7 +598,10 @@ const USDC_ABI = [
 
     try {
       const client = await CosmWasmClient.connect(this.rpcUrl);
-      const response = await client.queryContractSmart(contractAddress, queryMsg);
+      const response = await client.queryContractSmart(
+        contractAddress,
+        queryMsg
+      );
 
       console.log("Smart Contract Query Result:", {
         contractAddress,
@@ -668,8 +680,14 @@ const USDC_ABI = [
         { prefix: "xion" }
       );
       const registry = new Registry();
-      registry.register("/cosmos.feegrant.v1beta1.MsgGrantAllowance", MsgGrantAllowance);
-      registry.register("/cosmos.feegrant.v1beta1.BasicAllowance", BasicAllowance);
+      registry.register(
+        "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
+        MsgGrantAllowance
+      );
+      registry.register(
+        "/cosmos.feegrant.v1beta1.BasicAllowance",
+        BasicAllowance
+      );
 
       const client = await SigningStargateClient.connectWithSigner(
         this.rpcUrl,
@@ -718,7 +736,11 @@ const USDC_ABI = [
 
   async getStarkNetUSDCBalance(starknetAddress) {
     try {
-      const contract = new Contract(USDC_ABI, this.usdcContractAddress, this.starknetProvider);
+      const contract = new Contract(
+        USDC_ABI,
+        this.usdcContractAddress,
+        this.starknetProvider
+      );
       const response = await contract.balanceOf(starknetAddress);
 
       // StarkNet response structure is different, need to handle it properly
@@ -731,7 +753,7 @@ const USDC_ABI = [
           balance: "0",
           balanceFloat: 0,
           usdcPrice: 1,
-          usdValue: 0
+          usdValue: 0,
         };
       }
 
@@ -739,9 +761,13 @@ const USDC_ABI = [
       const balanceFloat = Number(balance.low.toString()) / 1e6;
 
       // Get USDC price from Pyth
-      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([
+        this.usdcPriceId,
+      ]);
       const pythPrice = priceUpdate.parsed[0]?.price;
-      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+      const usdcPrice = pythPrice
+        ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo))
+        : 1;
 
       return {
         address: starknetAddress,
@@ -768,27 +794,27 @@ const USDC_ABI = [
       const senderAddress = accounts[0].address;
 
       // Create pending transaction record
-   const transaction = new Transaction.create({
+      const transaction = new Transaction.create({
         userId: senderAddress,
         amount: 5000000, // 5 USDC
-        currency: 'USDC',
-        status: 'pending',
-        paymentMethod: 'wallet',
-        type: 'mint_pass',
-        blockchain: 'XION',
-        title: 'Tribe Pass Minting',
-        message: 'Minting tribe pass on XION network',
+        currency: "USDC",
+        status: "pending",
+        paymentMethod: "wallet",
+        type: "mint_pass",
+        blockchain: "XION",
+        title: "Tribe Pass Minting",
+        message: "Minting tribe pass on XION network",
         metadata: {
-          communityId: collectionAddress
-        }
+          communityId: collectionAddress,
+        },
       });
       await transaction.save();
 
-    // Notify client of pending transaction
-    websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-        status: 'pending',
+      // Notify client of pending transaction
+      websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+        status: "pending",
         transactionId: transaction._id,
-        type: 'mint_pass'
+        type: "mint_pass",
       });
 
       // Check USDC balance before minting
@@ -799,8 +825,8 @@ const USDC_ABI = [
       );
 
       if (BigInt(balance.amount) < 5000000n) {
-        transaction.status = 'failed';
-        transaction.message = 'Insufficient USDC balance';
+        transaction.status = "failed";
+        transaction.message = "Insufficient USDC balance";
         await transaction.save();
         throw new Error("Insufficient USDC balance to mint pass");
       }
@@ -808,12 +834,15 @@ const USDC_ABI = [
       const mintMsg = {
         extension: {
           msg: {
-            mint_pass: {}
-          }
-        }
+            mint_pass: {},
+          },
+        },
       };
 
-      const funds = coins(5000000, "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4");
+      const funds = coins(
+        5000000,
+        "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4"
+      );
       const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
 
       const result = await signer.execute(
@@ -826,63 +855,61 @@ const USDC_ABI = [
       );
 
       // Update transaction with success status
-      transaction.status = 'success';
+      transaction.status = "success";
       transaction.transactionHash = result.transactionHash;
       await transaction.save();
 
-
-    // Notify client of successful transaction
-    websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-        status: 'success',
+      // Notify client of successful transaction
+      websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+        status: "success",
         transactionId: transaction._id,
         transactionHash: result.transactionHash,
-        type: 'mint_pass'
+        type: "mint_pass",
       });
 
-         // Create subscription record after successful minting
-         const expiryDate = new Date();
-         expiryDate.setMonth(expiryDate.getMonth() + 1); // Set expiry to 1 month
+      // Create subscription record after successful minting
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 1); // Set expiry to 1 month
 
-         await PassSubscription.create({
-           userId: senderAddress,
-           communityId: transaction.metadata.communityId,
-           contractAddress: collectionAddress,
-           tokenId: result.tokenId, // Assuming the result includes tokenId
-           expiryDate: expiryDate,
-           renewalPrice: 5000000 // 5 USDC in smallest unit
-         });
+      await PassSubscription.create({
+        userId: senderAddress,
+        communityId: transaction.metadata.communityId,
+        contractAddress: collectionAddress,
+        tokenId: result.tokenId, // Assuming the result includes tokenId
+        expiryDate: expiryDate,
+        renewalPrice: 5000000, // 5 USDC in smallest unit
+      });
 
       return {
         success: true,
         transactionHash: result.transactionHash,
         sender: senderAddress,
         contractAddress: collectionAddress,
-        transactionId: transaction._id // Return transaction ID for UI tracking
+        transactionId: transaction._id, // Return transaction ID for UI tracking
       };
-
     } catch (error) {
       console.error("Error minting pass:", error);
 
-    //   // Update transaction with failed status if it exists
-    //   if (transaction) {
-    //     transaction.status = 'failed';
-    //     transaction.message = error.message;
-    //     await transaction.save();
-    //   }
+      //   // Update transaction with failed status if it exists
+      //   if (transaction) {
+      //     transaction.status = 'failed';
+      //     transaction.message = error.message;
+      //     await transaction.save();
+      //   }
 
-    //   // Notify client of failed transaction
-    // if (transaction) {
-    //     websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-    //       status: 'failed',
-    //       transactionId: transaction._id,
-    //       error: error.message,
-    //       type: 'mint_pass'
-    //     });
-    //   }
+      //   // Notify client of failed transaction
+      // if (transaction) {
+      //     websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+      //       status: 'failed',
+      //       transactionId: transaction._id,
+      //       error: error.message,
+      //       type: 'mint_pass'
+      //     });
+      //   }
 
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
-}
+  }
 
   async getNFTDetailsByContracts(contractAddresses) {
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
@@ -893,56 +920,71 @@ const USDC_ABI = [
     try {
       const client = await CosmWasmClient.connect(this.rpcUrl);
 
-      const nftDetails = await Promise.all(contractAddresses.map(async (contractAddress) => {
-        try {
-          // Query contract info
-          const contractInfo = await client.getContractCodeHistory(contractAddress);
+      const nftDetails = await Promise.all(
+        contractAddresses.map(async (contractAddress) => {
+          try {
+            // Query contract info
+            const contractInfo = await client.getContractCodeHistory(
+              contractAddress
+            );
 
-          // Query NFT collection info
-          const collectionInfo = await client.queryContractSmart(contractAddress, {
-            collection_info: {}
-          });
+            // Query NFT collection info
+            const collectionInfo = await client.queryContractSmart(
+              contractAddress,
+              {
+                collection_info: {},
+              }
+            );
 
-          // Get total supply
-          const totalSupply = await client.queryContractSmart(contractAddress, {
-            num_tokens: {}
-          });
+            // Get total supply
+            const totalSupply = await client.queryContractSmart(
+              contractAddress,
+              {
+                num_tokens: {},
+              }
+            );
 
-          // Get contract configuration
-          const config = await client.queryContractSmart(contractAddress, {
-            config: {}
-          });
+            // Get contract configuration
+            const config = await client.queryContractSmart(contractAddress, {
+              config: {},
+            });
 
-          return {
-            contractAddress,
-            collectionInfo,
-            totalSupply,
-            config,
-            lastUpdated: contractInfo[contractInfo.length - 1]?.updated,
-            status: "success"
-          };
-        } catch (error) {
-          console.error(`Error fetching NFT details for ${contractAddress}:`, error);
-          return {
-            contractAddress,
-            error: error.message,
-            status: "failed"
-          };
-        }
-      }));
+            return {
+              contractAddress,
+              collectionInfo,
+              totalSupply,
+              config,
+              lastUpdated: contractInfo[contractInfo.length - 1]?.updated,
+              status: "success",
+            };
+          } catch (error) {
+            console.error(
+              `Error fetching NFT details for ${contractAddress}:`,
+              error
+            );
+            return {
+              contractAddress,
+              error: error.message,
+              status: "failed",
+            };
+          }
+        })
+      );
 
       console.log("NFT Details Retrieved:", {
         totalContracts: contractAddresses.length,
-        successfulQueries: nftDetails.filter(detail => detail.status === "success").length,
-        failedQueries: nftDetails.filter(detail => detail.status === "failed").length
+        successfulQueries: nftDetails.filter(
+          (detail) => detail.status === "success"
+        ).length,
+        failedQueries: nftDetails.filter((detail) => detail.status === "failed")
+          .length,
       });
 
       return {
         success: true,
         data: nftDetails,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-
     } catch (error) {
       console.error("Error in getNFTDetailsByContracts:", error);
       throw new Error(`Failed to fetch NFT details: ${error.message}`);
@@ -961,7 +1003,7 @@ const USDC_ABI = [
       const senderAddress = accounts[0].address;
 
       // Validate addresses
-      if (!recipientAddress.startsWith('xion1')) {
+      if (!recipientAddress.startsWith("xion1")) {
         throw new Error('Invalid recipient address: must start with "xion1"');
       }
 
@@ -970,7 +1012,9 @@ const USDC_ABI = [
       const balance = await client.getBalance(senderAddress, denom);
 
       if (BigInt(balance.amount) < BigInt(amount)) {
-        throw new Error(`Insufficient balance. Available: ${balance.amount} ${denom}`);
+        throw new Error(
+          `Insufficient balance. Available: ${balance.amount} ${denom}`
+        );
       }
 
       // Prepare transfer message
@@ -979,14 +1023,14 @@ const USDC_ABI = [
         value: {
           fromAddress: senderAddress,
           toAddress: recipientAddress,
-          amount: [{ denom, amount: amount.toString() }]
-        }
+          amount: [{ denom, amount: amount.toString() }],
+        },
       };
 
       // Calculate fee
       const fee = {
         amount: coins(5000, "uxion"),
-        gas: "200000"
+        gas: "200000",
       };
 
       // Execute transfer
@@ -1002,7 +1046,7 @@ const USDC_ABI = [
         sender: senderAddress,
         recipient: recipientAddress,
         amount: amount,
-        denom: denom
+        denom: denom,
       });
 
       return {
@@ -1011,13 +1055,11 @@ const USDC_ABI = [
         sender: senderAddress,
         recipient: recipientAddress,
         amount: amount,
-        denom: denom
+        denom: denom,
       };
-
     } catch (error) {
       console.error("Error transferring funds:", error);
       throw new Error(`Failed to transfer funds: ${error.message}`);
     }
   }
-
 }
