@@ -214,7 +214,7 @@ export const createArtist = async (req, res) => {
       isNewArtist = true;
       artist = new Artist({
         name: artistname,
-        email: user.email.toLowerCase(),
+        email: user.email,
         profileImage,
         biography: bio,
         genres,
@@ -343,6 +343,17 @@ export const signContract = async (req, res) => {
           artist: new Types.ObjectId(artist._id),
           updatedAt: new Date(),
         });
+
+        await Artist.findByIdAndUpdate(
+          artist._id,
+            {
+              verified: true,
+              verifiedAt: new Date(),
+              updatedAt: new Date(),
+              userId: user._id,
+            },
+            { session }
+          );
       }
 
       return res.status(200).json({
