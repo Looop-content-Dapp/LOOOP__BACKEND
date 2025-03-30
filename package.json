@@ -9,7 +9,10 @@
     "db:genres:clear": "node scripts/clearGenres.js",
     "db:genres:populate": "node scripts/populateSpotifyGenres.js",
     "db:genres:reset": "npm run db:genres:clear && npm run db:genres:populate",
-    "dev": "nodemon index.js"
+    "dev": "nodemon index.js",
+    "clean": "rm -rf dist",
+    "copy-files": "mkdir -p dist && cp -r index.js package.json .env* config controller emails middlewares models routes services utils validations_schemas xion dist/",
+    "build": "npm run clean && npm run copy-files"
   },
   "keywords": [],
   "author": "",
