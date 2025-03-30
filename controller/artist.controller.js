@@ -20,6 +20,8 @@ import {sendEmail} from "../script.js";
 import AbstraxionAuth from "../xion/abstraxionauth.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
+const abstraxionAuth = new AbstraxionAuth();
+
 export const getAllArtists = async (req, res) => {
   try {
     const Artists = await Artist.find({});
@@ -331,8 +333,8 @@ export const signContract = async (req, res) => {
         },
       };
 
-      await AbstraxionAuth.login(user.email);
-      const sign = await AbstraxionAuth.executeSmartContract(
+      await abstraxionAuth.login(user.email);
+      const sign = await abstraxionAuth.executeSmartContract(
         "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
         msg,
         undefined

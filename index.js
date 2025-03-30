@@ -25,6 +25,8 @@ import xionRoutes from './routes/xion.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import AbstraxionAuth from './xion/abstraxionauth.js';
 
+const abstraxionAuth = new AbstraxionAuth();
+
 config();
 
 const app = express();

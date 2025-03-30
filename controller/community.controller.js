@@ -11,6 +11,8 @@ import AbstraxionAuth from "../xion/abstraxionauth.js";
 import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
 
+const abstraxionAuth = new AbstraxionAuth();
+
 export const getAllCommunity = async (req, res) => {
   try {
     // Find all communities and populate creator details
@@ -238,9 +240,9 @@ export const createCommunity = async (req, res) => {
             },
           };
 
-        await AbstraxionAuth.login(artist.email);
+        await abstraxionAuth.login(artist.email);
         console.log("artist email", artist.email);
-        const execute = await AbstraxionAuth.executeSmartContract(
+        const execute = await abstraxionAuth.executeSmartContract(
           "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
           msg,
           "auto"
@@ -259,7 +261,7 @@ export const createCommunity = async (req, res) => {
             },
           };
 
-        const getArtistCollection = await AbstraxionAuth.querySmartContract(
+        const getArtistCollection = await abstraxionAuth.querySmartContract(
             "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
             CollectionMsg
           );
@@ -433,9 +435,9 @@ export const joinCommunity = async (req, res) => {
     }
 
     // Login with user's email before minting
-    await AbstraxionAuth.login(user.email);
+    await abstraxionAuth.login(user.email);
 
-    const mint = await AbstraxionAuth.mintPass(
+    const mint = await abstraxionAuth.mintPass(
       community.tribePass.contractAddress,
     );
 

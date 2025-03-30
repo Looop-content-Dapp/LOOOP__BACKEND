@@ -39,6 +39,8 @@ import AbstraxionAuth from "../xion/abstraxionauth.js";
 import { Track } from "../models/track.model.js";
 import { Release } from "../models/releases.model.js";
 
+const abstraxionAuth = new AbstraxionAuth();
+
 // Loads .env
 config();
 
@@ -304,7 +306,7 @@ const createUser = async (req, res) => {
     };
 
     const tokenbound = new TokenboundClient(options);
-    const xionwallet = await AbstraxionAuth.signup(email);
+    const xionwallet = await abstraxionAuth.signup(email);
 
     const refcode = await generateUniqueReferralCode(username);
 
@@ -466,6 +468,7 @@ const createUser = async (req, res) => {
     });
   }
 };
+
 const verifyOtp = async (req, res) => {
     const { email, otp } = req.body;
 
@@ -1192,7 +1195,7 @@ const verifyOtp = async (req, res) => {
             }
           ]);
 
-          const xionLoggedInUser = await AbstraxionAuth.login(email);
+          const xionLoggedInUser = await abstraxionAuth.login(email);
 
           if (xionLoggedInUser) {
             const userData = {
@@ -2056,7 +2059,7 @@ const verifyOtp = async (req, res) => {
         }
 
         // Get both XION and StarkNet balances using AbstraxionAuth
-        const balanceData = await AbstraxionAuth.getBalances(xionAddress, undefined, starknetAddress);
+        const balanceData = await abstraxionAuth.getBalances(xionAddress, undefined, starknetAddress);
 
         return res.status(200).json({
           status: "success",

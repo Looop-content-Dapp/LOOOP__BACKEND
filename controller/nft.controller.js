@@ -1,6 +1,9 @@
 import { User } from "../models/user.model.js";
 import AbstraxionAuth from "../xion/abstraxionauth.js";
 
+const abstraxionAuth = new AbstraxionAuth();
+
+// Controller to get NFT details for a user
 export const getUserNFTDetails = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -29,7 +32,7 @@ export const getUserNFTDetails = async (req, res) => {
     }
 
     // Get NFT details using AbstraxionAuth
-    const nftDetails = await AbstraxionAuth.getNFTDetailsByContracts(contractAddresses);
+    const nftDetails = await abstraxionAuth.getNFTDetailsByContracts(contractAddresses);
 
     // Combine NFT details with community information
     const enrichedNFTDetails = nftDetails.data.map(nftDetail => {
