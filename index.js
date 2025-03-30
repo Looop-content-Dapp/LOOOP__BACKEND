@@ -1,9 +1,9 @@
-import { createServer } from 'http';
+import { createServer } from "http";
 import mongoose from "mongoose";
 import cors from "cors";
 import express, { urlencoded, json } from "express";
 import { config } from "dotenv";
-import { websocketService } from './utils/websocket/websocketServer.js';
+import { websocketService } from "./utils/websocket/websocketServer.js";
 
 import userRouter from "./routes/user.route.js";
 import artistRouter from "./routes/artist.route.js";
@@ -21,10 +21,9 @@ import adminRouter from "./routes/admin-route/admin.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
 import nftRoutes from "./routes/nft.routes.js";
-import xionRoutes from './routes/xion.routes.js';
-import notificationRoutes from './routes/notification.routes.js';
-import AbstraxionAuth from './xion/abstraxionauth.js';
-
+import xionRoutes from "./routes/xion.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+import AbstraxionAuth from "./xion/abstraxionauth.js";
 
 config();
 
@@ -64,11 +63,13 @@ app.use("/api/nfts", nftRoutes);
 app.use("/api/oauth", oauthrouter);
 
 // Register Xion routes
-app.use('/api/xion', xionRoutes);
-app.use('/api/notifications', notificationRoutes);
+app.use("/api/xion", xionRoutes);
+app.use("/api/notifications", notificationRoutes);
 
 const PORT = 9001;
-const mongoURI = process.env.MONGODB_URI || "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
+const mongoURI =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
 
 (async () => {
   try {
