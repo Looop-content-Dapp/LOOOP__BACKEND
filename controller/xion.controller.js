@@ -1,4 +1,4 @@
-import AbstraxionAuth from '../xion/abstraxionauth.cjs';
+import AbstraxionAuth from '../xion/abstraxionauth.js';
 
 export const transferFunds = async (req, res) => {
   try {

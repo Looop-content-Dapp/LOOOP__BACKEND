@@ -16,8 +16,8 @@ import {
   createArtistSchema,
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
-import sendEmail from "../script.cjs";
-import AbstraxionAuth from "../xion/abstraxionauth.cjs";
+import {sendEmail} from "../script.js";
+import AbstraxionAuth from "../xion/abstraxionauth.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
 export const getAllArtists = async (req, res) => {

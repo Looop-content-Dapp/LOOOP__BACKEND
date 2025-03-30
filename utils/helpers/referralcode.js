@@ -1,6 +1,7 @@
-const { User } = require("../../models/user.model");
+import { User } from "../../models/user.model.js";
 
-const generateUniqueReferralCode = async (username) => {
+
+export const generateUniqueReferralCode = async (username) => {
   let isUnique = false;
   let referralCode = "";
 
@@ -20,5 +21,3 @@ const generateUniqueReferralCode = async (username) => {
 
   return referralCode;
 };
-
-module.exports = { generateUniqueReferralCode };

@@ -1,5 +1,5 @@
 import { User } from "../models/user.model.js";
-import AbstraxionAuth from "../xion/abstraxionauth.cjs";
+import AbstraxionAuth from "../xion/abstraxionauth.js";
 
 export const getUserNFTDetails = async (req, res) => {
   try {
