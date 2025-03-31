@@ -17,57 +17,63 @@ import {
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
 import {sendEmail} from "../script.js";
-import AbstraxionAuth from "../xion/abstraxionauth.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
 const abstraxionAuth = new AbstraxionAuth();
 
 export const getAllArtists = async (req, res) => {
-  try {
-    const Artists = await Artist.find({});
-    const populatedArtists = await Promise.all(
-      Artists.map(async (artist) => {
-        const genres = await Genre.find({ _id: { $in: artist.genres } });
-        const genreNames = genres.map((genre) => genre.name);
+    try {
+      const Artists = await Artist.find({});
+      const populatedArtists = await Promise.all(
+        Artists.map(async (artist) => {
+          const genres = await Genre.find({ _id: { $in: artist.genres } });
+          const genreNames = genres.map((genre) => genre.name);
 
-        const community = await Community.findOne({ createdBy: artist._id });
+          const community = await Community.findOne({ createdBy: artist._id });
 
-        const releases = await Release.find(
-          { artistId: artist._id },
-          { __v: 0 }
-        );
+          const releases = await Release.find(
+            { artistId: artist._id },
+            { __v: 0 }
+          );
 
-        const faveArtists = await FaveArtist.find({ artistId: artist._id });
-        const followers = faveArtists.map((faveArtist) => faveArtist.userId);
+          const faveArtists = await FaveArtist.find({ artistId: artist._id });
+          const followers = faveArtists.map((faveArtist) => faveArtist.userId);
 
-        const getCommunityMembers = await CommunityMember.find({
-          communityId: community?._id,
-        });
+          const getCommunityMembers = await CommunityMember.find({
+            communityId: community?._id,
+          });
 
-        const communityMembers = getCommunityMembers.map((g) => g.userId);
+          const communityMembers = getCommunityMembers.map((g) => g.userId);
 
-        return {
-          ...artist._doc,
-          genres: genreNames,
-          releases,
-          followers,
-          community: community?._id,
-          communityMembers: communityMembers,
-        };
-      })
-    );
+          return {
+            ...artist._doc,
+            genres: genreNames,
+            releases,
+            followers,
+            community: community?._id,
+            communityMembers: communityMembers,
+          };
+        })
+      );
 
-    return res.status(200).json({
-      status: "success",
-      message: "Successfully fetched all artists",
-      data: populatedArtists,
-    });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching Artists", error: error.message });
-  }
-};
+      // Shuffle the populated artists array
+      const shuffledArtists = populatedArtists
+        .map(value => ({ value, sort: Math.random() }))
+        .sort((a, b) => a.sort - b.sort)
+        .map(({ value }) => value);
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully fetched all artists",
+        data: shuffledArtists,
+      });
+    } catch (error) {
+      res
+        .status(500)
+        .json({ message: "Error fetching Artists", error: error.message });
+    }
+  };
 
 export const getArtist = async (req, res) => {
   const { id } = req.params;
@@ -305,9 +311,7 @@ export const createArtist = async (req, res) => {
 
 export const signContract = async (req, res) => {
     try {
-      const { userId } = req.body;
-      await signContractSchema.validate(req.body);
-
+      const { userId, fullName } = req.body;
       // Find user and validate
       const user = await User.findById(userId);
       if (!user) {
@@ -328,8 +332,8 @@ export const signContract = async (req, res) => {
 
       const msg = {
         sign_agreement: {
-          artist_address: user.walletAddress,
-          artist_name: artist.name,
+          artist_address: user.wallets.xion.address,
+          artist_name: fullName,
         },
       };
 
@@ -337,31 +341,34 @@ export const signContract = async (req, res) => {
       const sign = await abstraxionAuth.executeSmartContract(
         "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
         msg,
-        undefined
+        []
       );
+
+      console.log("sign", sign);
 
       if (sign) {
         await User.findByIdAndUpdate(userId, {
           artist: new Types.ObjectId(artist._id),
+          fullname: fullName,
           updatedAt: new Date(),
         });
 
         await Artist.findByIdAndUpdate(
           artist._id,
-            {
-              verified: true,
-              verifiedAt: new Date(),
-              updatedAt: new Date(),
-              userId: user._id,
-            },
-            { session }
-          );
+          {
+            verified: true,
+            verifiedAt: new Date(),
+            updatedAt: new Date(),
+            userId: user._id,
+            fullName: fullName
+          },
+        );
       }
 
       return res.status(200).json({
         status: "success",
         message: "Contract created & signed successfully",
-        data: null,
+        data: sign,
       });
     } catch (error) {
       console.log(error);

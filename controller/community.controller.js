@@ -7,7 +7,7 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
-import AbstraxionAuth from "../xion/abstraxionauth.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
 

@@ -1,5 +1,5 @@
 import { User } from "../models/user.model.js";
-import AbstraxionAuth from "../xion/abstraxionauth.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 
 const abstraxionAuth = new AbstraxionAuth();
 
