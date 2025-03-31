@@ -1,0 +1,70 @@
+name: CI Build for Main Branch
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Build Docker image locally
+        run: |
+          docker build -t looop-backend:latest .
+
+      - name: Sign in to Droplet and execute commands
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.DROPLET_HOST }}
+          username: ${{ secrets.DROPLET_USERNAME }}
+          password: ${{ secrets.DROPLET_PASSWORD }}
+          script: |
+            cd /home/LOOOP__BACKEND
+
+            docker stop looop-backend || true
+            docker rm looop-backend || true
+
+            docker rmi looop-backend || true
+
+            git pull origin main
+
+            docker build -t looop-backend .
+
+            docker run -d --name looop-backend -p 4000:3000 \
+              -e LOOOP_CONTRACT="${{ secrets.LOOOP_CONTRACT }}" \
+              -e PRIVATE_KEY="${{ secrets.PRIVATE_KEY }}" \
+              -e PROVIDER="${{ secrets.PROVIDER }}" \
+              -e ACCT_ADDRESS="${{ secrets.ACCT_ADDRESS }}" \
+              -e NFT_CONTRACT_ADDRESS="${{ secrets.NFT_CONTRACT_ADDRESS }}" \
+              -e NFT_TOKEN_ID="${{ secrets.NFT_TOKEN_ID }}" \
+              -e IMPLEMENTATION_HASH="${{ secrets.IMPLEMENTATION_HASH }}" \
+              -e DWT_SECRET="${{ secrets.DWT_SECRET }}" \
+              -e JWT_SECRET="${{ secrets.JWT_SECRET }}" \
+              -e MONGODB_URI="${{ secrets.MONGODB_URI }}" \
+              -e XION_BASE_URL="${{ secrets.XION_BASE_URL }}" \
+              -e FLW_PUBLIC_KEY="${{ secrets.FLW_PUBLIC_KEY }}" \
+              -e FLW_SECRET_KEY="${{ secrets.FLW_SECRET_KEY }}" \
+              -e ADMIN_MNEMONIC="${{ secrets.ADMIN_MNEMONIC }}" \
+              -e SPOTIFY_CLIENT_ID="${{ secrets.SPOTIFY_CLIENT_ID }}" \
+              -e SPOTIFY_CLIENT_SECRET="${{ secrets.SPOTIFY_CLIENT_SECRET }}" \
+              -e EMAIL_USERNAME="${{ secrets.EMAIL_USERNAME }}" \
+              -e EMAIL_PASSWORD="${{ secrets.EMAIL_PASSWORD }}" \
+              -e PAYAZA_SECRET_KEY="${{ secrets.PAYAZA_SECRET_KEY }}" \
+              -e HOSTINGER_EMAIL="${{ secrets.HOSTINGER_EMAIL }}" \
+              -e HOSTINGER_PASSWORD="${{ secrets.HOSTINGER_PASSWORD }}" \
+              -e REWARD_NEW_USER_SIGNUP="${{ secrets.REWARD_NEW_USER_SIGNUP }}" \
+              -e REWARD_PURCHASE="${{ secrets.REWARD_PURCHASE }}" \
+              -e REWARD_PROFILE_COMPLETION="${{ secrets.REWARD_PROFILE_COMPLETION }}" \
+              -e REWARD_SOCIAL_SHARE="${{ secrets.REWARD_SOCIAL_SHARE }}" \
+              -e SERVER_SECRET="${{ secrets.SERVER_SECRET }}" \
+              -e RPC_URL="${{ secrets.RPC_URL }}" \
+              -e REST_URL="${{ secrets.REST_URL }}" \
+              -e GRANTER_ADDRESS="${{ secrets.GRANTER_ADDRESS }}" \
+              -e GRANTER_MNEMONIC="${{ secrets.GRANTER_MNEMONIC }}" \
+              -e WALLET_API_BASE_URL="${{ secrets.WALLET_API_BASE_URL }}" \
+              -e PIXABAY_API_KEY="${{ secrets.PIXABAY_API_KEY }}" \
+              looop-backend

@@ -114,18 +114,19 @@ export const getArtist = async (req, res) => {
     const followersData = await Follow.aggregate([
       {
         $match: {
-          following: new Types.ObjectId(isartist._id)
-        }
+          following: new Types.ObjectId(isartist._id),
+        },
       },
       {
         $group: {
           _id: null,
-          followers: { $push: "$follower" }
-        }
-      }
+          followers: { $push: "$follower" },
+        },
+      },
     ]);
 
-    const followers = followersData.length > 0 ? followersData[0].followers : [];
+    const followers =
+      followersData.length > 0 ? followersData[0].followers : [];
 
     const getCommunityMembers = await CommunityMember.find({
       communityId: getArtisCommunity?._id,
@@ -210,9 +211,9 @@ export const createArtist = async (req, res) => {
     // Check if artist profile exists by name and email
     let artist = await Artist.findOne({
       $or: [
-        { name: { $regex: new RegExp(`^${artistname}$`, 'i') } },
-        { email: user.email.toLowerCase() }
-      ]
+        { name: { $regex: new RegExp(`^${artistname}$`, "i") } },
+        { email: user.email.toLowerCase() },
+      ],
     });
 
     let isNewArtist = false;
@@ -271,7 +272,7 @@ export const createArtist = async (req, res) => {
     });
 
     await Artist.findByIdAndUpdate(artist._id, {
-        claimStatus: claimResult.data.status
+      claimStatus: claimResult.data.status,
     });
 
     // Get genre names for response
@@ -282,8 +283,8 @@ export const createArtist = async (req, res) => {
       artist: {
         ...artist._doc,
         genres: genreNames,
-        isNewProfile: isNewArtist
-      }
+        isNewProfile: isNewArtist,
+      },
     };
     delete artistData.artist.artistId;
 
@@ -302,12 +303,12 @@ export const createArtist = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in createArtist:", error);
-    return res
-      .status(500)
-      .json({ message: "Error processing artist request", error: error.message });
+    return res.status(500).json({
+      message: "Error processing artist request",
+      error: error.message,
+    });
   }
 };
-
 
 export const signContract = async (req, res) => {
     try {
@@ -375,14 +376,10 @@ export const signContract = async (req, res) => {
       const customerror = `Artist has already signed the agreement`;
       return res.status(500).json({
         status: "failed",
-        message: "Error creating artist",
-        error: error.message.includes(customerror)
-          ? "Artist have already signed the contract agreement"
-          : error.message,
+        message: "User not found",
       });
     }
-};
-
+  };
 
 export const verifyArtistEmail = async (req, res) => {
   try {
@@ -437,7 +434,6 @@ export const verifyArtistEmail = async (req, res) => {
   }
 };
 
-
 export const getArtistSubcribers = async (req, res) => {
   try {
     const { artistId } = req.params;
@@ -458,7 +454,6 @@ export const getArtistSubcribers = async (req, res) => {
     });
   }
 };
-
 
 export const getArtistPost = async (req, res) => {
   try {

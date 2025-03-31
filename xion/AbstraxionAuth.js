@@ -24,19 +24,17 @@ import {
   import Transaction from '../models/Transaction.model.js';
 
 const USDC_ABI = [
-    {
-      name: "balanceOf",
-      type: "function",
-      inputs: [{ name: "account", type: "felt" }],
-      outputs: [{ name: "balance", type: "Uint256" }],
-      stateMutability: "view"
-    }
-  ];
+  {
+    name: "balanceOf",
+    type: "function",
+    inputs: [{ name: "account", type: "felt" }],
+    outputs: [{ name: "balance", type: "Uint256" }],
+    stateMutability: "view",
+  },
+];
 
-  export default class AbstraxionAuth  {
-
+export default class AbstraxionAuth {
   // static instance = null;
-
 
   constructor() {
     // if (AbstraxionAuth.instance) {
@@ -59,9 +57,7 @@ const USDC_ABI = [
     this.sessionToken = undefined;
     this.sessionTimeout = undefined;
     this.authStateChangeSubscribers = [];
-    this.hermesClient = new HermesClient("https://hermes.pyth.network", {
-
-    });
+    this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
     this.starknetProvider = new RpcProvider({
         nodeUrl: process.env.STARKNET_RPC_URL || "https://starknet-mainnet.public.blastapi.io"
       });
@@ -292,16 +288,20 @@ const USDC_ABI = [
 
     // Get USDC price from Pyth
     try {
-      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([
+        this.usdcPriceId,
+      ]);
       const pythPrice = priceUpdate.parsed[0]?.price;
-      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+      const usdcPrice = pythPrice
+        ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo))
+        : 1;
 
       // Get Cosmos balances
       const cosmosBalances = balances.map((balance) => ({
         denom: balance.denom,
         amount: balance.amount,
         amountFloat: Number(balance.amount) / 1e6,
-        usdValue: (Number(balance.amount) / 1e6) * usdcPrice || 0
+        usdValue: (Number(balance.amount) / 1e6) * usdcPrice || 0,
       }));
       console.log("Cosmos Balances:", cosmosBalances);
 
@@ -315,9 +315,8 @@ const USDC_ABI = [
       return {
         cosmos: cosmosBalances,
         starknet: starknetBalance,
-        usdcPrice
+        usdcPrice,
       };
-
     } catch (error) {
       console.error("Failed to fetch prices or balances:", error);
       return {
@@ -325,17 +324,20 @@ const USDC_ABI = [
           denom: balance.denom,
           amount: balance.amount,
           amountFloat: Number(balance.amount) / 1e6,
-          usdValue: 0
+          usdValue: 0,
         })),
         starknet: null,
-        usdcPrice: 1
+        usdcPrice: 1,
       };
     }
   }
 
   async getTransactionHistory(address, limit = 10) {
     if (!this.rpcUrl || !this.restUrl) {
-      console.error("Configuration error:", { rpcUrl: this.rpcUrl, restUrl: this.restUrl });
+      console.error("Configuration error:", {
+        rpcUrl: this.rpcUrl,
+        restUrl: this.restUrl,
+      });
       throw new Error("RPC and REST URLs must be configured");
     }
 
@@ -351,15 +353,17 @@ const USDC_ABI = [
         console.error("Transaction fetch failed:", {
           status: res.status,
           statusText: res.statusText,
-          error: errorText
+          error: errorText,
         });
-        throw new Error(`Failed to fetch transaction history: ${res.status} ${res.statusText}`);
+        throw new Error(
+          `Failed to fetch transaction history: ${res.status} ${res.statusText}`
+        );
       }
 
       const data = await res.json();
       console.log("Transaction data received:", {
         count: data.tx_responses?.length || 0,
-        address
+        address,
       });
 
       return data.tx_responses || [];
@@ -367,7 +371,7 @@ const USDC_ABI = [
       console.error("Transaction history error details:", {
         message: error.message,
         address,
-        restUrl: this.restUrl
+        restUrl: this.restUrl,
       });
       throw error;
     }
@@ -597,7 +601,10 @@ const USDC_ABI = [
 
     try {
       const client = await CosmWasmClient.connect(this.rpcUrl);
-      const response = await client.queryContractSmart(contractAddress, queryMsg);
+      const response = await client.queryContractSmart(
+        contractAddress,
+        queryMsg
+      );
 
       console.log("Smart Contract Query Result:", {
         contractAddress,
@@ -676,8 +683,14 @@ const USDC_ABI = [
         { prefix: "xion" }
       );
       const registry = new Registry();
-      registry.register("/cosmos.feegrant.v1beta1.MsgGrantAllowance", MsgGrantAllowance);
-      registry.register("/cosmos.feegrant.v1beta1.BasicAllowance", BasicAllowance);
+      registry.register(
+        "/cosmos.feegrant.v1beta1.MsgGrantAllowance",
+        MsgGrantAllowance
+      );
+      registry.register(
+        "/cosmos.feegrant.v1beta1.BasicAllowance",
+        BasicAllowance
+      );
 
       const client = await SigningCosmWasmClient.connectWithSigner(
         this.rpcUrl,
@@ -726,7 +739,11 @@ const USDC_ABI = [
 
   async getStarkNetUSDCBalance(starknetAddress) {
     try {
-      const contract = new Contract(USDC_ABI, this.usdcContractAddress, this.starknetProvider);
+      const contract = new Contract(
+        USDC_ABI,
+        this.usdcContractAddress,
+        this.starknetProvider
+      );
       const response = await contract.balanceOf(starknetAddress);
 
       // StarkNet response structure is different, need to handle it properly
@@ -739,7 +756,7 @@ const USDC_ABI = [
           balance: "0",
           balanceFloat: 0,
           usdcPrice: 1,
-          usdValue: 0
+          usdValue: 0,
         };
       }
 
@@ -747,9 +764,13 @@ const USDC_ABI = [
       const balanceFloat = Number(balance.low.toString()) / 1e6;
 
       // Get USDC price from Pyth
-      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([this.usdcPriceId]);
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([
+        this.usdcPriceId,
+      ]);
       const pythPrice = priceUpdate.parsed[0]?.price;
-      const usdcPrice = pythPrice ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo)) : 1;
+      const usdcPrice = pythPrice
+        ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo))
+        : 1;
 
       return {
         address: starknetAddress,
@@ -876,20 +897,22 @@ const USDC_ABI = [
     } catch (error) {
       console.error("Error minting pass:", error);
 
-      // Update transaction with failed status if it exists
-      if (transaction) {
-        transaction.status = "failed";
-        transaction.message = error.message;
-        await transaction.save();
+      //   // Update transaction with failed status if it exists
+      //   if (transaction) {
+      //     transaction.status = 'failed';
+      //     transaction.message = error.message;
+      //     await transaction.save();
+      //   }
 
-        // Notify client of failed transaction
-        websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-          status: "failed",
-          transactionId: transaction._id,
-          error: error.message,
-          type: "mint_pass",
-        });
-      }
+      //   // Notify client of failed transaction
+      // if (transaction) {
+      //     websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
+      //       status: 'failed',
+      //       transactionId: transaction._id,
+      //       error: error.message,
+      //       type: 'mint_pass'
+      //     });
+      //   }
 
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
@@ -904,56 +927,71 @@ const USDC_ABI = [
     try {
       const client = await CosmWasmClient.connect(this.rpcUrl);
 
-      const nftDetails = await Promise.all(contractAddresses.map(async (contractAddress) => {
-        try {
-          // Query contract info
-          const contractInfo = await client.getContractCodeHistory(contractAddress);
+      const nftDetails = await Promise.all(
+        contractAddresses.map(async (contractAddress) => {
+          try {
+            // Query contract info
+            const contractInfo = await client.getContractCodeHistory(
+              contractAddress
+            );
 
-          // Query NFT collection info
-          const collectionInfo = await client.queryContractSmart(contractAddress, {
-            collection_info: {}
-          });
+            // Query NFT collection info
+            const collectionInfo = await client.queryContractSmart(
+              contractAddress,
+              {
+                collection_info: {},
+              }
+            );
 
-          // Get total supply
-          const totalSupply = await client.queryContractSmart(contractAddress, {
-            num_tokens: {}
-          });
+            // Get total supply
+            const totalSupply = await client.queryContractSmart(
+              contractAddress,
+              {
+                num_tokens: {},
+              }
+            );
 
-          // Get contract configuration
-          const config = await client.queryContractSmart(contractAddress, {
-            config: {}
-          });
+            // Get contract configuration
+            const config = await client.queryContractSmart(contractAddress, {
+              config: {},
+            });
 
-          return {
-            contractAddress,
-            collectionInfo,
-            totalSupply,
-            config,
-            lastUpdated: contractInfo[contractInfo.length - 1]?.updated,
-            status: "success"
-          };
-        } catch (error) {
-          console.error(`Error fetching NFT details for ${contractAddress}:`, error);
-          return {
-            contractAddress,
-            error: error.message,
-            status: "failed"
-          };
-        }
-      }));
+            return {
+              contractAddress,
+              collectionInfo,
+              totalSupply,
+              config,
+              lastUpdated: contractInfo[contractInfo.length - 1]?.updated,
+              status: "success",
+            };
+          } catch (error) {
+            console.error(
+              `Error fetching NFT details for ${contractAddress}:`,
+              error
+            );
+            return {
+              contractAddress,
+              error: error.message,
+              status: "failed",
+            };
+          }
+        })
+      );
 
       console.log("NFT Details Retrieved:", {
         totalContracts: contractAddresses.length,
-        successfulQueries: nftDetails.filter(detail => detail.status === "success").length,
-        failedQueries: nftDetails.filter(detail => detail.status === "failed").length
+        successfulQueries: nftDetails.filter(
+          (detail) => detail.status === "success"
+        ).length,
+        failedQueries: nftDetails.filter((detail) => detail.status === "failed")
+          .length,
       });
 
       return {
         success: true,
         data: nftDetails,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
-
     } catch (error) {
       console.error("Error in getNFTDetailsByContracts:", error);
       throw new Error(`Failed to fetch NFT details: ${error.message}`);
@@ -981,7 +1019,9 @@ const USDC_ABI = [
       const balance = await client.getBalance(senderAddress, denom);
 
       if (BigInt(balance.amount) < BigInt(amount)) {
-        throw new Error(`Insufficient balance. Available: ${balance.amount} ${denom}`);
+        throw new Error(
+          `Insufficient balance. Available: ${balance.amount} ${denom}`
+        );
       }
 
       // Prepare transfer message
@@ -1030,5 +1070,4 @@ const USDC_ABI = [
       throw new Error(`Failed to transfer funds: ${error.message}`);
     }
   }
-
 }
