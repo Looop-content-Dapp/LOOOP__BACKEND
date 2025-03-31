@@ -191,37 +191,98 @@ export const getAllPostByArtist = async (req, res) => {
 export const getAllPostsByCommunity = async (req, res) => {
   try {
     const { page = 1, limit = 10, postType } = req.query;
-    const query = {
+    const baseQuery = {
       communityId: req.params.communityId,
-      ...(postType && { postType })
+      status: 'published'
     };
 
-    const posts = await Post.find(query)
-      .populate('artistId', 'name email profileImage genre verified')
-      .populate('communityId', 'name description coverImage')
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .sort({ createdAt: -1 });
+    // Get all post types if no specific type is requested
+    let posts = [], announcements = [], events = [];
 
-    const postsWithDetails = await Promise.all(
-      posts.map(post => populatePostDetails(post))
-    );
+    if (!postType || postType === 'regular') {
+      posts = await Post.find({ ...baseQuery, postType: 'regular' })
+        .populate('artistId', 'name email profileImage genre verified')
+        .populate('communityId', 'name description coverImage')
+        .sort({ createdAt: -1 })
+        .skip(postType ? (page - 1) * limit : 0)
+        .limit(postType ? limit : 5);
+    }
 
-    const total = await Post.countDocuments(query);
+    if (!postType || postType === 'announcement') {
+      announcements = await Post.find({ ...baseQuery, postType: 'announcement' })
+        .populate('artistId', 'name email profileImage genre verified')
+        .populate('communityId', 'name description coverImage')
+        .sort({
+          'announcementDetails.isPinned': -1,
+          'announcementDetails.importance': -1,
+          createdAt: -1
+        })
+        .skip(postType ? (page - 1) * limit : 0)
+        .limit(postType ? limit : 3);
+    }
+
+    if (!postType || postType === 'event') {
+      const now = new Date();
+      events = await Post.find({
+        ...baseQuery,
+        postType: 'event',
+        'eventDetails.endDate': { $gte: now }
+      })
+        .populate('artistId', 'name email profileImage genre verified')
+        .populate('communityId', 'name description coverImage')
+        .sort({ 'eventDetails.startDate': 1 })
+        .skip(postType ? (page - 1) * limit : 0)
+        .limit(postType ? limit : 3);
+    }
+
+    // Add details to each post type
+    const [
+      postsWithDetails,
+      announcementsWithDetails,
+      eventsWithDetails
+    ] = await Promise.all([
+      Promise.all(posts.map(post => populatePostDetails(post))),
+      Promise.all(announcements.map(post => populatePostDetails(post))),
+      Promise.all(events.map(post => populatePostDetails(post)))
+    ]);
+
+    // Get counts for different post types
+    const [totalPosts, totalAnnouncements, totalEvents] = await Promise.all([
+      Post.countDocuments({ ...baseQuery, postType: 'regular' }),
+      Post.countDocuments({ ...baseQuery, postType: 'announcement' }),
+      Post.countDocuments({
+        ...baseQuery,
+        postType: 'event',
+        'eventDetails.endDate': { $gte: new Date() }
+      })
+    ]);
+
+    const total = postType ?
+      (postType === 'regular' ? totalPosts :
+       postType === 'announcement' ? totalAnnouncements :
+       totalEvents) :
+      totalPosts + totalAnnouncements + totalEvents;
 
     return res.status(200).json({
-      message: "Successfully retrieved community posts",
+      message: "Successfully retrieved community content",
       data: {
         posts: postsWithDetails,
+        announcements: announcementsWithDetails,
+        events: eventsWithDetails,
         currentPage: parseInt(page),
         totalPages: Math.ceil(total / limit),
-        totalPosts: total
+        counts: {
+          posts: totalPosts,
+          announcements: totalAnnouncements,
+          events: totalEvents,
+          total
+        }
       }
     });
   } catch (error) {
     console.error("Error in getAllPostsByCommunity:", error);
     return res.status(500).json({
-      message: "Error fetching community posts",
+      message: "Error fetching community content",
       error: error.message
     });
   }

@@ -1,27 +1,27 @@
 import {
-  GasPrice,
-  SigningStargateClient,
-  calculateFee,
-  coins,
-} from "@cosmjs/stargate";
-import { fetchConfig } from "@burnt-labs/constants";
-import { makeCosmoshubPath } from "@cosmjs/amino";
-import { GranteeSignerClient } from "./GranteeSignerClient.js";
-import { SignArbSecp256k1HdWallet } from "./SignArbSecp256k1HdWallet.js";
-import crypto from "crypto";
-import { Wallet } from "../models/wallet.model.js";
-import { Bip39 } from "@cosmjs/crypto";
-import { Registry } from "@cosmjs/proto-signing";
-import { CosmWasmClient } from "@cosmjs/cosmwasm-stargate";
-import { MsgGrantAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/tx.js";
-import { BasicAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/feegrant.js";
-import { Any } from "cosmjs-types/google/protobuf/any.js";
-import { HermesClient } from "@pythnetwork/hermes-client";
-import { RpcProvider, Contract } from "starknet";
-import { websocketService } from "../utils/websocket/websocketServer.js";
-import { WS_EVENTS } from "../utils/websocket/eventTypes.js";
-import { PassSubscription } from "../models/passSubscription.model.js";
-import Transaction from "../models/Transaction.model.js";
+    GasPrice,
+    SigningStargateClient,
+    calculateFee,
+    coins,
+  } from "@cosmjs/stargate";
+  import { fetchConfig } from "@burnt-labs/constants";
+  import { makeCosmoshubPath } from "@cosmjs/amino";
+  import { GranteeSignerClient } from "./GranteeSignerClient.js";
+  import { SignArbSecp256k1HdWallet } from "./SignArbSecp256k1HdWallet.js";
+  import crypto from "crypto";
+  import { Wallet } from "../models/wallet.model.js";
+  import { Bip39 } from "@cosmjs/crypto";
+  import { Registry } from "@cosmjs/proto-signing";
+  import { CosmWasmClient, SigningCosmWasmClient } from "@cosmjs/cosmwasm-stargate";
+  import { MsgGrantAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/tx.js";
+  import { BasicAllowance } from "cosmjs-types/cosmos/feegrant/v1beta1/feegrant.js";
+  import { Any } from "cosmjs-types/google/protobuf/any.js";
+  import { HermesClient } from "@pythnetwork/hermes-client";
+  import { RpcProvider, Contract } from "starknet";
+  import { websocketService } from '../utils/websocket/websocketServer.js';
+  import { WS_EVENTS } from '../utils/websocket/eventTypes.js';
+  import { PassSubscription } from "../models/passSubscription.model.js";
+  import Transaction from '../models/Transaction.model.js';
 
 const USDC_ABI = [
   {
@@ -41,14 +41,16 @@ export default class AbstraxionAuth {
     //   return AbstraxionAuth.instance;
     // }
 
-    this.rpcUrl = undefined;
-    this.restUrl = undefined;
-    this.treasury = undefined;
-    this.serverSecret =
-      process.env.SERVER_SECRET ||
-      (() => {
-        throw new Error("SERVER_SECRET is required in .env");
-      })();
+
+  this.rpcUrl = process.env.XION_RPC_URL || "https://rpc.xion-testnet-2.burnt.com:443";
+  this.restUrl = process.env.XION_REST_URL || "https://api.xion-testnet-2.burnt.com";
+  this.treasury = process.env.TREASURY_ADDRESS;
+  this.granter = process.env.GRANTER_ADDRESS || (() => {
+    throw new Error("GRANTER_ADDRESS is required in .env");
+  })();
+  this.serverSecret = process.env.SERVER_SECRET || (() => {
+    throw new Error("SERVER_SECRET is required in .env");
+  })();
     this.client = undefined;
     this.abstractAccount = undefined;
     this.isLoggedIn = false;
@@ -57,17 +59,10 @@ export default class AbstraxionAuth {
     this.authStateChangeSubscribers = [];
     this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
     this.starknetProvider = new RpcProvider({
-      nodeUrl:
-        process.env.STARKNET_RPC_URL ||
-        "https://starknet-mainnet.public.blastapi.io",
-    });
-    this.usdcContractAddress =
-      process.env.STARKNET_USDC_ADDRESS ||
-      "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
-    this.usdcPriceId =
-      "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
-
-    console.log("Initialized with Server Secret:", this.serverSecret);
+        nodeUrl: process.env.STARKNET_RPC_URL || "https://starknet-mainnet.public.blastapi.io"
+      });
+      this.usdcContractAddress = process.env.STARKNET_USDC_ADDRESS || "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8";
+    this.usdcPriceId = "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
   }
 
   static configureAbstraxionInstance(rpc, restUrl, treasury) {
@@ -475,17 +470,14 @@ export default class AbstraxionAuth {
       });
     }
 
-    const signer = await GranteeSignerClient.connectWithSigner(
+    const signer = await SigningCosmWasmClient.connectWithSigner(
       this.rpcUrl,
       this.abstractAccount,
       {
         gasPrice: GasPrice.fromString("0uxion"),
-        granterAddress: useGranter ? granterAddress : undefined,
-        granteeAddress,
-        treasuryAddress: this.treasury,
       }
     );
-    return { signer, useGranter };
+    return { signer, useGranter, granterAddress };
   }
 
   async getNFTsForAddress(walletAddress, contractAddress) {
@@ -533,7 +525,7 @@ export default class AbstraxionAuth {
       throw new Error("User must be logged in to execute a smart contract");
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
-    const { signer, useGranter } = await this.getSigner();
+    const { signer, useGranter, granterAddress } = await this.getSigner();
     const accounts = await this.abstractAccount.getAccounts();
     const senderAddress = accounts[0].address;
 
@@ -546,7 +538,18 @@ export default class AbstraxionAuth {
         }
       }
 
-      const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
+      let fee;
+      if (useGranter) {
+        fee = {
+          amount: coins(5000, "uxion"),
+          gas: "2000000",
+          granter: granterAddress,
+        };
+      } else {
+        const gasEstimation = await signer.simulate(senderAddress, [{ typeUrl: "/cosmwasm.wasm.v1.MsgExecuteContract", value: { sender: senderAddress, contract: contractAddress, msg: Buffer.from(JSON.stringify(msg)) } }], memo);
+        fee = calculateFee(Math.round(gasEstimation * 1.4), GasPrice.fromString("0uxion"));
+      }
+
       const result = await signer.execute(
         senderAddress,
         contractAddress,
@@ -689,7 +692,7 @@ export default class AbstraxionAuth {
         BasicAllowance
       );
 
-      const client = await SigningStargateClient.connectWithSigner(
+      const client = await SigningCosmWasmClient.connectWithSigner(
         this.rpcUrl,
         granterWallet,
         { registry }
@@ -730,7 +733,7 @@ export default class AbstraxionAuth {
         `Failed to grant fee allowance to ${granteeAddress}:`,
         error
       );
-      throw error; // Re-throw to allow the caller (e.g., signup) to handle it
+      throw error;
     }
   }
 
@@ -789,12 +792,12 @@ export default class AbstraxionAuth {
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
     try {
-      const { signer, useGranter } = await this.getSigner();
+      const { signer, useGranter, granterAddress } = await this.getSigner();
       const accounts = await this.abstractAccount.getAccounts();
       const senderAddress = accounts[0].address;
 
       // Create pending transaction record
-      const transaction = new Transaction.create({
+      const transaction = await Transaction.create({
         userId: senderAddress,
         amount: 5000000, // 5 USDC
         currency: "USDC",
@@ -843,7 +846,11 @@ export default class AbstraxionAuth {
         5000000,
         "ibc/6490A7EAB61059BFC1CDDEB05917DD70BDF3A611654162A1A47DB930D40D8AF4"
       );
-      const fee = { amount: coins(5000, "uxion"), gas: "2000000" };
+      const fee = {
+        amount: coins(5000, "uxion"),
+        gas: "2000000",
+        granter: useGranter ? granterAddress : undefined,
+      };
 
       const result = await signer.execute(
         senderAddress,
@@ -998,7 +1005,7 @@ export default class AbstraxionAuth {
     if (!this.rpcUrl) throw new Error("RPC URL must be configured");
 
     try {
-      const { signer, useGranter } = await this.getSigner();
+      const { signer, useGranter, granterAddress } = await this.getSigner();
       const accounts = await this.abstractAccount.getAccounts();
       const senderAddress = accounts[0].address;
 
@@ -1031,6 +1038,7 @@ export default class AbstraxionAuth {
       const fee = {
         amount: coins(5000, "uxion"),
         gas: "200000",
+        granter: useGranter ? granterAddress : undefined,
       };
 
       // Execute transfer

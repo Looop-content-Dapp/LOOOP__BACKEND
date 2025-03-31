@@ -21,10 +21,10 @@ import adminRouter from "./routes/admin-route/admin.route.js";
 import referralRouter from "./routes/referral.route.js";
 import oauthrouter from "./routes/oauth.route.js";
 import nftRoutes from "./routes/nft.routes.js";
-import xionRoutes from "./routes/xion.routes.js";
-import notificationRoutes from "./routes/notification.routes.js";
-// import AbstraxionAuth from "./xion/abstraxionAuth.js";
-import AbstraxionAuth from "./xion/AbstraxionAuth.js";
+import xionRoutes from './routes/xion.routes.js';
+import notificationRoutes from './routes/notification.routes.js';
+import AbstraxionAuth from './xion/AbstraxionAuth.js';
+
 
 config();
 

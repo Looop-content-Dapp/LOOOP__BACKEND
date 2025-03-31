@@ -61,13 +61,19 @@ function isDerivationJson(thing) {
 
 export class SignArbSecp256k1HdWallet extends DirectSecp256k1HdWallet {
   constructor(mnemonic, options) {
-    const prefix = options.prefix || defaultOptions.prefix;
-    const hdPaths = options.hdPaths || defaultOptions.hdPaths;
+    // Call parent constructor first
+    super(mnemonic, {
+      prefix: options.prefix || defaultOptions.prefix,
+      hdPaths: options.hdPaths || defaultOptions.hdPaths,
+      bip39Password: options.bip39Password || defaultOptions.bip39Password
+    });
+
+    // Now we can safely access this
     this.secret = mnemonic;
     this.seed = options.seed;
-    this.accounts = hdPaths.map(hdPath => ({
+    this.accounts = (options.hdPaths || defaultOptions.hdPaths).map(hdPath => ({
       hdPath,
-      prefix,
+      prefix: options.prefix || defaultOptions.prefix
     }));
   }
 

@@ -264,11 +264,10 @@ export const updateClaimStatus = async (req, res) => {
       claim.rejectionReason = rejectionReason;
 
       // Send rejection email
-      await sendEmail(claim.userId.email, "Artist Claim Rejected", "claim", {
+      await sendEmail(claim.userId.email, "Artist Profile Claim Update", "claim", {
         artist_name: claim.userId.username,
-        claimed_artist: claim.artistId.name,
-        support_email: "support@looop.com",
-        message: `Your claim for artist profile "${claim.artistId.name}" has been rejected. Reason: ${rejectionReason}`
+        message: `Your claim for artist profile "${claim.artistId.name}" has been rejected. Reason: ${rejectionReason}`,
+        support_email: "support@looop.com"
       });
     }
 
@@ -283,12 +282,12 @@ export const updateClaimStatus = async (req, res) => {
         { session }
       );
 
-      // Send approval email
-      await sendEmail(claim.userId.email, "Artist Claim Approved", "claim", {
+
+    // Send approval email using claim.hbs template
+    await sendEmail(claim.userId.email, "Artist Profile Claim Update", "claim", {
         artist_name: claim.userId.username,
-        claimed_artist: claim.artistId.name,
-        support_email: "support@looop.com",
-        message: `Congratulations! Your claim for artist profile "${claim.artistId.name}" has been approved. You can now manage your artist profile.`
+        message: `Congratulations! Your claim for artist profile "${claim.artistId.name}" has been approved. You can now manage your artist profile.`,
+        support_email: "support@looop.com"
       });
     }
 
