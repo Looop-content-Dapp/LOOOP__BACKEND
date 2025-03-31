@@ -23,6 +23,7 @@ import oauthrouter from "./routes/oauth.route.js";
 import nftRoutes from "./routes/nft.routes.js";
 import xionRoutes from "./routes/xion.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
+// import AbstraxionAuth from "./xion/abstraxionAuth.js";
 import AbstraxionAuth from "./xion/abstraxionAuth.js";
 
 config();
@@ -66,7 +67,7 @@ app.use("/api/oauth", oauthrouter);
 app.use("/api/xion", xionRoutes);
 app.use("/api/notifications", notificationRoutes);
 
-const PORT = 9001;
+const PORT = 3000;
 const mongoURI =
   process.env.MONGODB_URI ||
   "mongodb+srv://looopMusic:Dailyblessing@looopmusic.a5lp1.mongodb.net/?retryWrites=true&w=majority&appName=LooopMusic";
