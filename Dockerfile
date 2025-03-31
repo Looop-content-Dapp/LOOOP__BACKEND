@@ -1,5 +1,5 @@
 # Use Alpine Node.js 22 for a lightweight image
-FROM node:22-alpine
+FROM node:23-alpine
 
 # Set the working directory
 WORKDIR /app
