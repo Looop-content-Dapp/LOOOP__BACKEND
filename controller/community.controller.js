@@ -7,7 +7,7 @@ import { CommunityMember } from "../models/communitymembers.model.js";
 import { Preferences } from "../models/preferences.model.js";
 import { User } from "../models/user.model.js";
 import contractHelper from "../xion/contractConfig.js";
-import AbstraxionAuth from "../xion/abstraxionauth.js";
+import AbstraxionAuth from "../xion/abstraxionAuth.js";
 import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
 
@@ -16,15 +16,17 @@ const abstraxionAuth = new AbstraxionAuth();
 export const getAllCommunity = async (req, res) => {
   try {
     // Find all communities and populate creator details
-    const communities = await Community.find({})
-      .populate("createdBy", "name email profileImage genre verified");
+    const communities = await Community.find({}).populate(
+      "createdBy",
+      "name email profileImage genre verified"
+    );
 
     // Get members for each community
     const communitiesData = await Promise.all(
       communities.map(async (community) => {
         const members = await CommunityMember.find({
-          communityId: community._id
-        }).populate('userId', 'name email profileImage');
+          communityId: community._id,
+        }).populate("userId", "name email profileImage");
 
         const communityData = community.toObject();
         communityData.members = members;
@@ -70,8 +72,8 @@ export const getCommunityByArtistId = async (req, res) => {
 
       // Get community members with user details
       const members = await CommunityMember.find({
-        communityId: communities._id
-      }).populate('userId', 'name email profileImage');
+        communityId: communities._id,
+      }).populate("userId", "name email profileImage");
 
       // Combine community data with members
       const communityData = communities.toObject();
@@ -233,12 +235,12 @@ export const createCommunity = async (req, res) => {
 
       if (artist.verified === true) {
         const msg = {
-            create_collection: {
-              name: communityName,
-              symbol: communitySymbol,
-              collection_info: coverImage,
-            },
-          };
+          create_collection: {
+            name: communityName,
+            symbol: communitySymbol,
+            collection_info: coverImage,
+          },
+        };
 
         await abstraxionAuth.login(artist.email);
         console.log("artist email", artist.email);
@@ -250,21 +252,19 @@ export const createCommunity = async (req, res) => {
 
         console.log(execute, "execute");
 
-
-
         const transactionHash = execute.transactionHash;
-        const artistWallet = execute.sender
+        const artistWallet = execute.sender;
 
         const CollectionMsg = {
-            artist_collections: {
-              artist: artistWallet,
-            },
-          };
+          artist_collections: {
+            artist: artistWallet,
+          },
+        };
 
         const getArtistCollection = await abstraxionAuth.querySmartContract(
-            "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-            CollectionMsg
-          );
+          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
+          CollectionMsg
+        );
 
         console.log(getArtistCollection, "getArtistCollection");
 
@@ -379,7 +379,8 @@ export const joinCommunity = async (req, res) => {
     if (!userId || !communityId || !type) {
       return res.status(400).json({
         status: "failed",
-        message: "Missing required fields: userId, communityId, type are required",
+        message:
+          "Missing required fields: userId, communityId, type are required",
       });
     }
 
@@ -438,7 +439,7 @@ export const joinCommunity = async (req, res) => {
     await abstraxionAuth.login(user.email);
 
     const mint = await abstraxionAuth.mintPass(
-      community.tribePass.contractAddress,
+      community.tribePass.contractAddress
     );
 
     console.log(mint, "minted");
@@ -458,18 +459,17 @@ export const joinCommunity = async (req, res) => {
         $push: {
           nftContracts: {
             contractAddress: community.tribePass.contractAddress,
-            communityId: communityId
-          }
-        }
+            communityId: communityId,
+          },
+        },
       },
       { new: true }
     );
 
     // Update community member count
-    await Community.findByIdAndUpdate(
-      communityId,
-      { $inc: { memberCount: 1 } }
-    );
+    await Community.findByIdAndUpdate(communityId, {
+      $inc: { memberCount: 1 },
+    });
 
     return res.status(200).json({
       status: "success",
@@ -477,7 +477,7 @@ export const joinCommunity = async (req, res) => {
       data: {
         communitymember,
         nftmint: mint.transactionHash,
-        contractAddress: community.tribePass.contractAddress
+        contractAddress: community.tribePass.contractAddress,
       },
     });
   } catch (error) {
@@ -491,262 +491,262 @@ export const joinCommunity = async (req, res) => {
 };
 
 export const searchCommunity = async (req, res) => {
-    try {
-      const { query, filter } = req.query;
-      const searchQuery = query || '';
+  try {
+    const { query, filter } = req.query;
+    const searchQuery = query || "";
 
-      // Search Communities
-      const communities = await Community.aggregate([
-        {
-          $match: {
-            $or: [
-              { communityName: { $regex: searchQuery, $options: 'i' } },
-              { description: { $regex: searchQuery, $options: 'i' } }
-            ]
-          }
+    // Search Communities
+    const communities = await Community.aggregate([
+      {
+        $match: {
+          $or: [
+            { communityName: { $regex: searchQuery, $options: "i" } },
+            { description: { $regex: searchQuery, $options: "i" } },
+          ],
         },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "createdBy",
-            foreignField: "_id",
-            as: "artist"
-          }
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "artist",
         },
-        {
-          $unwind: "$artist"
+      },
+      {
+        $unwind: "$artist",
+      },
+      {
+        $lookup: {
+          from: "communitymembers",
+          localField: "_id",
+          foreignField: "communityId",
+          as: "members",
         },
-        {
-          $lookup: {
-            from: "communitymembers",
-            localField: "_id",
-            foreignField: "communityId",
-            as: "members"
-          }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "members.userId",
+          foreignField: "_id",
+          as: "memberDetails",
         },
-        {
-          $lookup: {
-            from: "users",
-            localField: "members.userId",
-            foreignField: "_id",
-            as: "memberDetails"
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            communityName: 1,
-            description: 1,
-            coverImage: 1,
-            memberCount: 1,
-            tribePass: 1,  // Include tribePass details
-            artist: {
-              _id: "$artist._id",
-              name: "$artist.name",
-              profileImage: "$artist.profileImage",
-              verified: "$artist.verified"
+      },
+      {
+        $project: {
+          _id: 1,
+          communityName: 1,
+          description: 1,
+          coverImage: 1,
+          memberCount: 1,
+          tribePass: 1, // Include tribePass details
+          artist: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            profileImage: "$artist.profileImage",
+            verified: "$artist.verified",
+          },
+          members: {
+            $map: {
+              input: "$memberDetails",
+              as: "member",
+              in: {
+                _id: "$$member._id",
+                name: "$$member.name",
+                email: "$$member.email",
+                profileImage: "$$member.profileImage",
+              },
             },
-            members: {
-              $map: {
-                input: "$memberDetails",
-                as: "member",
-                in: {
-                  _id: "$$member._id",
-                  name: "$$member.name",
-                  email: "$$member.email",
-                  profileImage: "$$member.profileImage"
-                }
-              }
-            },
-            type: { $literal: "community" }
-          }
-        }
-      ]);
+          },
+          type: { $literal: "community" },
+        },
+      },
+    ]);
 
-      // ... rest of the code remains the same ...
+    // ... rest of the code remains the same ...
 
-      // Search Posts
-      const posts = await Post.aggregate([
-        {
-          $match: {
-            $or: [
-              { content: { $regex: searchQuery, $options: 'i' } },
-              { title: { $regex: searchQuery, $options: 'i' } }
-            ],
-            status: "published",
-            visibility: "public"
-          }
+    // Search Posts
+    const posts = await Post.aggregate([
+      {
+        $match: {
+          $or: [
+            { content: { $regex: searchQuery, $options: "i" } },
+            { title: { $regex: searchQuery, $options: "i" } },
+          ],
+          status: "published",
+          visibility: "public",
         },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "artistId",
-            foreignField: "_id",
-            as: "artist"
-          }
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "artistId",
+          foreignField: "_id",
+          as: "artist",
         },
-        {
-          $lookup: {
-            from: "communities",
-            localField: "communityId",
-            foreignField: "_id",
-            as: "community"
-          }
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "communityId",
+          foreignField: "_id",
+          as: "community",
         },
-        {
-          $unwind: "$artist"
-        },
-        {
-          $unwind: "$community"
-        },
-        {
-          $project: {
-            _id: 1,
-            content: 1,
-            media: {
-              $filter: {
-                input: "$media",
-                as: "m",
-                cond: { $in: ["$$m.type", ["image", "video"]] }
-              }
+      },
+      {
+        $unwind: "$artist",
+      },
+      {
+        $unwind: "$community",
+      },
+      {
+        $project: {
+          _id: 1,
+          content: 1,
+          media: {
+            $filter: {
+              input: "$media",
+              as: "m",
+              cond: { $in: ["$$m.type", ["image", "video"]] },
             },
-            createdAt: 1,
-            stats: {
-              likes: "$likeCount",
-              comments: "$commentCount",
-              views: { $literal: "12.2k" }
-            },
-            artist: {
-              _id: "$artist._id",
-              name: "$artist.name",
-              profileImage: "$artist.profileImage",
-              verified: "$artist.verified",
-              handle: { $concat: ["@", "$artist.name", "FC"] }
-            },
-            community: {
-              _id: "$community._id",
-              name: "$community.communityName"
-            },
-            timeAgo: { $literal: "1h" },
-            type: { $literal: "post" }
-          }
+          },
+          createdAt: 1,
+          stats: {
+            likes: "$likeCount",
+            comments: "$commentCount",
+            views: { $literal: "12.2k" },
+          },
+          artist: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            profileImage: "$artist.profileImage",
+            verified: "$artist.verified",
+            handle: { $concat: ["@", "$artist.name", "FC"] },
+          },
+          community: {
+            _id: "$community._id",
+            name: "$community.communityName",
+          },
+          timeAgo: { $literal: "1h" },
+          type: { $literal: "post" },
         },
-        {
-          $sort: { createdAt: -1 }
-        }
-      ]);
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    ]);
 
-      // Search Artists
-      const artists = await Artist.aggregate([
-        {
-          $match: {
-            name: { $regex: searchQuery, $options: 'i' }
-          }
+    // Search Artists
+    const artists = await Artist.aggregate([
+      {
+        $match: {
+          name: { $regex: searchQuery, $options: "i" },
         },
-        {
-          $lookup: {
-            from: "communities",
-            localField: "_id",
-            foreignField: "createdBy",
-            as: "communities"
-          }
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "_id",
+          foreignField: "createdBy",
+          as: "communities",
         },
-        {
-          $lookup: {
-            from: "communitymembers",
-            localField: "communities._id",
-            foreignField: "communityId",
-            as: "tribeStars"
-          }
+      },
+      {
+        $lookup: {
+          from: "communitymembers",
+          localField: "communities._id",
+          foreignField: "communityId",
+          as: "tribeStars",
         },
-        {
-          $lookup: {
-            from: "follows",
-            localField: "_id",
-            foreignField: "following",
-            as: "followers"
-          }
+      },
+      {
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "following",
+          as: "followers",
         },
-        {
-          $lookup: {
-            from: "genres",
-            localField: "genres",
-            foreignField: "_id",
-            as: "genreDetails"
-          }
+      },
+      {
+        $lookup: {
+          from: "genres",
+          localField: "genres",
+          foreignField: "_id",
+          as: "genreDetails",
         },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            email: 1,
-            profileImage: 1,
-            biography: 1,
-            verified: 1,
-            verifiedAt: 1,
-            monthlyListeners: 1,
-            popularity: 1,
-            websiteurl: 1,
-            socialLinks: 1,
-            roles: 1,
-            labels: 1,
-            country: 1,
-            city: 1,
-            genres: "$genreDetails",
-            type: { $literal: "artist" },
-            tribeStars: {
-              $toString: {
-                $concat: [
-                  { $toString: { $divide: [{ $size: "$tribeStars" }, 1000] } },
-                  "K"
-                ]
-              }
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          email: 1,
+          profileImage: 1,
+          biography: 1,
+          verified: 1,
+          verifiedAt: 1,
+          monthlyListeners: 1,
+          popularity: 1,
+          websiteurl: 1,
+          socialLinks: 1,
+          roles: 1,
+          labels: 1,
+          country: 1,
+          city: 1,
+          genres: "$genreDetails",
+          type: { $literal: "artist" },
+          tribeStars: {
+            $toString: {
+              $concat: [
+                { $toString: { $divide: [{ $size: "$tribeStars" }, 1000] } },
+                "K",
+              ],
             },
-            followers: "$followers.follower",
-            followersCount: { $size: "$followers" },
-            topTracks: {
-              $slice: ["$topTracks", 5] // Get top 5 tracks
-            },
-            communities: {
-              $size: "$communities"
-            }
-          }
-        }
-      ]);
+          },
+          followers: "$followers.follower",
+          followersCount: { $size: "$followers" },
+          topTracks: {
+            $slice: ["$topTracks", 5], // Get top 5 tracks
+          },
+          communities: {
+            $size: "$communities",
+          },
+        },
+      },
+    ]);
 
-      // Filter results based on type
-      let results;
-      switch (filter?.toLowerCase()) {
-        case 'posts':
-          results = posts;
-          break;
-        case 'tribes':
-          results = communities;
-          break;
-        case 'artistes':
-          results = artists;
-          break;
-        default:
-          results = [...communities, ...posts, ...artists];
-      }
-
-      return res.status(200).json({
-        status: "success",
-        message: "Search completed successfully",
-        data: {
-          results,
-          total: results.length,
-          filter: filter || 'all'
-        }
-      });
-    } catch (error) {
-      console.error("Error searching:", error);
-      return res.status(500).json({
-        status: "error",
-        message: "Error performing search",
-        error: error.message
-      });
+    // Filter results based on type
+    let results;
+    switch (filter?.toLowerCase()) {
+      case "posts":
+        results = posts;
+        break;
+      case "tribes":
+        results = communities;
+        break;
+      case "artistes":
+        results = artists;
+        break;
+      default:
+        results = [...communities, ...posts, ...artists];
     }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Search completed successfully",
+      data: {
+        results,
+        total: results.length,
+        filter: filter || "all",
+      },
+    });
+  } catch (error) {
+    console.error("Error searching:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Error performing search",
+      error: error.message,
+    });
+  }
 };
 
 export const getArtistCommunitiesByGenre = async (req, res) => {
@@ -1180,68 +1180,74 @@ const getNextNFTToken = async () => {
 };
 
 export const getFollowedArtistsCommunities = async (req, res) => {
-    try {
-      const { userId } = req.params;
+  try {
+    const { userId } = req.params;
 
-      // First get all artists that the user follows using the Follow model
-      const followedArtists = await Follow.find({
-        follower: userId
-      }).populate({
-        path: 'following',
-        model: 'artist',
-        select: '_id name email profileImage genre verified'
+    // First get all artists that the user follows using the Follow model
+    const followedArtists = await Follow.find({
+      follower: userId,
+    }).populate({
+      path: "following",
+      model: "artist",
+      select: "_id name email profileImage genre verified",
+    });
+
+    if (!followedArtists.length) {
+      return res.status(200).json({
+        status: "success",
+        message: "User is not following any artists",
+        data: [],
       });
+    }
 
-      if (!followedArtists.length) {
-        return res.status(200).json({
-          status: "success",
-          message: "User is not following any artists",
-          data: []
-        });
-      }
+    // Get the artist IDs
+    const followedArtistIds = followedArtists.map(
+      (follow) => follow.following._id
+    );
 
-      // Get the artist IDs
-      const followedArtistIds = followedArtists.map(follow => follow.following._id);
-
-      // Find communities created by followed artists
-      const communities = await Community.find({
-        createdBy: { $in: followedArtistIds }
-      })
+    // Find communities created by followed artists
+    const communities = await Community.find({
+      createdBy: { $in: followedArtistIds },
+    })
       .populate({
         path: "createdBy",
-        model: 'artist',
-        select: "name email profileImage genre verified"
+        model: "artist",
+        select: "name email profileImage genre verified",
       })
       // Remove the members population since it's causing the error
       .lean(); // Convert to plain JavaScript objects
 
-      // Now fetch members separately
-      const communitiesWithMembers = await Promise.all(communities.map(async (community) => {
-        const members = await CommunityMember.find({ communityId: community._id })
+    // Now fetch members separately
+    const communitiesWithMembers = await Promise.all(
+      communities.map(async (community) => {
+        const members = await CommunityMember.find({
+          communityId: community._id,
+        })
           .populate({
-            path: 'userId',
-            model: 'users',
-            select: 'name email profileImage'
+            path: "userId",
+            model: "users",
+            select: "name email profileImage",
           })
           .lean();
 
         return {
           ...community,
-          members: members
+          members: members,
         };
-      }));
+      })
+    );
 
-      return res.status(200).json({
-        status: "success",
-        message: "Successfully fetched followed artists' communities",
-        data: communitiesWithMembers
-      });
-    } catch (error) {
-      console.error("Error in getFollowedArtistsCommunities:", error);
-      return res.status(500).json({
-        status: "failed",
-        message: "Error fetching followed artists' communities",
-        error: error.message
-      });
-    }
-  };
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully fetched followed artists' communities",
+      data: communitiesWithMembers,
+    });
+  } catch (error) {
+    console.error("Error in getFollowedArtistsCommunities:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error fetching followed artists' communities",
+      error: error.message,
+    });
+  }
+};

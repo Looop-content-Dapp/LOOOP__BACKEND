@@ -23,7 +23,7 @@ import oauthrouter from "./routes/oauth.route.js";
 import nftRoutes from "./routes/nft.routes.js";
 import xionRoutes from "./routes/xion.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
-import AbstraxionAuth from "./xion/abstraxionauth.js";
+import AbstraxionAuth from "./xion/abstraxionAuth.js";
 
 config();
 
