@@ -12,6 +12,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Build Docker image locally
+        run: |
+          docker build -t looop-backend:latest .
+
       - name: Sign in to Droplet and execute commands
         uses: appleboy/ssh-action@master
         with:
