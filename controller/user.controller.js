@@ -35,7 +35,7 @@ import { ReferralCode } from "../models/referralcode.model.js";
 import referralConfig from "../config/referral.config.js";
 import XionWalletService from "../xion/wallet.service.js";
 
-import AbstraxionAuth from "../xion/abstraxionAuth.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { Track } from "../models/track.model.js";
 import { Release } from "../models/releases.model.js";
 

@@ -17,7 +17,7 @@ import {
   signContractSchema,
 } from "../validations_schemas/artist.validation.js";
 import { sendEmail } from "../script.js";
-import AbstraxionAuth from "../xion/abstraxionAuth.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 
 const abstraxionAuth = new AbstraxionAuth();
@@ -297,12 +297,10 @@ export const createArtist = async (req, res) => {
     });
   } catch (error) {
     console.error("Error in createArtist:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Error processing artist request",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Error processing artist request",
+      error: error.message,
+    });
   }
 };
 
