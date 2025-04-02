@@ -24,6 +24,7 @@ import nftRoutes from "./routes/nft.routes.js";
 import xionRoutes from './routes/xion.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import AbstraxionAuth from './xion/AbstraxionAuth.js';
+import transactionrouter from "./routes/transaction.routes.js";
 
 
 config();
@@ -62,6 +63,7 @@ app.use("/api/referral", referralRouter);
 app.use("/api/nfts", nftRoutes);
 // app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
+app.use("/api/transactions", transactionrouter);
 
 // Register Xion routes
 app.use("/api/xion", xionRoutes);

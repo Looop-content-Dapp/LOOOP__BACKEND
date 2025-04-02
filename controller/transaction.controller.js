@@ -1,6 +1,6 @@
-const Transaction = require('../models/Transaction');
+import Transaction from '../models/Transaction.model.js';
 
-exports.getUserTransactions = async (req, res) => {
+export const getUserTransactions = async (req, res) => {
   try {
     const { userId } = req.params;
     const { type, page = 1, limit = 10 } = req.query;
@@ -43,7 +43,7 @@ exports.getUserTransactions = async (req, res) => {
   }
 };
 
-exports.getTransactionById = async (req, res) => {
+export const getTransactionById = async (req, res) => {
   try {
     const { transactionId } = req.params;
     const transaction = await Transaction.findById(transactionId);

@@ -4,6 +4,7 @@ import { Comment } from "../models/comment.model.js";
 import { Like } from "../models/likes.model.js";
 import { Community } from "../models/community.model.js";
 import { User } from "../models/user.model.js";
+import { CommunityMember } from "../models/communitymembers.model.js";
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {
@@ -123,29 +124,98 @@ export const getAllPosts = async (req, res) => {
 
 // Get single post
 export const getPost = async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id)
-      .populate('artistId', 'name email profileImage genre verified')
-      .populate('communityId', 'name description coverImage');
+    try {
+      const { userId } = req.query; 
 
-    if (!post) {
-      return res.status(404).json({ message: "Post not found" });
+      const post = await Post.findById(req.params.id)
+        .populate({
+          path: 'artistId',
+          select: 'name email profileImage genre verified bio socialLinks stats createdAt'
+        })
+        .populate({
+          path: 'communityId',
+          select: 'communityName description coverImage tribePass members admins owner createdAt stats'
+        });
+
+      if (!post) {
+        return res.status(404).json({ message: "Post not found" });
+      }
+
+      // Get all likes with user details
+      const likes = await Like.find({ postId: post._id })
+        .populate({
+          path: 'userId',
+          select: 'email profileImage bio name username'
+        });
+
+      const commentCount = await Comment.countDocuments({
+        postId: post._id,
+        parentCommentId: null
+      });
+
+      // Get recent comments with replies
+      const comments = await Comment.find({
+        postId: post._id,
+        parentCommentId: null
+      })
+        .populate({
+          path: 'userId',
+          select: 'email profileImage bio name username'
+        })
+        .sort({ createdAt: -1 })
+        .limit(3);
+
+      const commentsWithReplies = await Promise.all(
+        comments.map(async (comment) => {
+          const replies = await Comment.find({
+            postId: post._id,
+            parentCommentId: comment._id
+          })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            })
+            .sort({ createdAt: -1 })
+            .limit(2);
+
+          const replyCount = await Comment.countDocuments({
+            postId: post._id,
+            parentCommentId: comment._id
+          });
+
+          return {
+            ...comment.toObject(),
+            replies,
+            replyCount,
+            hasLiked: userId ? likes.some(like =>
+              like.userId._id.toString() === userId &&
+              like.itemId?.toString() === comment._id.toString()
+            ) : false
+          };
+        })
+      );
+
+      const enhancedPost = {
+        ...post.toObject(),
+        likes,
+        likeCount: likes.length,
+        hasLiked: userId ? likes.some(like => like.userId._id.toString() === userId) : false,
+        comments: commentsWithReplies,
+        commentCount
+      };
+
+      return res.status(200).json({
+        message: "Successfully retrieved post",
+        data: enhancedPost
+      });
+    } catch (error) {
+      console.error("Error in getPost:", error);
+      return res.status(500).json({
+        message: "Error fetching post",
+        error: error.message
+      });
     }
-
-    const postWithDetails = await populatePostDetails(post);
-
-    return res.status(200).json({
-      message: "Successfully retrieved post",
-      data: postWithDetails
-    });
-  } catch (error) {
-    console.error("Error in getPost:", error);
-    return res.status(500).json({
-      message: "Error fetching post",
-      error: error.message
-    });
-  }
-};
+  };
 
 // Get posts by artist
 export const getAllPostByArtist = async (req, res) => {
@@ -189,104 +259,270 @@ export const getAllPostByArtist = async (req, res) => {
 
 // Get posts by community
 export const getAllPostsByCommunity = async (req, res) => {
-  try {
-    const { page = 1, limit = 10, postType } = req.query;
-    const baseQuery = {
-      communityId: req.params.communityId,
-      status: 'published'
-    };
+    try {
+      const { page = 1, limit = 10, postType } = req.query;
 
-    // Get all post types if no specific type is requested
-    let posts = [], announcements = [], events = [];
+      // First get the community details
+      const community = await Community.findById(req.params.communityId)
+        .select('communityName description coverImage tribePass createdBy status memberCount createdAt NFTToken')
+        .populate('createdBy', 'name email profileImage genre verified');
 
-    if (!postType || postType === 'regular') {
-      posts = await Post.find({ ...baseQuery, postType: 'regular' })
-        .populate('artistId', 'name email profileImage genre verified')
-        .populate('communityId', 'name description coverImage')
-        .sort({ createdAt: -1 })
-        .skip(postType ? (page - 1) * limit : 0)
-        .limit(postType ? limit : 5);
-    }
-
-    if (!postType || postType === 'announcement') {
-      announcements = await Post.find({ ...baseQuery, postType: 'announcement' })
-        .populate('artistId', 'name email profileImage genre verified')
-        .populate('communityId', 'name description coverImage')
-        .sort({
-          'announcementDetails.isPinned': -1,
-          'announcementDetails.importance': -1,
-          createdAt: -1
-        })
-        .skip(postType ? (page - 1) * limit : 0)
-        .limit(postType ? limit : 3);
-    }
-
-    if (!postType || postType === 'event') {
-      const now = new Date();
-      events = await Post.find({
-        ...baseQuery,
-        postType: 'event',
-        'eventDetails.endDate': { $gte: now }
-      })
-        .populate('artistId', 'name email profileImage genre verified')
-        .populate('communityId', 'name description coverImage')
-        .sort({ 'eventDetails.startDate': 1 })
-        .skip(postType ? (page - 1) * limit : 0)
-        .limit(postType ? limit : 3);
-    }
-
-    // Add details to each post type
-    const [
-      postsWithDetails,
-      announcementsWithDetails,
-      eventsWithDetails
-    ] = await Promise.all([
-      Promise.all(posts.map(post => populatePostDetails(post))),
-      Promise.all(announcements.map(post => populatePostDetails(post))),
-      Promise.all(events.map(post => populatePostDetails(post)))
-    ]);
-
-    // Get counts for different post types
-    const [totalPosts, totalAnnouncements, totalEvents] = await Promise.all([
-      Post.countDocuments({ ...baseQuery, postType: 'regular' }),
-      Post.countDocuments({ ...baseQuery, postType: 'announcement' }),
-      Post.countDocuments({
-        ...baseQuery,
-        postType: 'event',
-        'eventDetails.endDate': { $gte: new Date() }
-      })
-    ]);
-
-    const total = postType ?
-      (postType === 'regular' ? totalPosts :
-       postType === 'announcement' ? totalAnnouncements :
-       totalEvents) :
-      totalPosts + totalAnnouncements + totalEvents;
-
-    return res.status(200).json({
-      message: "Successfully retrieved community content",
-      data: {
-        posts: postsWithDetails,
-        announcements: announcementsWithDetails,
-        events: eventsWithDetails,
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        counts: {
-          posts: totalPosts,
-          announcements: totalAnnouncements,
-          events: totalEvents,
-          total
-        }
+      if (!community) {
+        return res.status(404).json({ message: "Community not found" });
       }
-    });
-  } catch (error) {
-    console.error("Error in getAllPostsByCommunity:", error);
-    return res.status(500).json({
-      message: "Error fetching community content",
-      error: error.message
-    });
-  }
-};
+
+      const baseQuery = {
+        communityId: req.params.communityId,
+        status: 'published'
+      };
+
+      // Get all post types if no specific type is requested
+      let posts = [], announcements = [], events = [];
+
+      if (!postType || postType === 'regular') {
+        posts = await Post.find({ ...baseQuery, postType: 'regular' })
+          .populate('artistId', 'name email profileImage genre verified bio socialLinks stats createdAt')
+          .populate('communityId', 'communityName description coverImage tribePass')
+          .sort({ createdAt: -1 })
+          .skip(postType ? (page - 1) * limit : 0)
+          .limit(postType ? limit : 5);
+      }
+
+      if (!postType || postType === 'announcement') {
+        announcements = await Post.find({ ...baseQuery, postType: 'announcement' })
+          .populate('artistId', 'name email profileImage genre verified bio socialLinks stats createdAt')
+          .populate('communityId', 'communityName description coverImage tribePass')
+          .sort({
+            'announcementDetails.isPinned': -1,
+            'announcementDetails.importance': -1,
+            createdAt: -1
+          })
+          .skip(postType ? (page - 1) * limit : 0)
+          .limit(postType ? limit : 3);
+      }
+
+      if (!postType || postType === 'event') {
+        const now = new Date();
+        events = await Post.find({
+          ...baseQuery,
+          postType: 'event',
+          'eventDetails.endDate': { $gte: now }
+        })
+          .populate('artistId', 'name email profileImage genre verified bio socialLinks stats createdAt')
+          .populate('communityId', 'name description coverImage members admins owner createdAt stats')
+          .sort({ 'eventDetails.startDate': 1 })
+          .skip(postType ? (page - 1) * limit : 0)
+          .limit(postType ? limit : 3);
+      }
+
+      // Add details to each post type with enhanced details
+      const [
+        postsWithDetails,
+        announcementsWithDetails,
+        eventsWithDetails
+      ] = await Promise.all([
+        Promise.all(posts.map(async (post) => {
+          const likes = await Like.find({ postId: post._id })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            });
+
+          const commentCount = await Comment.countDocuments({
+            postId: post._id,
+            parentCommentId: null
+          });
+
+          const comments = await Comment.find({
+            postId: post._id,
+            parentCommentId: null
+          })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            })
+            .sort({ createdAt: -1 })
+            .limit(3);
+
+          const commentsWithReplies = await Promise.all(
+            comments.map(async (comment) => {
+              const replies = await Comment.find({
+                postId: post._id,
+                parentCommentId: comment._id
+              })
+                .populate({
+                  path: 'userId',
+                  select: 'email profileImage bio name username'
+                })
+                .sort({ createdAt: -1 })
+                .limit(2);
+
+              return {
+                ...comment.toObject(),
+                replies
+              };
+            })
+          );
+
+          return {
+            ...post.toObject(),
+            likes,
+            likeCount: likes.length,
+            comments: commentsWithReplies,
+            commentCount
+          };
+        })),
+        Promise.all(announcements.map(async (post) => {
+          // Same enhanced details for announcements
+          const likes = await Like.find({ postId: post._id })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            });
+
+          const commentCount = await Comment.countDocuments({
+            postId: post._id,
+            parentCommentId: null
+          });
+
+          const comments = await Comment.find({
+            postId: post._id,
+            parentCommentId: null
+          })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            })
+            .sort({ createdAt: -1 })
+            .limit(3);
+
+          const commentsWithReplies = await Promise.all(
+            comments.map(async (comment) => {
+              const replies = await Comment.find({
+                postId: post._id,
+                parentCommentId: comment._id
+              })
+                .populate({
+                  path: 'userId',
+                  select: 'email profileImage bio name username'
+                })
+                .sort({ createdAt: -1 })
+                .limit(2);
+
+              return {
+                ...comment.toObject(),
+                replies
+              };
+            })
+          );
+
+          return {
+            ...post.toObject(),
+            likes,
+            likeCount: likes.length,
+            comments: commentsWithReplies,
+            commentCount
+          };
+        })),
+        Promise.all(events.map(async (post) => {
+          // Same enhanced details for events
+          const likes = await Like.find({ postId: post._id })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            });
+
+          const commentCount = await Comment.countDocuments({
+            postId: post._id,
+            parentCommentId: null
+          });
+
+          const comments = await Comment.find({
+            postId: post._id,
+            parentCommentId: null
+          })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            })
+            .sort({ createdAt: -1 })
+            .limit(3);
+
+          const commentsWithReplies = await Promise.all(
+            comments.map(async (comment) => {
+              const replies = await Comment.find({
+                postId: post._id,
+                parentCommentId: comment._id
+              })
+                .populate({
+                  path: 'userId',
+                  select: 'email profileImage bio name username'
+                })
+                .sort({ createdAt: -1 })
+                .limit(2);
+
+              return {
+                ...comment.toObject(),
+                replies
+              };
+            })
+          );
+
+          return {
+            ...post.toObject(),
+            likes,
+            likeCount: likes.length,
+            comments: commentsWithReplies,
+            commentCount
+          };
+        }))
+      ]);
+
+      // Get counts for different post types
+      const [totalPosts, totalAnnouncements, totalEvents] = await Promise.all([
+        Post.countDocuments({ ...baseQuery, postType: 'regular' }),
+        Post.countDocuments({ ...baseQuery, postType: 'announcement' }),
+        Post.countDocuments({
+          ...baseQuery,
+          postType: 'event',
+          'eventDetails.endDate': { $gte: new Date() }
+        })
+      ]);
+
+      const total = postType ?
+        (postType === 'regular' ? totalPosts :
+          postType === 'announcement' ? totalAnnouncements :
+            totalEvents) :
+        totalPosts + totalAnnouncements + totalEvents;
+
+      return res.status(200).json({
+        message: "Successfully retrieved community content",
+        data: {
+          community: {
+            ...community.toObject(),
+            memberCount: community.memberCount || 0
+          },
+          posts: postsWithDetails,
+          announcements: announcementsWithDetails,
+          events: eventsWithDetails,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          counts: {
+            posts: totalPosts,
+            announcements: totalAnnouncements,
+            events: totalEvents,
+            total
+          }
+        }
+      });
+    } catch (error) {
+      console.error("Error in getAllPostsByCommunity:", error);
+      return res.status(500).json({
+        message: "Error fetching community content",
+        error: error.message
+      });
+    }
+  };
 
 // Create post
 export const createPost = async (req, res) => {
@@ -657,137 +893,248 @@ export const getCommentReplies = async (req, res) => {
 
 // Get post comments
 export const getPostComments = async (req, res) => {
-  try {
-    const { postId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    try {
+      const { postId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
 
-    // Get top-level comments (comments without parentCommentId)
-    const comments = await Comment.find({
-      postId,
-      parentCommentId: null
-    })
-      .populate('userId', 'email profileImage bio')
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit);
-
-    // Get replies for each comment
-    const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
-      const replies = await Comment.find({
+      // Get top-level comments with full user details
+      const comments = await Comment.find({
         postId,
-        parentCommentId: comment._id
+        parentCommentId: null
       })
-        .populate('userId', 'email profileImage bio')
+        .populate({
+          path: 'userId',
+          model: 'users',
+          select: 'username profileImage email bio isVerified fullname gender age location socialLinks isPremium'
+        })
         .sort({ createdAt: -1 })
-        .limit(5);
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean();
 
-      return {
-        ...comment.toObject(),
-        replies
-      };
-    }));
+      // Get replies for each comment with nested structure
+      const commentsWithReplies = await Promise.all(comments.map(async (comment) => {
+        // Get first-level replies for this comment
+        const firstLevelReplies = await Comment.find({
+          postId,
+          parentCommentId: comment._id
+        })
+          .populate({
+            path: 'userId',
+            model: 'users',
+            select: 'username profileImage email bio isVerified fullname gender age location socialLinks isPremium'
+          })
+          .sort({ createdAt: -1 })
+          .lean();
 
-    const total = await Comment.countDocuments({
-      postId,
-      parentCommentId: null
-    });
+        // Get likes count for the comment
+        const commentLikes = await Like.countDocuments({
+          itemId: comment._id,
+          itemType: 'comment'
+        });
 
-    return res.status(200).json({
-      message: "Successfully retrieved comments",
-      data: {
-        comments: commentsWithReplies,
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalComments: total
-      }
-    });
-  } catch (error) {
-    console.error("Error in getPostComments:", error);
-    return res.status(500).json({
-      message: "Error fetching comments",
-      error: error.message
-    });
-  }
-};
+        // Process first-level replies with full user details
+        const processedReplies = await Promise.all(firstLevelReplies.map(async (reply) => {
+          const replyLikes = await Like.countDocuments({
+            itemId: reply._id,
+            itemType: 'comment'
+          });
+
+          return {
+            id: reply._id.toString(),
+            user: {
+              username: reply.userId?.username || '',
+              profileImage: reply.userId?.profileImage || '',
+              isVerified: reply.userId?.isVerified || false,
+              email: reply.userId?.email || '',
+              bio: reply.userId?.bio || '',
+              fullname: reply.userId?.fullname || '',
+              gender: reply.userId?.gender || '',
+              age: reply.userId?.age || '',
+              location: reply.userId?.location || '',
+              socialLinks: reply.userId?.socialLinks || {},
+              isPremium: reply.userId?.isPremium || false
+            },
+            createdAt: reply.createdAt,
+            text: reply.content,
+            likes: replyLikes,
+            replies: [],
+            isEdited: reply.updatedAt > reply.createdAt
+          };
+        }));
+
+        // Format the main comment with full user details
+        return {
+          id: comment._id.toString(),
+          user: {
+            username: comment.userId?.username || '',
+            profileImage: comment.userId?.profileImage || '',
+            isVerified: comment.userId?.isVerified || false,
+            email: comment.userId?.email || '',
+            bio: comment.userId?.bio || '',
+            fullname: comment.userId?.fullname || '',
+            gender: comment.userId?.gender || '',
+            age: comment.userId?.age || '',
+            location: comment.userId?.location || '',
+            socialLinks: comment.userId?.socialLinks || {},
+            isPremium: comment.userId?.isPremium || false
+          },
+          timestamp: comment.createdAt,
+          text: comment.content,
+          likes: commentLikes,
+          replies: processedReplies,
+          isEdited: comment.updatedAt > comment.createdAt
+        };
+      }));
+
+      const total = await Comment.countDocuments({
+        postId,
+        parentCommentId: null
+      });
+
+      return res.status(200).json({
+        message: "Successfully retrieved comments",
+        data: {
+          comments: commentsWithReplies,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalComments: total
+        }
+      });
+    } catch (error) {
+      console.error("Error in getPostComments:", error);
+      return res.status(500).json({
+        message: "Error fetching comments",
+        error: error.message
+      });
+    }
+  };
 
 
 // Get user feed (posts from communities user is part of)
 export const getUserFeed = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const { page = 1, limit = 10, postType } = req.query;
+    try {
+      const { userId } = req.params;
+      const { page = 1, limit = 100, postType } = req.query;
 
-    // First check if user exists
-    const user = await User.findById(userId);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
+      // First check if user exists
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
 
-    console.log('User found:', user._id);
+      // Get communities user is part of through CommunityMember collection
+      const userCommunityMemberships = await CommunityMember.find({
+        userId: userId
+      }).select('communityId');
 
-    // Get communities user is part of - modify this based on your community schema
-    const userCommunities = await Community.find({
-      $or: [
-        { members: userId },
-        { admins: userId },
-        { owner: userId }
-      ]
-    }).select('_id');
+      if (!userCommunityMemberships.length) {
+        return res.status(200).json({
+          message: "User is not part of any communities",
+          data: {
+            posts: [],
+            currentPage: 1,
+            totalPages: 0,
+            totalPosts: 0
+          }
+        });
+      }
 
-    if (!userCommunities.length) {
+      const communityIds = userCommunityMemberships.map(membership => membership.communityId);
+
+      // Build query
+      const query = {
+        communityId: { $in: communityIds },
+        status: 'published',
+        ...(postType && { postType })
+      };
+
+      // Get posts with pagination
+      const [posts, total] = await Promise.all([
+        Post.find(query)
+          .populate('artistId', 'name email profileImage genre verified')
+          .populate('communityId', 'name description coverImage')
+          .sort({ createdAt: -1 })
+          .skip((page - 1) * limit)
+          .limit(limit),
+        Post.countDocuments(query)
+      ]);
+
+      // Add details to each post including all likes
+      const postsWithDetails = await Promise.all(
+        posts.map(async (post) => {
+          // Get all likes for the post with user details
+          const likes = await Like.find({ postId: post._id })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username' // Added more user fields
+            });
+
+          const commentCount = await Comment.countDocuments({
+            postId: post._id,
+            parentCommentId: null
+          });
+
+          // Get recent comments with replies
+          const comments = await Comment.find({
+            postId: post._id,
+            parentCommentId: null
+          })
+            .populate({
+              path: 'userId',
+              select: 'email profileImage bio name username'
+            })
+            .sort({ createdAt: -1 })
+            .limit(3);
+
+          const commentsWithReplies = await Promise.all(
+            comments.map(async (comment) => {
+              const replies = await Comment.find({
+                postId: post._id,
+                parentCommentId: comment._id
+              })
+                .populate({
+                  path: 'userId',
+                  select: 'email profileImage bio name username'
+                })
+                .sort({ createdAt: -1 })
+                .limit(2);
+
+              return {
+                ...comment.toObject(),
+                replies
+              };
+            })
+          );
+
+          return {
+            ...post.toObject(),
+            likes, // Full array of likes with user details
+            likeCount: likes.length,
+            hasLiked: likes.some(like => like.userId._id.toString() === userId), // Check if current user liked
+            comments: commentsWithReplies,
+            commentCount
+          };
+        })
+      );
+
       return res.status(200).json({
-        message: "User is not part of any communities",
+        message: postsWithDetails.length ? "Successfully retrieved user feed" : "No posts found",
         data: {
-          posts: [],
-          currentPage: 1,
-          totalPages: 0,
-          totalPosts: 0
+          posts: postsWithDetails,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(total / limit),
+          totalPosts: total
         }
       });
+    } catch (error) {
+      console.error("Error in getUserFeed:", error);
+      return res.status(500).json({
+        message: "Error fetching user feed",
+        error: error.message
+      });
     }
-
-    const communityIds = userCommunities.map(community => community._id);
-
-    // Build query
-    const query = {
-      communityId: { $in: communityIds },
-      status: 'published', // Only get published posts
-      ...(postType && { postType })
-    };
-
-    // Get posts with pagination
-    const [posts, total] = await Promise.all([
-      Post.find(query)
-        .populate('artistId', 'name email profileImage genre verified')
-        .populate('communityId', 'name description coverImage')
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit),
-      Post.countDocuments(query)
-    ]);
-
-    // Add details to each post
-    const postsWithDetails = await Promise.all(
-      posts.map(post => populatePostDetails(post))
-    );
-
-    return res.status(200).json({
-      message: postsWithDetails.length ? "Successfully retrieved user feed" : "No posts found",
-      data: {
-        posts: postsWithDetails,
-        currentPage: parseInt(page),
-        totalPages: Math.ceil(total / limit),
-        totalPosts: total
-      }
-    });
-  } catch (error) {
-    console.error("Error in getUserFeed:", error);
-    return res.status(500).json({
-      message: "Error fetching user feed",
-      error: error.message
-    });
-  }
-};
+  };
 
 // Get event attendees
 export const getEventAttendees = async (req, res) => {
@@ -999,3 +1346,139 @@ export const getActiveAnnouncements = async (req, res) => {
     });
   }
 };
+
+// Get comment by ID
+export const getCommentById = async (req, res) => {
+    try {
+      const { commentId } = req.params;
+      const { userId } = req.query;
+
+      const comment = await Comment.findById(commentId)
+        .populate({
+          path: 'userId',
+          select: 'username profileImage email bio isVerified fullname gender age location socialLinks isPremium'
+        })
+        .populate({
+          path: 'parentCommentId',
+          populate: {
+            path: 'userId',
+            select: 'username profileImage email bio isVerified'
+          }
+        })
+        .lean();
+
+      if (!comment) {
+        return res.status(404).json({ message: "Comment not found" });
+      }
+
+      // Get likes for the comment
+      const likes = await Like.find({
+        itemId: comment._id,
+        itemType: 'comment'
+      }).populate({
+        path: 'userId',
+        select: 'username profileImage email'
+      });
+
+      // If it's a parent comment, get its replies
+      let replies = [];
+      if (!comment.parentCommentId) {
+        replies = await Comment.find({ parentCommentId: comment._id })
+          .populate({
+            path: 'userId',
+            select: 'username profileImage email bio isVerified fullname'
+          })
+          .sort({ createdAt: -1 })
+          .lean();
+      }
+
+      const enhancedComment = {
+        ...comment,
+        likes,
+        likeCount: likes.length,
+        hasLiked: userId ? likes.some(like => like.userId._id.toString() === userId) : false,
+        replies,
+        replyCount: replies.length,
+        isEdited: comment.updatedAt > comment.createdAt
+      };
+
+      return res.status(200).json({
+        message: "Successfully retrieved comment",
+        data: enhancedComment
+      });
+    } catch (error) {
+      console.error("Error in getCommentById:", error);
+      return res.status(500).json({
+        message: "Error fetching comment",
+        error: error.message
+      });
+    }
+  };
+
+  // Reply to a comment
+export const replyToComment = async (req, res) => {
+    try {
+      const { userId, postId, content, parentCommentId } = req.body;
+
+      if (!userId || !postId || !content || !parentCommentId) {
+        return res.status(400).json({
+          message: "Missing required fields",
+          required: ["userId", "postId", "content", "parentCommentId"],
+        });
+      }
+
+      // Verify parent comment exists and is a top-level comment
+      const parentComment = await Comment.findById(parentCommentId);
+      if (!parentComment) {
+        return res.status(404).json({ message: "Parent comment not found" });
+      }
+
+      if (parentComment.parentCommentId) {
+        return res.status(400).json({ message: "Cannot reply to a reply" });
+      }
+
+      // Create the reply
+      const reply = new Comment({
+        userId,
+        postId,
+        content,
+        parentCommentId
+      });
+
+      await reply.save();
+
+      // Increment comment count on Post
+      await Post.findByIdAndUpdate(postId, { $inc: { commentCount: 1 } });
+
+      // Populate reply with user details
+      const populatedReply = await Comment.findById(reply._id)
+        .populate({
+          path: 'userId',
+          select: 'username profileImage email bio isVerified fullname gender age location socialLinks isPremium'
+        })
+        .populate({
+          path: 'parentCommentId',
+          populate: {
+            path: 'userId',
+            select: 'username profileImage email bio isVerified'
+          }
+        });
+
+      return res.status(201).json({
+        message: "Reply added successfully",
+        data: {
+          ...populatedReply.toObject(),
+          likes: [],
+          likeCount: 0,
+          hasLiked: false,
+          isEdited: false
+        }
+      });
+    } catch (error) {
+      console.error("Error in replyToComment:", error);
+      return res.status(500).json({
+        message: "Error adding reply",
+        error: error.message
+      });
+    }
+  };

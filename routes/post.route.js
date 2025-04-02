@@ -15,7 +15,9 @@ import {
   getUpcomingEvents,
   getActiveAnnouncements,
   getCommentReplies,
-  getUserFeed
+  getUserFeed,
+  getCommentById,
+  replyToComment
 } from "../controller/post.controller.js";
 
 const postRouter = Router();
@@ -45,5 +47,8 @@ postRouter.post("/events/attend", toggleEventAttendance);
 
 // Announcement routes
 postRouter.get("/announcements/active", getActiveAnnouncements);
+
+postRouter.get('/comments/:commentId', getCommentById);
+postRouter.post('/comments/reply', replyToComment);
 
 export default postRouter;

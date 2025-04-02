@@ -1,10 +1,9 @@
-const express = require('express');
-const { getUserTransactions, getTransactionById } = require('../controller/transaction.controller');
-const { authenticateAPIRequest } = require('../middlewares/authenticaterequest.middleware');
+import { Router } from 'express';
+import { getUserTransactions, getTransactionById } from '../controller/transaction.controller.js';
 
-const router = express.Router();
+const transactionrouter = Router();
 
-router.get('/user/:userId', getUserTransactions);
-router.get('/:transactionId',getTransactionById);
+transactionrouter.get('/user/:userId', getUserTransactions);
+transactionrouter.get('/:transactionId', getTransactionById);
 
-module.exports = router;
+export default transactionrouter;
