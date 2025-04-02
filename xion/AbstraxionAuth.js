@@ -796,30 +796,6 @@ export default class AbstraxionAuth {
       const accounts = await this.abstractAccount.getAccounts();
       const senderAddress = accounts[0].address;
 
-      // Create pending transaction record
-      const transaction = await Transaction.create({
-        userId: senderAddress,
-        amount: 5000000, // 5 USDC
-        currency: "USDC",
-        status: "pending",
-        paymentMethod: "wallet",
-        type: "mint_pass",
-        blockchain: "XION",
-        title: "Tribe Pass Minting",
-        message: "Minting tribe pass on XION network",
-        metadata: {
-          communityId: collectionAddress,
-        },
-      });
-      await transaction.save();
-
-      // Notify client of pending transaction
-      websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-        status: "pending",
-        transactionId: transaction._id,
-        type: "mint_pass",
-      });
-
       // Check USDC balance before minting
       const client = await CosmWasmClient.connect(this.rpcUrl);
       const balance = await client.getBalance(
@@ -828,9 +804,6 @@ export default class AbstraxionAuth {
       );
 
       if (BigInt(balance.amount) < 5000000n) {
-        transaction.status = "failed";
-        transaction.message = "Insufficient USDC balance";
-        await transaction.save();
         throw new Error("Insufficient USDC balance to mint pass");
       }
 
@@ -861,59 +834,14 @@ export default class AbstraxionAuth {
         funds
       );
 
-      // Update transaction with success status
-      transaction.status = "success";
-      transaction.transactionHash = result.transactionHash;
-      await transaction.save();
-
-      // Notify client of successful transaction
-      websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-        status: "success",
-        transactionId: transaction._id,
-        transactionHash: result.transactionHash,
-        type: "mint_pass",
-      });
-
-      // Create subscription record after successful minting
-      const expiryDate = new Date();
-      expiryDate.setMonth(expiryDate.getMonth() + 1); // Set expiry to 1 month
-
-      await PassSubscription.create({
-        userId: senderAddress,
-        communityId: transaction.metadata.communityId,
-        contractAddress: collectionAddress,
-        tokenId: result.tokenId, // Assuming the result includes tokenId
-        expiryDate: expiryDate,
-        renewalPrice: 5000000, // 5 USDC in smallest unit
-      });
-
       return {
         success: true,
         transactionHash: result.transactionHash,
         sender: senderAddress,
         contractAddress: collectionAddress,
-        transactionId: transaction._id, // Return transaction ID for UI tracking
       };
     } catch (error) {
       console.error("Error minting pass:", error);
-
-      //   // Update transaction with failed status if it exists
-      //   if (transaction) {
-      //     transaction.status = 'failed';
-      //     transaction.message = error.message;
-      //     await transaction.save();
-      //   }
-
-      //   // Notify client of failed transaction
-      // if (transaction) {
-      //     websocketService.sendToUser(senderAddress, WS_EVENTS.TRANSACTION_UPDATE, {
-      //       status: 'failed',
-      //       transactionId: transaction._id,
-      //       error: error.message,
-      //       type: 'mint_pass'
-      //     });
-      //   }
-
       throw new Error(`Failed to mint pass: ${error.message}`);
     }
   }

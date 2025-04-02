@@ -33,4 +33,21 @@ commentSchema.virtual('isReply').get(function() {
   return this.parentCommentId !== null;
 });
 
+// Add virtual for user details
+commentSchema.virtual('userDetails', {
+    ref: 'users',
+    localField: 'userId',
+    foreignField: '_id',
+    justOne: true,
+    options: {
+      select: 'username profileImage email bio isVerified fullname'
+    }
+  });
+
+  // Add pre-save middleware to update the updatedAt timestamp
+  commentSchema.pre('save', function(next) {
+    this.updatedAt = new Date();
+    next();
+  });
+
 export const Comment = model("Comment", commentSchema);

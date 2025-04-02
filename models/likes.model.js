@@ -4,7 +4,7 @@ const Schema = _Schema;
 const likeSchema = new Schema({
   userId: {
     type: _Schema.Types.ObjectId,
-    ref: "User",
+    ref: "users",  // Changed from "User" to "users"
     required: true,
   },
   postId: {
