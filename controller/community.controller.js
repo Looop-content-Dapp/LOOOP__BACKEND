@@ -11,8 +11,6 @@ import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
 import crypto from "crypto";
-import { websocketService } from '../utils/websocket/websocketServer.js';
-import { WS_EVENTS } from '../utils/websocket/eventTypes.js';
 import { PassSubscription } from "../models/passSubscription.model.js";
 import Transaction from '../models/Transaction.model.js';
 
@@ -378,7 +376,7 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
     try {
-      const { userId, communityId, type } = req.body;
+      const { userId, communityId, type, paymentMethod = "wallet" } = req.body;
 
       // Validate required fields
       if (!userId || !communityId || !type) {
@@ -448,7 +446,7 @@ export const joinCommunity = async (req, res) => {
         amount: 5000000, // 5 USDC
         currency: "USDC",
         status: "pending",
-        paymentMethod: "wallet",
+        paymentMethod,
         type: "mint_pass",
         blockchain: "XION",
         title: "Tribe Pass Minting",
@@ -481,19 +479,35 @@ export const joinCommunity = async (req, res) => {
         // Create subscription record
         const expiryDate = new Date();
         expiryDate.setMonth(expiryDate.getMonth() + 1);
+        const nextRenewalDate = new Date(expiryDate);
+        nextRenewalDate.setDate(nextRenewalDate.getDate() - 7);
 
         await PassSubscription.create({
-          userId: userId,
-          communityId: communityId,
-          contractAddress: community.tribePass.contractAddress,
-          tokenId,
-          expiryDate,
-          renewalPrice: 5000000,
-          currency: "USDC",
-          status: "active",
-          startDate: new Date(),
-          lastRenewalDate: new Date()
-        });
+            userId: userId,
+            communityId: communityId,
+            contractAddress: community.tribePass.contractAddress,
+            tokenId,
+            expiryDate,
+            renewalPrice: 5000000,
+            currency: "USDC",
+            status: "active",
+            startDate: new Date(),
+            lastRenewalDate: new Date(),
+            nextRenewalDate,
+            paymentStatus: "paid",
+            paymentMethod,
+            transactionHash: mint.transactionHash,
+            collectibelType: "Tribe Pass",
+            usageStats: {
+              lastUsed: new Date(),
+              usageCount: 0
+            },
+            notifications: [{
+              type: "payment_success",
+              sentAt: new Date(),
+              read: false
+            }]
+          });
 
         // Create community member
         const communitymember = new CommunityMember({

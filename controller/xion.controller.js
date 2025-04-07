@@ -1,4 +1,5 @@
 import AbstraxionAuth from "../xion/AbstraxionAuth.js";
+import Transaction from '../models/Transaction.model.js';
 
 export const transferFunds = async (req, res) => {
   try {
@@ -11,11 +12,24 @@ export const transferFunds = async (req, res) => {
       });
     }
 
-    const result = await AbstraxionAuth.transferFunds(
+    const abstraxionAuth = new AbstraxionAuth();
+    const result = await abstraxionAuth.transferFunds(
       recipientAddress,
       amount,
       denom
     );
+
+    // Create transaction record
+    await Transaction.create({
+      transactionHash: result.transactionHash,
+      sender: result.sender,
+      recipient: result.recipient,
+      amount: result.amount,
+      denom: result.denom,
+      type: 'transfer',
+      status: 'completed',
+      timestamp: new Date()
+    });
 
     return res.status(200).json({
       success: true,
@@ -23,6 +37,21 @@ export const transferFunds = async (req, res) => {
     });
   } catch (error) {
     console.error("Transfer error:", error);
+
+    // Record failed transaction if we have sender information
+    if (error.sender) {
+      await Transaction.create({
+        sender: error.sender,
+        recipient: error.recipient,
+        amount: error.amount,
+        denom: error.denom,
+        type: 'transfer',
+        status: 'failed',
+        error: error.message,
+        timestamp: new Date()
+      });
+    }
+
     return res.status(500).json({
       success: false,
       message: error.message,
