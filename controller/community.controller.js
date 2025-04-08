@@ -1364,20 +1364,6 @@ export const getTrendingArtistsByGenre = async (req, res) => {
   }
 };
 
-const getNextNFTToken = async () => {
-  try {
-    const lastCommunity = await Community.findOne()
-      .sort({ NFTToken: -1 })
-      .select("NFTToken")
-      .lean();
-
-    return lastCommunity?.NFTToken ? lastCommunity.NFTToken + 1 : 1;
-  } catch (error) {
-    console.error("Error fetching the last NFT token:", error);
-    throw new Error("Unable to calculate the next NFT token");
-  }
-};
-
 export const getFollowedArtistsCommunities = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -1450,3 +1436,249 @@ export const getFollowedArtistsCommunities = async (req, res) => {
     });
   }
 };
+
+export const getUserCommunities = async (req, res) => {
+    try {
+      const { userId } = req.params;
+      const { page = 1, limit = 10 } = req.query;
+
+      // Get communities user has joined with members
+      const userCommunities = await CommunityMember.aggregate([
+        {
+          $match: { userId: new Types.ObjectId(userId) }
+        },
+        {
+          $lookup: {
+            from: 'communities',
+            localField: 'communityId',
+            foreignField: '_id',
+            as: 'community'
+          }
+        },
+        {
+          $unwind: '$community'
+        },
+        {
+          $lookup: {
+            from: 'artists',
+            localField: 'community.createdBy',
+            foreignField: '_id',
+            as: 'artist'
+          }
+        },
+        {
+          $unwind: '$artist'
+        },
+        {
+          $lookup: {
+            from: 'communitymembers',
+            localField: 'community._id',
+            foreignField: 'communityId',
+            as: 'members'
+          }
+        },
+        {
+          $lookup: {
+            from: 'users',
+            localField: 'members.userId',
+            foreignField: '_id',
+            as: 'memberDetails'
+          }
+        },
+        {
+          $project: {
+            _id: '$community._id',
+            name: '$community.communityName',
+            description: '$community.description',
+            coverImage: '$community.coverImage',
+            memberCount: { $size: '$members' },
+            artist: {
+              _id: '$artist._id',
+              name: '$artist.name',
+              profileImage: '$artist.profileImage',
+              verified: '$artist.verified'
+            },
+            members: {
+              $slice: [{
+                $map: {
+                  input: '$memberDetails',
+                  as: 'member',
+                  in: {
+                    _id: '$$member._id',
+                    username: '$$member.username',
+                    profileImage: '$$member.profileImage'
+                  }
+                }
+              }, 3] // Get first 3 members for preview
+            },
+            joinedAt: '$joinDate'
+          }
+        },
+        {
+          $sort: { joinedAt: -1 }
+        },
+        {
+          $skip: (parseInt(page) - 1) * parseInt(limit)
+        },
+        {
+          $limit: parseInt(limit)
+        }
+      ]);
+
+      // Get recent posts from these communities
+      const communityIds = userCommunities.map(c => c._id);
+      const recentPosts = await Post.aggregate([
+        {
+          $match: {
+            communityId: { $in: communityIds.map(id => new Types.ObjectId(id)) }
+          }
+        },
+        {
+          $lookup: {
+            from: 'artists',
+            localField: 'artistId',
+            foreignField: '_id',
+            as: 'artist'
+          }
+        },
+        {
+          $unwind: '$artist'
+        },
+        {
+          $lookup: {
+            from: 'communities',
+            localField: 'communityId',
+            foreignField: '_id',
+            as: 'community'
+          }
+        },
+        {
+          $unwind: '$community'
+        },
+        {
+          $lookup: {
+            from: 'likes',
+            localField: '_id',
+            foreignField: 'postId',
+            as: 'likes'
+          }
+        },
+        {
+          $lookup: {
+            from: 'comments',
+            localField: '_id',
+            foreignField: 'postId',
+            as: 'comments'
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            content: 1,
+            title: 1,
+            postType: 1,
+            type: { $literal: "post" },
+            media: {
+              $map: {
+                input: "$media",
+                as: "m",
+                in: {
+                  _id: "$$m._id",
+                  type: "$$m.type",
+                  url: "$$m.url",
+                  mimeType: "$$m.mimeType",
+                  width: "$$m.width",
+                  height: "$$m.height"
+                }
+              }
+            },
+            artistId: {
+              _id: '$artist._id',
+              name: '$artist.name',
+              email: '$artist.email',
+              profileImage: '$artist.profileImage',
+              verified: '$artist.verified'
+            },
+            communityId: {
+              _id: '$community._id',
+              description: '$community.description',
+              coverImage: '$community.coverImage'
+            },
+            tags: 1,
+            category: 1,
+            visibility: 1,
+            likeCount: { $size: '$likes' },
+            commentCount: { $size: '$comments' },
+            shareCount: { $ifNull: ['$shareCount', 0] },
+            status: 1,
+            genre: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            __v: 1,
+            id: '$_id',
+            comments: {
+              $slice: ['$comments', 5] // Get latest 5 comments
+            },
+            likes: {
+              $map: {
+                input: '$likes',
+                as: 'like',
+                in: {
+                  _id: '$$like._id',
+                  userId: {
+                    _id: '$$like.userId',
+                    email: '$$like.userEmail',
+                    username: '$$like.username',
+                    profileImage: '$$like.userProfileImage',
+                    bio: '$$like.userBio'
+                  },
+                  postId: '$$like.postId',
+                  itemType: { $literal: 'post' },
+                  createdAt: '$$like.createdAt',
+                  __v: '$$like.__v'
+                }
+              }
+            },
+            hasLiked: {
+              $in: [new Types.ObjectId(userId), '$likes.userId']
+            }
+          }
+        },
+        {
+          $sort: { createdAt: -1 }
+        },
+        {
+          $limit: 20
+        }
+      ]);
+
+      return res.status(200).json({
+        status: 'success',
+        message: 'Successfully fetched user feed',
+        data: {
+          communities: userCommunities.map(community => ({
+            id: community._id,
+            name: community.name,
+            description: community.description,
+            coverImage: community.coverImage,
+            artist: community.artist,
+            memberCount: community.memberCount,
+            members: community.members,
+            joinedAt: community.joinedAt
+          })),
+          posts: recentPosts,
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(recentPosts.length / parseInt(limit)),
+          totalPosts: recentPosts.length
+        }
+      });
+
+    } catch (error) {
+      console.error('Error in getUserCommunities:', error);
+      return res.status(500).json({
+        status: 'error',
+        message: 'Error fetching user communities',
+        error: error.message
+      });
+    }
+  };
