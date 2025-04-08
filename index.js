@@ -25,6 +25,7 @@ import xionRoutes from './routes/xion.routes.js';
 import notificationRoutes from './routes/notification.routes.js';
 import AbstraxionAuth from './xion/AbstraxionAuth.js';
 import transactionrouter from "./routes/transaction.routes.js";
+import passSubscriptionRoute from "./routes/passSubscription.routes.js";
 
 
 config();
@@ -68,6 +69,9 @@ app.use("/api/transactions", transactionrouter);
 // Register Xion routes
 app.use("/api/xion", xionRoutes);
 app.use("/api/notifications", notificationRoutes);
+
+// Register pass subscription routes
+app.use('/api/pass-subscriptions', passSubscriptionRoute);
 
 const PORT = 3000;
 const mongoURI =

@@ -473,3 +473,170 @@ export const getArtistPost = async (req, res) => {
     });
   }
 };
+
+export const getArtistMusicDetails = async (req, res) => {
+  try {
+    const { artistId } = req.params;
+
+    // Get all releases by the artist
+    const releases = await Release.aggregate([
+      {
+        $match: { artistId: new mongoose.Types.ObjectId(artistId) }
+      },
+      {
+        $sort: { 'dates.release_date': -1 }
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          type: 1,
+          artwork: '$artwork.cover_image',
+          releaseDate: '$dates.release_date',
+          totalTracks: '$metadata.totalTracks'
+        }
+      }
+    ]);
+
+    // Get all songs by the artist
+    const songs = await Track.aggregate([
+      {
+        $match: { artistId: new mongoose.Types.ObjectId(artistId) }
+      },
+      {
+        $lookup: {
+          from: 'releases',
+          localField: 'releaseId',
+          foreignField: '_id',
+          as: 'release'
+        }
+      },
+      {
+        $unwind: '$release'
+      },
+      {
+        $lookup: {
+          from: 'songs',
+          localField: 'songId',
+          foreignField: '_id',
+          as: 'songData'
+        }
+      },
+      {
+        $unwind: '$songData'
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          duration: 1,
+          releaseDate: '$release.dates.release_date',
+          artwork: '$release.artwork.cover_image',
+          totalStreams: '$songData.analytics.totalStreams',
+          release: {
+            _id: '$release._id',
+            title: '$release.title',
+            type: '$release.type'
+          }
+        }
+      },
+      {
+        $sort: { releaseDate: -1 }
+      }
+    ]);
+
+    // Get playlists featuring the artist's tracks
+    const playlists = await PlayListName.aggregate([
+      {
+        $lookup: {
+          from: 'playlistsongs',
+          localField: '_id',
+          foreignField: 'playlistId',
+          as: 'songs'
+        }
+      },
+      {
+        $lookup: {
+          from: 'tracks',
+          localField: 'songs.trackId',
+          foreignField: '_id',
+          as: 'tracks'
+        }
+      },
+      {
+        $match: {
+          'tracks.artistId': new mongoose.Types.ObjectId(artistId),
+          isPublic: true
+        }
+      },
+      {
+        $project: {
+          _id: 1,
+          title: 1,
+          description: 1,
+          coverImage: 1,
+          totalTracks: 1,
+          followerCount: 1
+        }
+      },
+      {
+        $limit: 5
+      }
+    ]);
+
+    // Format the response
+    const response = {
+      releases: {
+        total: releases.length,
+        items: releases.map(release => ({
+          ...release,
+          releaseDate: release.releaseDate.toISOString().split('T')[0]
+        }))
+      },
+      songs: {
+        total: songs.length,
+        items: songs.map(song => ({
+          ...song,
+          duration: formatDuration(song.duration),
+          releaseDate: song.releaseDate.toISOString().split('T')[0],
+          totalStreams: formatNumber(song.totalStreams)
+        }))
+      },
+      playlists: {
+        total: playlists.length,
+        items: playlists
+      }
+    };
+
+    return res.status(200).json({
+      success: true,
+      message: "Artist music details retrieved successfully",
+      data: response
+    });
+
+  } catch (error) {
+    console.error("Error fetching artist music details:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error fetching artist music details",
+      error: error.message
+    });
+  }
+};
+
+// Helper functions
+const formatDuration = (duration) => {
+  const minutes = Math.floor(duration / 60);
+  const seconds = Math.floor(duration % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+const formatNumber = (num) => {
+  if (num >= 1000000) {
+    return (num / 1000000).toFixed(1) + 'M';
+  }
+  if (num >= 1000) {
+    return (num / 1000).toFixed(1) + 'K';
+  }
+  return num.toString();
+};

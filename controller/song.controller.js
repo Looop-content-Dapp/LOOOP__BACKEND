@@ -323,10 +323,6 @@ export const createRelease = async (req, res) => {
       metadata,
     } = req.body;
 
-
-
-
-
     // Validate release type constraints
     const parsedSongs = JSON.parse(JSON.stringify(songs));
     if (type === "single" && parsedSongs.length !== 1) {
