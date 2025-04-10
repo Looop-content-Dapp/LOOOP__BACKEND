@@ -4109,7 +4109,6 @@ export const getFollowedArtistsReleases = async (req, res) => {
   }
 };
 
-
 // Get daily mix playlists based on user's listening habits
 export const getDailyMixes = async (req, res) => {
     try {
@@ -4628,35 +4627,41 @@ export const getLocationBasedTracks = async (req, res) => {
       // Project final shape
       {
         $project: {
-          _id: 1,
-          title: 1,
-          duration: 1,
-          artist: {
-            _id: "$artist._id",
-            name: "$artist.name",
-            image: "$artist.profileImage"
-          },
-          release: {
-            _id: "$release._id",
-            title: "$release.title",
-            artwork: "$release.artwork.cover_image",
-            type: "$release.type",
-            releaseDate: "$release.dates.release_date"
-          },
-          analytics: {
-            totalStreams: "$songData.analytics.totalStreams",
-            regionalStreams: "$regionalMetrics.recentStreams",
-            playlists: "$songData.analytics.playlistAdditions",
-            shares: "$songData.analytics.shares.total",
-            likes: "$songData.analytics.likes"
-          },
-          metadata: {
-            genre: "$metadata.genre",
-            isrc: "$metadata.isrc",
-            language: "$metadata.languageCode"
-          },
-          score: 1
-        }
+            _id: 1,
+            title: 1,
+            duration: 1,
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage"
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              artwork: "$release.artwork.cover_image",
+              type: "$release.type",
+              releaseDate: "$release.dates.release_date"
+            },
+            songdata: {
+              _id: "$songData._id",
+              fileUrl: "$songData.fileUrl",
+              format: "$songData.format",
+              bitrate: "$songData.bitrate",
+            },
+            analytics: {
+              totalStreams: "$songData.analytics.totalStreams",
+              regionalStreams: "$regionalMetrics.recentStreams",
+              playlists: "$songData.analytics.playlistAdditions",
+              shares: "$songData.analytics.shares.total",
+              likes: "$songData.analytics.likes"
+            },
+            metadata: {
+              genre: "$metadata.genre",
+              isrc: "$metadata.isrc",
+              language: "$metadata.languageCode"
+            },
+            score: 1
+          }
       }
     ]);
 
@@ -4799,33 +4804,39 @@ export const getWorldwideTopSongs = async (req, res) => {
       // Final shape
       {
         $project: {
-          _id: 1,
-          title: 1,
-          duration: 1,
-          artist: {
-            _id: "$artist._id",
-            name: "$artist.name",
-            image: "$artist.profileImage"
-          },
-          release: {
-            _id: "$release._id",
-            title: "$release.title",
-            artwork: "$release.artwork.cover_image",
-            releaseDate: "$release.dates.release_date"
-          },
-          analytics: {
-            totalStreams: { $ifNull: ["$song.analytics.totalStreams", 0] },
-            recentStreams: "$recentStreams",
-            shares: { $ifNull: ["$song.analytics.shares.total", 0] },
-            playlists: { $ifNull: ["$song.analytics.playlistAdditions", 0] }
-          },
-          metadata: {
-            genre: "$metadata.genre",
-            isrc: "$metadata.isrc",
-            language: "$metadata.languageCode"
-          },
-          globalScore: 1
-        }
+            _id: 1,
+            title: 1,
+            duration: 1,
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name",
+              image: "$artist.profileImage"
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              artwork: "$release.artwork.cover_image",
+              releaseDate: "$release.dates.release_date"
+            },
+            songdata: {
+              _id: "$song._id",
+              fileUrl: "$song.fileUrl",
+              format: "$song.format",
+              bitrate: "$song.bitrate",
+            },
+            analytics: {
+              totalStreams: { $ifNull: ["$song.analytics.totalStreams", 0] },
+              recentStreams: "$recentStreams",
+              shares: { $ifNull: ["$song.analytics.shares.total", 0] },
+              playlists: { $ifNull: ["$song.analytics.playlistAdditions", 0] }
+            },
+            metadata: {
+              genre: "$metadata.genre",
+              isrc: "$metadata.isrc",
+              language: "$metadata.languageCode"
+            },
+            globalScore: 1
+          }
       }
     ];
 
@@ -4867,37 +4878,3 @@ export const getWorldwideTopSongs = async (req, res) => {
     });
   }
 };
-// Export all functions
-// module.exports = {
-//   getAllSongs,
-//   getSong,
-//   createRelease,
-//   streamSong,
-//   shareSong,
-//   addToPlaylist,
-//   getSongEngagementMetrics,
-//   toggleSavedRelease,
-//   getSavedReleases,
-//   getUserTopSongs,
-//   getUserListeningHistory,
-//   getUserListeningInsights,
-//   getTopSongs,
-//   getTrendingSongsByRegion,
-//   updateSongMetadata,
-//   getTopSongsForArtist,
-//   getAlbumsAndEpByArtist,
-//   getSingles,
-//   getTopSongsForArtist,
-//   getAlbumsAndEpByArtist,
-//   getSingles,
-//   getAllReleases,
-//   getRelease,
-//   getSearchSuggestions,
-//   getTracksFromRelease,
-//   getDashboardRecommendations,
-//   getFollowedArtistsReleases,
-//   getDailyMixes,
-//   getLastPlayed,
-//   getLocationBasedTracks,
-//   getWorldwideTopSongs
-// };
