@@ -1,45 +1,98 @@
 import { Schema, model } from "mongoose";
 
 const releaseSchema = new Schema({
-  title: {
-    type: String,
-    required: true,
-    index: 'text'
-  },
-  artistId: {
-    type: Schema.Types.ObjectId,
-    ref: 'artists',
-    required: true
-  },
-  type: {
-    type: String,
-    enum: ['single', 'ep', 'album', 'compilation', 'live', 'remix', 'deluxe', 'remaster'],
-    required: true
-  },
-  // Enhanced release dates
-  dates: {
-    release_date: {
-      type: Date,
-      required: true
-    },
-    original_release_date: Date,
-    pre_save_date: Date,
-    announcement_date: Date,
-    recordingDate: Date,
-    lastModified: Date
-  },
-  // Verification  Status
-verificationStatus: {
-  type: String,
-  enum: ['pending', 'approved', 'rejected'],
-  default: 'pending'
-},
-moderationNotes: String,
-moderatorId: {
-  type: Schema.Types.ObjectId,
-  ref: 'users'
-},
-verifiedAt: Date,
+    title: {
+        type: String,
+        required: true,
+        index: 'text'
+      },
+      artistId: {
+        type: Schema.Types.ObjectId,
+        ref: 'artists',
+        required: true
+      },
+      type: {
+        type: String,
+        enum: ['single', 'ep', 'album', 'compilation', 'live', 'remix', 'deluxe', 'remaster'],
+        required: true
+      },
+      dates: {
+        release_date: {
+          type: Date,
+          required: true
+        },
+        announcement_date: Date,
+        submitted_date: Date
+      },
+      artwork: {
+        cover_image: {
+          high: String,
+          medium: String,
+          low: String,
+          thumbnail: String
+        },
+        colorPalette: [String]
+      },
+      metadata: {
+        primaryGenre: {
+          type: String,
+          required: true
+        },
+        secondaryGenre: String,
+        language: {
+          type: String,
+          required: true
+        },
+        totalTracks: Number,
+        pricing_category: String,
+        mood: String,
+        tags: [String]
+      },
+      commercial: {
+        label: {
+          type: String,
+          required: true
+        },
+        upc: String,
+        copyright: {
+          holder: String,
+          year: Number
+        }
+      },
+      description: {
+        main: {
+          type: String,
+          required: true
+        }
+      },
+      contentInfo: {
+        isExplicit: {
+          type: Boolean,
+          default: false
+        },
+        parental_advisory: {
+          type: String,
+          enum: ['clean', 'explicit'],
+          default: 'clean'
+        }
+      },
+      distribution: {
+        status: {
+          type: String,
+          enum: ['pending', 'approved', 'rejected'],
+          default: 'pending'
+        },
+        territories: [String],
+        exclusions: [String],
+        scheduled: Boolean
+      },
+      verificationStatus: {
+        type: String,
+        enum: ['pending', 'approved', 'rejected'],
+        default: 'pending'
+      },
+      moderationNotes: String,
+      verifiedAt: Date,
   // Enhanced cover art system
   artwork: {
     cover_image: {

@@ -815,61 +815,6 @@ const getArtistUserSubcribeTo = async (req, res) => {
   }
 };
 
-const addToFavorite = async (req, res) => {
-  try {
-    const { userId, artistId } = req.params;
-
-    const faveExist = await FaveArtist.findOne({
-      userId: userId,
-      artistId: artistId,
-    });
-
-    if (!faveExist) {
-      const data = new FaveArtist({
-        userId: userId,
-        artistId: artistId,
-      });
-      await data.save();
-    } else {
-      await FaveArtist.deleteOne({
-        userId: userId,
-        artistId: artistId,
-      });
-    }
-
-    return res.status(200).json({
-      message: "success",
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "could not get data",
-      error: error.message,
-    });
-  }
-};
-
-const isArtistFave = async (req, res) => {
-  try {
-    const { userId, artistId } = req.params;
-
-    const data = await FaveArtist.find({
-      userId: userId,
-      artistId: artistId,
-    });
-
-    return res.status(200).json({
-      bool: data.length > 0 ? true : false,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "could not get data",
-      error: error.message,
-    });
-  }
-};
-
 const isUserFollowing = async (req, res) => {
   try {
     const { userId, artistId } = req.params;
@@ -2270,9 +2215,7 @@ export {
   createUserFaveArtistBasedOnGenres,
   subcribeToPremium,
   subcribeToArtist,
-  isArtistFave,
   isUserFollowing,
-  addToFavorite,
   deleteUser,
   addFriend,
   getUserFriends,

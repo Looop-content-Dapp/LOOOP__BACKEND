@@ -296,223 +296,289 @@ export const getSong = async (req, res) => {
 
 // Release Management
 export const createRelease = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
+    const session = await mongoose.startSession();
+    session.startTransaction();
 
-  try {
-    const todayUploads = await Song.countDocuments({
-      'createdAt': {
-        $gte: new Date().setHours(0, 0, 0, 0)
-      }
-    });
-
-    if (todayUploads >= uploadConfig.maxDailyUploads) {
-      throw new Error(`Daily upload limit of ${uploadConfig.maxDailyUploads} reached`);
-    }
-    const {
-      title,
-      artistId,
-      type,
-      release_date,
-      cover_image,
-      genre,
-      label,
-      songs,
-      description,
-      isExplicit,
-      metadata,
-    } = req.body;
-
-    // Validate release type constraints
-    const parsedSongs = JSON.parse(JSON.stringify(songs));
-    if (type === "single" && parsedSongs.length !== 1) {
-      throw new Error("A single must contain exactly one song");
-    }
-    if (type === "album" && (parsedSongs.length < 5 || parsedSongs.length > 25)) {
-      throw new Error("An album must contain between 5 and 20 songs");
-    }
-    if (type === "ep" && (parsedSongs.length < 2 || parsedSongs.length > 6)) {
-      throw new Error("An EP must contain between 2 and 6 songs");
-    }
-
-
-    const parsedReleaseDate = new Date(release_date);
-    if (isNaN(parsedReleaseDate.getTime())) {
-        throw new Error("Invalid release date format");
-    }
-
-    // Create release
-    const release = new Release({
-      title,
-      artistId,
-      type,
-
-
-      dates: {
-        release_date: parsedReleaseDate,
-        announcement_date: new Date()
-      },
-
-      artwork: {
-        cover_image: {
-          high: cover_image,
-          medium: cover_image,
-          low: cover_image,
-          thumbnail: cover_image
-        },
-        colorPalette: [],
-      },
-      metadata: {
-        genre: Array.isArray(genre) ? genre : [genre],
-        totalTracks: parsedSongs.length,
-        ...metadata
-      },
-      commercial: {
-        label,
-      },
-      description: {
-        main: description
-      },
-      contentInfo: {
-        isExplicit
-      },
-      verificationStatus: 'pending',
-      moderationNotes: null,
-      verifiedAt: null
-    });
-
-
-
-    const songsToSave = [];
-    const tracksToSave = [];
-    const featuredArtists = [];
-
-    // Process each song
-    for (let i = 0; i < parsedSongs.length; i++) {
-      const songData = parsedSongs[i];
-
-       // Validate the song file
-       const fileValidation = await validateFile(songData.fileUrl);
-
-       if (!fileValidation.valid) {
-         await session.abortTransaction();
-         session.endSession();
-         return res.status(400).json({
-           message: "File validation failed",
-           error: fileValidation.error
-         });
-       }
-
-       // Create song using validated metadata
-       const song = new Song({
-         fileUrl: songData.fileUrl,
-         duration: fileValidation.metadata.duration,
-         bitrate: fileValidation.metadata.bitrate,
-         format: fileValidation.metadata.format.toLowerCase() === "mpeg" ? "mp3" : fileValidation.metadata.format || "mp3",
-
-         metadata: {
-           fileHash: fileValidation.metadata.fileHash, // Store file hash
-         },
-         analytics: {
-           totalStreams: 0,
-           uniqueListeners: 0,
-           playlistAdditions: 0,
-           shares: { total: 0, platforms: {} }
-         },
-         flags: {
-           isExplicit: songData.isExplicit || false,
-           isInstrumental: songData.isInstrumental || false,
-           hasLyrics: songData.hasLyrics !== false
-         }
-       });
-       const verification = new UploadVerification({
-        songId: song._id,
-        releaseId: release._id,
-        status: 'pending',
-        metadata: {
-          title: songData.title,
-          duration: song.duration,
-          format: song.format
+    try {
+      // Check daily upload limits
+      const todayUploads = await Song.countDocuments({
+        'createdAt': {
+          $gte: new Date().setHours(0, 0, 0, 0)
         }
       });
 
-      songsToSave.push(song);
-      verificationRecords.push(verification);
+      if (todayUploads >= uploadConfig.maxDailyUploads) {
+        throw new Error(`Daily upload limit of ${uploadConfig.maxDailyUploads} reached`);
+      }
 
+      // Extract and validate required fields
+      const {
+        title,
+        artistId,
+        type,
+        release_date,
+        cover_image,
+        primaryGenre,
+        secondaryGenre,
+        language,
+        label,
+        songs,
+        description,
+        isExplicit,
+        copyrightHolder,
+        copyrightYear,
+        upc,
+        territories = ['worldwide'],
+        exclusions = [],
+        pricing_category,
+        metadata = {}
+      } = req.body;
 
-       // Create track
-       const track = new Track({
-         releaseId: release._id,
-         songId: song._id,
-         title: songData.title,
-         duration: fileValidation.metadata.duration, // Use validated duration
-         track_number: i + 1,
-         artistId,
-         metadata: {
-           genre: Array.isArray(genre) ? genre : [genre],
-           bpm: songData.bpm,
-           key: songData.key,
-           languageCode: songData.language,
-           isrc: songData.isrc
-         },
-         flags: {
-           isExplicit: songData.isExplicit || false,
-           isInstrumental: songData.isInstrumental || false,
-           hasLyrics: songData.hasLyrics !== false
-         }
-       });
-       tracksToSave.push(track);
+      // Validate required fields
+      const requiredFields = [
+        'title', 'artistId', 'type', 'release_date',
+        'cover_image', 'primaryGenre', 'songs', 'language'
+      ];
+      const missingFields = requiredFields.filter(field => !req.body[field]);
+      if (missingFields.length > 0) {
+        throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+      }
 
-       // Process featured artists
-       if (Array.isArray(songData.featuredArtists) && songData.featuredArtists.length > 0) {
-         for (const feature of songData.featuredArtists) {
-           if (!feature.artistId) {
-             throw new Error(`Missing artistId for featured artist in song: ${songData.title}`);
-           }
+      // Validate release type and songs count
+      const parsedSongs = Array.isArray(songs) ? songs : JSON.parse(JSON.stringify(songs));
+      const releaseConstraints = {
+        single: { min: 1, max: 1, message: "A single must contain exactly one song" },
+        album: { min: 5, max: 25, message: "An album must contain between 5 and 25 songs" },
+        ep: { min: 2, max: 6, message: "An EP must contain between 2 and 6 songs" }
+      };
 
-           const ftArtist = new FT({
-             trackId: track._id,
-             artistId: feature.artistId,
-             contribution: feature.contribution || "vocals",
-             credits: {
-               billingOrder: feature.billingOrder || featuredArtists.length + 1,
-               displayName: feature.displayName,
-               primaryArtist: false,
-               featured: true
-             }
-           });
-           featuredArtists.push(ftArtist);
-         }
-       }
-     }
+      const constraint = releaseConstraints[type.toLowerCase()];
+      if (!constraint) {
+        throw new Error("Invalid release type. Must be 'single', 'album', or 'ep'");
+      }
 
-     // Save everything in transaction
-     await Song.insertMany(songsToSave, { session });
-     await Track.insertMany(tracksToSave, { session });
-     if (featuredArtists.length > 0) {
-       await FT.insertMany(featuredArtists, { session });
-     }
-     await release.save({ session });
+      if (parsedSongs.length < constraint.min || parsedSongs.length > constraint.max) {
+        throw new Error(constraint.message);
+      }
 
-     await session.commitTransaction();
-     return res.status(201).json({
-       message: "Release created and pending verification",
-       data: {
-         releaseId: release._id,
-         status: "pending"
-       }
-     });
+      // Validate release date
+      const parsedReleaseDate = new Date(release_date);
+      if (isNaN(parsedReleaseDate.getTime())) {
+        throw new Error("Invalid release date format");
+      }
 
-   } catch (error) {
-     await session.abortTransaction();
-     return res.status(500).json({
-       message: "Error creating release",
-       error: error.message
-     });
-   } finally {
-     session.endSession();
-   }
- };
+      const minReleaseDate = new Date();
+      minReleaseDate.setDate(minReleaseDate.getDate() + 7);
+      if (parsedReleaseDate < minReleaseDate) {
+        throw new Error("Release date must be at least 7 days from today");
+      }
+
+      // Create release with enhanced metadata
+      const release = new Release({
+        title,
+        artistId,
+        type,
+        dates: {
+          release_date: parsedReleaseDate,
+          announcement_date: new Date(),
+          submitted_date: new Date()
+        },
+        artwork: {
+          cover_image: {
+            high: cover_image,
+            medium: cover_image,
+            low: cover_image,
+            thumbnail: cover_image
+          },
+          colorPalette: [],
+        },
+        metadata: {
+          primaryGenre,
+          secondaryGenre,
+          language,
+          totalTracks: parsedSongs.length,
+          pricing_category,
+          ...metadata
+        },
+        commercial: {
+          label,
+          upc,
+          copyright: {
+            holder: copyrightHolder || label,
+            year: copyrightYear || new Date().getFullYear()
+          }
+        },
+        description: {
+          main: description
+        },
+        contentInfo: {
+          isExplicit,
+          parental_advisory: isExplicit ? 'explicit' : 'clean'
+        },
+        distribution: {
+          status: 'pending',
+          territories,
+          exclusions,
+          scheduled: parsedReleaseDate > new Date()
+        },
+        verificationStatus: 'pending',
+        moderationNotes: null,
+        verifiedAt: null
+      });
+
+      const songsToSave = [];
+      const tracksToSave = [];
+      const featuredArtists = [];
+      const verificationRecords = [];
+
+      // Process each song
+      for (let i = 0; i < parsedSongs.length; i++) {
+        const songData = parsedSongs[i];
+
+        // Validate required song fields
+        const requiredSongFields = ['title', 'fileUrl', 'isrc'];
+        const missingSongFields = requiredSongFields.filter(field => !songData[field]);
+        if (missingSongFields.length > 0) {
+          throw new Error(`Missing required fields for song ${i + 1}: ${missingSongFields.join(', ')}`);
+        }
+
+        // Validate the song file
+        const fileValidation = await validateFile(songData.fileUrl);
+        if (!fileValidation.valid) {
+          throw new Error(`File validation failed for song ${i + 1}: ${fileValidation.error}`);
+        }
+
+        // Create song using validated metadata
+        const song = new Song({
+          fileUrl: songData.fileUrl,
+          duration: fileValidation.metadata.duration,
+          bitrate: fileValidation.metadata.bitrate,
+          format: fileValidation.metadata.format.toLowerCase() === "mpeg" ? "mp3" : fileValidation.metadata.format,
+          metadata: {
+            fileHash: fileValidation.metadata.fileHash,
+            isrc: songData.isrc,
+            language: songData.language || language,
+            bpm: songData.bpm,
+            key: songData.key,
+            writers: songData.writers || [],
+            producers: songData.producers || [],
+            recordingYear: songData.recordingYear || new Date().getFullYear()
+          },
+          analytics: {
+            totalStreams: 0,
+            uniqueListeners: 0,
+            playlistAdditions: 0,
+            shares: { total: 0, platforms: {} }
+          },
+          flags: {
+            isExplicit: songData.isExplicit || false,
+            isInstrumental: songData.isInstrumental || false,
+            hasLyrics: songData.hasLyrics !== false,
+            containsSamples: songData.containsSamples || false
+          }
+        });
+
+        // Create verification record
+        const verification = new UploadVerification({
+          songId: song._id,
+          releaseId: release._id,
+          status: 'pending',
+          metadata: {
+            title: songData.title,
+            duration: song.duration,
+            format: song.format,
+            isrc: songData.isrc
+          }
+        });
+
+        // Create track
+        const track = new Track({
+          releaseId: release._id,
+          songId: song._id,
+          title: songData.title,
+          duration: fileValidation.metadata.duration,
+          track_number: i + 1,
+          artistId,
+          metadata: {
+            primaryGenre,
+            secondaryGenre,
+            bpm: songData.bpm,
+            key: songData.key,
+            isrc: songData.isrc,
+            language: songData.language || language
+          },
+          flags: {
+            isExplicit: songData.isExplicit || false,
+            isInstrumental: songData.isInstrumental || false,
+            hasLyrics: songData.hasLyrics !== false
+          },
+          credits: {
+            writers: songData.writers || [],
+            producers: songData.producers || [],
+            featuring: []
+          }
+        });
+
+        // Process featured artists
+        if (Array.isArray(songData.featuredArtists) && songData.featuredArtists.length > 0) {
+          for (const feature of songData.featuredArtists) {
+            if (!feature.artistId) {
+              throw new Error(`Missing artistId for featured artist in song: ${songData.title}`);
+            }
+
+            const ftArtist = new FT({
+              trackId: track._id,
+              artistId: feature.artistId,
+              contribution: feature.contribution || "vocals",
+              credits: {
+                billingOrder: feature.billingOrder || featuredArtists.length + 1,
+                displayName: feature.displayName,
+                primaryArtist: false,
+                featured: true
+              }
+            });
+            featuredArtists.push(ftArtist);
+            track.credits.featuring.push({
+              artistId: feature.artistId,
+              role: feature.contribution || "vocals"
+            });
+          }
+        }
+
+        songsToSave.push(song);
+        tracksToSave.push(track);
+        verificationRecords.push(verification);
+      }
+
+      // Save everything in transaction
+      await Song.insertMany(songsToSave, { session });
+      await Track.insertMany(tracksToSave, { session });
+      await UploadVerification.insertMany(verificationRecords, { session });
+      if (featuredArtists.length > 0) {
+        await FT.insertMany(featuredArtists, { session });
+      }
+      await release.save({ session });
+
+      await session.commitTransaction();
+      return res.status(201).json({
+        message: "Release created and pending verification",
+        data: {
+          releaseId: release._id,
+          status: "pending",
+          expectedReleaseDate: parsedReleaseDate
+        }
+      });
+
+    } catch (error) {
+      await session.abortTransaction();
+      return res.status(500).json({
+        message: "Error creating release",
+        error: error.message
+      });
+    } finally {
+      session.endSession();
+    }
+  };
 
 
  // apprive or rject a release

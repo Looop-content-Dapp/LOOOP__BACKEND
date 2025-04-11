@@ -9,9 +9,7 @@ import {
   subcribeToArtist,
   subcribeToPremium,
   getArtistUserSubcribeTo,
-  isArtistFave,
   isUserFollowing,
-  addToFavorite,
   deleteUser,
   addFriend,
   getUserFriends,
@@ -32,7 +30,6 @@ import { isUser } from "../middlewares/isvaliduser.middleware.js";
 
 const userRouter = Router();
 
-userRouter.get("/isfave/:userId/:artistId", isArtistFave);
 userRouter.get("/isfollowing/:userId/:artistId", isUserFollowing);
 
 userRouter.get("/", getAllUsers);
@@ -49,7 +46,6 @@ userRouter.post(
   createUserFaveArtistBasedOnGenres
 );
 userRouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
-userRouter.post("/addfave/:userId/:artistId", addToFavorite);
 
 userRouter.put("/changepremiumstate/:userId", subcribeToPremium);
 

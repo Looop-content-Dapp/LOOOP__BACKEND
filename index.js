@@ -24,6 +24,7 @@ import notificationRoutes from './routes/notification.routes.js';
 import AbstraxionAuth from './xion/AbstraxionAuth.js';
 import transactionrouter from "./routes/transaction.routes.js";
 import passSubscriptionRoute from "./routes/passSubscription.routes.js";
+import favoritesRouter from "./routes/favorites.route.js";
 
 
 config();
@@ -43,13 +44,9 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get("/", (req, res) => res.send("Welcome to the official Looop API!"));
-app.get("/api", (req, res) => res.send("Welcome to the official Looop API!"));
-
 app.use("/api/user", userRouter);
 app.use("/api/artist", artistRouter);
 app.use("/api/preference", preferenceRouter);
-// app.use("/api/faveartist", faveArtistRouter);
 app.use("/api/song", songRouter);
 app.use("/api/community", communityRouter);
 app.use("/api/genre", genreRoute);
@@ -60,9 +57,9 @@ app.use("/api/search", searchRoutes);
 app.use("/api/admin", adminRouter);
 app.use("/api/referral", referralRouter);
 app.use("/api/nfts", nftRoutes);
-// app.use("/api/payment", paymentRouter);
 app.use("/api/oauth", oauthrouter);
 app.use("/api/transactions", transactionrouter);
+app.use("/api/favorites", favoritesRouter);
 
 // Register Xion routes
 app.use("/api/xion", xionRoutes);
