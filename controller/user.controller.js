@@ -315,14 +315,14 @@ const createUser = async (req, res) => {
     // const shortSalt = generateSimpleSalt();
 
     // First try to get existing account
-    const starknetTokenBoundAccount =  await tokenbound.createAccount({
-        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
-        tokenId: process.env.NFT_TOKEN_ID,
-        salt: username,
-      });
+    // const starknetTokenBoundAccount =  await tokenbound.createAccount({
+    //     tokenContract: process.env.NFT_CONTRACT_ADDRESS,
+    //     tokenId: process.env.NFT_TOKEN_ID,
+    //     salt: username,
+    //   });
 
 
-    if (xionwallet || starknetTokenBoundAccount) {
+    if (xionwallet) {
       let user;
       if (oauthprovider === "oauth") {
         user = new User({
@@ -333,7 +333,7 @@ const createUser = async (req, res) => {
           gender,
           wallets: {
             starknet: {
-              address: starknetTokenBoundAccount.account,
+              address: null,
             },
             xion: {
               address: xionwallet.address,
@@ -360,7 +360,7 @@ const createUser = async (req, res) => {
           gender,
           wallets: {
             starknet: {
-              address: starknetTokenBoundAccount.account,
+              address: null,
             },
             xion: {
               address: xionwallet.address,
@@ -805,61 +805,6 @@ const getArtistUserSubcribeTo = async (req, res) => {
     return res.status(200).json({
       message: `successfully gotten data`,
       data,
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "could not get data",
-      error: error.message,
-    });
-  }
-};
-
-const addToFavorite = async (req, res) => {
-  try {
-    const { userId, artistId } = req.params;
-
-    const faveExist = await FaveArtist.findOne({
-      userId: userId,
-      artistId: artistId,
-    });
-
-    if (!faveExist) {
-      const data = new FaveArtist({
-        userId: userId,
-        artistId: artistId,
-      });
-      await data.save();
-    } else {
-      await FaveArtist.deleteOne({
-        userId: userId,
-        artistId: artistId,
-      });
-    }
-
-    return res.status(200).json({
-      message: "success",
-    });
-  } catch (error) {
-    console.log(error);
-    return res.status(500).json({
-      message: "could not get data",
-      error: error.message,
-    });
-  }
-};
-
-const isArtistFave = async (req, res) => {
-  try {
-    const { userId, artistId } = req.params;
-
-    const data = await FaveArtist.find({
-      userId: userId,
-      artistId: artistId,
-    });
-
-    return res.status(200).json({
-      bool: data.length > 0 ? true : false,
     });
   } catch (error) {
     console.log(error);
@@ -2270,9 +2215,7 @@ export {
   createUserFaveArtistBasedOnGenres,
   subcribeToPremium,
   subcribeToArtist,
-  isArtistFave,
   isUserFollowing,
-  addToFavorite,
   deleteUser,
   addFriend,
   getUserFriends,
