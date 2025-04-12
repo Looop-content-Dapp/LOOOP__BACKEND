@@ -1,4 +1,5 @@
 import { Favorites } from "../models/favorites.model.js";
+import { Release } from "../models/releases.model.js";
 
 // Add track to favorites
 export const addTrackToFavorites = async (req, res) => {
@@ -250,3 +251,5 @@ export const removeReleaseFromFavorites = async (req, res) => {
     });
   }
 };
+
+

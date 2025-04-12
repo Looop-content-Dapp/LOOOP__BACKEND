@@ -315,14 +315,14 @@ const createUser = async (req, res) => {
     // const shortSalt = generateSimpleSalt();
 
     // First try to get existing account
-    const starknetTokenBoundAccount =  await tokenbound.createAccount({
-        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
-        tokenId: process.env.NFT_TOKEN_ID,
-        salt: username,
-      });
+    // const starknetTokenBoundAccount =  await tokenbound.createAccount({
+    //     tokenContract: process.env.NFT_CONTRACT_ADDRESS,
+    //     tokenId: process.env.NFT_TOKEN_ID,
+    //     salt: username,
+    //   });
 
 
-    if (xionwallet || starknetTokenBoundAccount) {
+    if (xionwallet) {
       let user;
       if (oauthprovider === "oauth") {
         user = new User({
@@ -333,7 +333,7 @@ const createUser = async (req, res) => {
           gender,
           wallets: {
             starknet: {
-              address: starknetTokenBoundAccount.account,
+              address: null,
             },
             xion: {
               address: xionwallet.address,
@@ -360,7 +360,7 @@ const createUser = async (req, res) => {
           gender,
           wallets: {
             starknet: {
-              address: starknetTokenBoundAccount.account,
+              address: null,
             },
             xion: {
               address: xionwallet.address,
