@@ -4172,6 +4172,8 @@ export const getDailyMixes = async (req, res) => {
               _id: 1,
               title: 1,
               duration: 1,
+              trackNumber: "$track_number",
+              isExplicit: "$flags.isExplicit",
               artist: {
                 _id: artist._id,
                 name: artist.name,
@@ -4184,9 +4186,18 @@ export const getDailyMixes = async (req, res) => {
                 type: "$release.type",
                 releaseDate: "$release.dates.release_date"
               },
+              songData: {
+                _id: "$songData._id",
+                fileUrl: "$songData.fileUrl",
+                format: "$songData.format",
+                bitrate: "$songData.bitrate",
+                waveform: "$songData.waveform",
+                duration: "$songData.duration"
+              },
               analytics: {
                 streams: "$songData.analytics.totalStreams",
-                likes: "$songData.analytics.likes"
+                likes: "$songData.analytics.likes",
+                playlistAdditions: "$songData.analytics.playlistAdditions"
               }
             }
           }
