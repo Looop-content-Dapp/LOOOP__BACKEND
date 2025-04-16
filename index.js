@@ -75,15 +75,14 @@ const mongoURI =
 
 (async () => {
   try {
-    AbstraxionAuth.configureAbstraxionInstance(
-      process.env.RPC_URL || "https://rpc.xion-testnet-2.burnt.com/",
-      process.env.REST_URL || "https://api.xion-testnet-2.burnt.com",
-      process.env.TREASURY_ADDRESS
-    );
+    // AbstraxionAuth.configureAbstraxionInstance(
+    //   process.env.RPC_URL || "https://rpc.xion-testnet-2.burnt.com/",
+    //   process.env.REST_URL || "https://api.xion-testnet-2.burnt.com",
+    //   process.env.TREASURY_ADDRESS
+    // );
 
     mongoose.connect(mongoURI, {
       useNewUrlParser: true,
-      useUnifiedTopology: true,
     });
 
     mongoose.connection.on("open", () => {

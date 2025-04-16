@@ -2475,7 +2475,7 @@ export const getTopSongsForArtist = async (req, res) => {
           }
         }
       },
-      // Project final shape with null checks
+      // Project final shape with null checks and add song file URL
       {
         $project: {
           _id: 1,
@@ -2507,6 +2507,12 @@ export const getTopSongsForArtist = async (req, res) => {
               },
               []
             ]
+          },
+          songData: {
+            _id: { $ifNull: ["$songData._id", null] },
+            fileUrl: { $ifNull: ["$songData.fileUrl", null] },
+            format: { $ifNull: ["$songData.format", null] },
+            bitrate: { $ifNull: ["$songData.bitrate", null] }
           },
           analytics: {
             totalStreams: { $ifNull: ["$songData.analytics.totalStreams", 0] },
@@ -4853,5 +4859,3 @@ export const getWorldwideTopSongs = async (req, res) => {
     });
   }
 };
-
-
