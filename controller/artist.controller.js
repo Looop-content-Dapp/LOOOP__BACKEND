@@ -138,7 +138,8 @@ export const getArtist = async (req, res) => {
         ...isartist._doc,
         genres: genreNames,
         releases: release,
-        followers,
+        followers, // Include followers array in the response
+        noOfFollowers: followers.length, // Add number of followers
         community: getArtisCommunity?.id || null,
         communityMembers: communityMembers,
       },
