@@ -291,7 +291,7 @@ export const createPlaylist = async (req, res) => {
       description: description || "",
       isPublic: isPublic || false,
       isCollaborative: isCollaborative || false,
-      coverImage: generateCoverImage(),
+      coverImage: "",
       createdDate: Date.now(),
       lastModified: Date.now(),
       genreDistribution: new Map(),
