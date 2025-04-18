@@ -4252,243 +4252,173 @@ export const getDailyMixes = async (req, res) => {
 };
 
 export const getLastPlayed = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const {
-      page = 1,
-      limit = 20,
-      startDate,
-      endDate,
-      uniqueOnly = false,
-      includeStats = true
-    } = req.query;
+    try {
+      const { userId } = req.params;
+      const {
+        page = 1,
+        limit = 20,
+        startDate,
+        endDate,
+        uniqueOnly = false,
+        includeStats = true
+      } = req.query;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const dateFilter = {};
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const dateFilter = {};
 
-    if (startDate) {
-      dateFilter.$gte = new Date(startDate);
-    }
-    if (endDate) {
-      dateFilter.$lte = new Date(endDate);
-    }
-
-    // First pipeline to get recent tracks with context
-    const recentTracksPipeline = [
-      {
-        $match: {
-          userId: new mongoose.Types.ObjectId(userId),
-          ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
-        }
-      },
-      {
-        $sort: { timestamp: -1 }
+      if (startDate) {
+        dateFilter.$gte = new Date(startDate);
       }
-    ];
-
-    if (uniqueOnly === 'true') {
-      recentTracksPipeline.push({
-        $group: {
-          _id: "$trackId",
-          lastPlayed: { $first: "$timestamp" },
-          deviceType: { $first: "$deviceType" },
-          quality: { $first: "$quality" },
-          completionRate: { $first: "$completionRate" },
-          playCount: { $sum: 1 }
-        }
-      });
-    }
-
-    recentTracksPipeline.push(
-      {
-        $lookup: {
-          from: "tracks",
-          localField: uniqueOnly === 'true' ? "_id" : "trackId",
-          foreignField: "_id",
-          as: "track"
-        }
-      },
-      {
-        $unwind: "$track"
-      },
-      {
-        $lookup: {
-          from: "songs",
-          localField: "track.songId",
-          foreignField: "_id",
-          as: "song"
-        }
-      },
-      {
-        $unwind: "$song"
-      },
-      {
-        $lookup: {
-          from: "releases",
-          localField: "track.releaseId",
-          foreignField: "_id",
-          as: "release"
-        }
-      },
-      {
-        $unwind: "$release"
-      },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "track.artistId",
-          foreignField: "_id",
-          as: "artist"
-        }
-      },
-      {
-        $unwind: "$artist"
-      },
-      {
-        $lookup: {
-          from: "ft",
-          localField: "track._id",
-          foreignField: "trackId",
-          as: "features"
-        }
-      },
-      {
-        $lookup: {
-          from: "artists",
-          localField: "features.artistId",
-          foreignField: "_id",
-          as: "featuredArtists"
-        }
-      },
-      {
-        $skip: skip
-      },
-      {
-        $limit: parseInt(limit)
+      if (endDate) {
+        dateFilter.$lte = new Date(endDate);
       }
-    );
 
-    // Get listening statistics if requested
-    let stats = {};
-    if (includeStats === 'true') {
-      const statsPipeline = [
+      // First pipeline to get recent tracks with context
+      const recentTracksPipeline = [
         {
           $match: {
             userId: new mongoose.Types.ObjectId(userId),
             ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
           }
+        }
+      ];
+
+      if (uniqueOnly === 'true') {
+        recentTracksPipeline.push(
+          {
+            $sort: { timestamp: -1 }  // Sort before grouping to get most recent plays
+          },
+          {
+            $group: {
+              _id: "$trackId",
+              lastPlayed: { $first: "$timestamp" },
+              deviceType: { $first: "$deviceType" },
+              quality: { $first: "$quality" },
+              completionRate: { $first: "$completionRate" },
+              playCount: { $sum: 1 }
+            }
+          },
+          {
+            $sort: { lastPlayed: -1 }  // Sort grouped results by last played time
+          }
+        );
+      } else {
+        recentTracksPipeline.push({
+          $sort: { timestamp: -1 }  // Simple sort by timestamp for non-unique results
+        });
+      }
+
+      recentTracksPipeline.push(
+        {
+          $lookup: {
+            from: "tracks",
+            localField: uniqueOnly === 'true' ? "_id" : "trackId",
+            foreignField: "_id",
+            as: "track"
+          }
         },
         {
-          $group: {
-            _id: null,
-            totalPlaytime: {
-              $sum: {
-                $multiply: [
-                  { $divide: ["$completionRate", 100] },
-                  "$track.duration"
-                ]
-              }
-            },
-            totalTracks: { $sum: 1 },
-            uniqueTracks: { $addToSet: "$trackId" },
-            uniqueArtists: { $addToSet: "$track.artistId" },
-            uniqueReleases: { $addToSet: "$track.releaseId" },
-            avgCompletionRate: { $avg: "$completionRate" },
-            devices: { $addToSet: "$deviceType" },
-            qualities: { $addToSet: "$quality" }
+          $unwind: "$track"
+        },
+        {
+          $lookup: {
+            from: "songs",
+            localField: "track.songId",
+            foreignField: "_id",
+            as: "song"
+          }
+        },
+        {
+          $unwind: "$song"
+        },
+        {
+          $lookup: {
+            from: "releases",
+            localField: "track.releaseId",
+            foreignField: "_id",
+            as: "release"
+          }
+        },
+        {
+          $unwind: "$release"
+        },
+        {
+          $lookup: {
+            from: "artists",
+            localField: "track.artistId",
+            foreignField: "_id",
+            as: "artist"
+          }
+        },
+        {
+          $unwind: "$artist"
+        },
+        // Add a check to ensure track.flags exists
+        {
+          $addFields: {
+            isExplicit: { $ifNull: ["$track.flags.isExplicit", false] }
           }
         },
         {
           $project: {
-            _id: 0,
-            totalPlaytime: 1,
-            totalTracks: 1,
-            uniqueTracks: { $size: "$uniqueTracks" },
-            uniqueArtists: { $size: "$uniqueArtists" },
-            uniqueReleases: { $size: "$uniqueReleases" },
-            avgCompletionRate: 1,
-            devices: 1,
-            qualities: 1
+            _id: 1,
+            lastPlayed: 1,
+            deviceType: 1,
+            quality: 1,
+            completionRate: 1,
+            playCount: 1,
+            track: {
+              _id: "$track._id",
+              title: "$track.title",
+              duration: "$track.duration",
+              isExplicit: "$isExplicit",
+              type: "$track.type"
+            },
+            song: {
+              _id: "$song._id",
+              title: "$song.title"
+            },
+            release: {
+              _id: "$release._id",
+              title: "$release.title",
+              artwork: "$release.artwork.cover_image"
+            },
+            artist: {
+              _id: "$artist._id",
+              name: "$artist.name"
+            }
           }
         }
-      ];
+      );
 
-      const statsResult = await LastPlayed.aggregate(statsPipeline);
-      stats = statsResult[0] || {};
-    }
+      const recentTracks = await LastPlayed.aggregate(recentTracksPipeline)
+        .skip(skip)
+        .limit(parseInt(limit));
 
-    const [results, totalCount] = await Promise.all([
-      LastPlayed.aggregate(recentTracksPipeline),
-      LastPlayed.countDocuments({
+      // Get total count for pagination
+      const totalCount = await LastPlayed.countDocuments({
         userId: new mongoose.Types.ObjectId(userId),
         ...(Object.keys(dateFilter).length && { timestamp: dateFilter })
-      })
-    ]);
+      });
 
-    // Transform results for response
-    const transformedResults = results.map(item => ({
-      _id: item.track._id,
-      playedAt: uniqueOnly === 'true' ? item.lastPlayed : item.timestamp,
-      track: {
-        title: item.track.title,
-        duration: item.track.duration,
-        isExplicit: item.track.flags.isExplicit,
-        trackNumber: item.track.track_number,
-        analytics: {
-          streams: item.song.analytics.totalStreams,
-          likes: item.song.analytics.likes
+      return res.status(200).json({
+        message: "Successfully retrieved last played tracks",
+        data: recentTracks,
+        pagination: {
+          current: parseInt(page),
+          total: Math.ceil(totalCount / parseInt(limit)),
+          hasMore: totalCount > (skip + recentTracks.length)
         }
-      },
-      artist: {
-        _id: item.artist._id,
-        name: item.artist.name,
-        image: item.artist.profileImage
-      },
-      featuredArtists: item.featuredArtists.map(artist => ({
-        _id: artist._id,
-        name: artist.name
-      })),
-      release: {
-        _id: item.release._id,
-        title: item.release.title,
-        type: item.release.type,
-        artwork: item.release.artwork.cover_image,
-        releaseDate: item.release.dates.release_date
-      },
-      playbackInfo: {
-        deviceType: item.deviceType,
-        quality: item.quality,
-        completionRate: item.completionRate,
-        ...(uniqueOnly === 'true' && { playCount: item.playCount })
-      }
-    }));
+      });
 
-    return res.status(200).json({
-      message: "Successfully retrieved listening history",
-      data: transformedResults,
-      ...(includeStats === 'true' && { stats }),
-      pagination: {
-        current: parseInt(page),
-        total: Math.ceil(totalCount / parseInt(limit)),
-        hasMore: totalCount > skip + results.length
-      },
-      meta: {
-        uniqueOnly: uniqueOnly === 'true',
-        dateRange: {
-          start: startDate || 'all time',
-          end: endDate || 'present'
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error("Error in getLastPlayed:", error);
-    return res.status(500).json({
-      message: "Error fetching listening history",
-      error: error.message
-    });
-  }
-};
+    } catch (error) {
+      console.error("Error in getLastPlayed:", error);
+      return res.status(500).json({
+        message: "Error fetching last played tracks",
+        error: error.message
+      });
+    }
+  };
 
 export const getLocationBasedTracks = async (req, res) => {
   try {

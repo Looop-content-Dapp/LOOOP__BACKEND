@@ -4,6 +4,8 @@ import { GasPrice, SigningStargateClient } from "@cosmjs/stargate";
 
 export class ContractHelper {
   static instance = null;
+  static MAX_RETRY_ATTEMPTS = 3;
+  static RETRY_DELAY = 5000; // 5 seconds
 
   constructor(config) {
     if (ContractHelper.instance) {
@@ -14,6 +16,7 @@ export class ContractHelper {
     this.client = null;
     this.adminWallet = null;
     this.walletadmin = null;
+    this.initializationAttempts = 0;
 
     ContractHelper.instance = this;
 
@@ -27,21 +30,42 @@ export class ContractHelper {
         { prefix: "xion" }
       );
 
-      this.client = await SigningCosmWasmClient.connectWithSigner(
-        this.config.rpcEndpoint,
-        this.adminWallet,
-        {
-          gasPrice: GasPrice.fromString("0.001uxion"),
+      // Add retry logic for RPC connection
+      let lastError = null;
+      while (this.initializationAttempts < ContractHelper.MAX_RETRY_ATTEMPTS) {
+        try {
+          this.client = await SigningCosmWasmClient.connectWithSigner(
+            this.config.rpcEndpoint,
+            this.adminWallet,
+            {
+              gasPrice: GasPrice.fromString("0.001uxion"),
+            }
+          );
+
+          const [account] = await this.adminWallet.getAccounts();
+          this.walletadmin = account.address;
+          console.log("Admin wallet initialized with address:", account.address);
+          return; // Success, exit the function
+
+        } catch (error) {
+          lastError = error;
+          this.initializationAttempts++;
+          console.warn(`RPC connection attempt ${this.initializationAttempts} failed:`, error.message);
+
+          if (this.initializationAttempts < ContractHelper.MAX_RETRY_ATTEMPTS) {
+            console.log(`Retrying in ${ContractHelper.RETRY_DELAY/1000} seconds...`);
+            await new Promise(resolve => setTimeout(resolve, ContractHelper.RETRY_DELAY));
+          }
         }
-      );
+      }
 
-      const [account] = await this.adminWallet.getAccounts();
-      this.walletadmin = account.address;
+      // If we get here, all attempts failed
+      throw new Error(`Failed to initialize admin wallet after ${ContractHelper.MAX_RETRY_ATTEMPTS} attempts. Last error: ${lastError.message}`);
 
-      console.log("Admin wallet initialized with address:", account.address);
     } catch (error) {
       console.error("Failed to initialize admin wallet:", error);
-      throw error;
+      // Don't throw the error, just log it and continue
+      // This allows the application to start even if XION integration fails
     }
   }
 

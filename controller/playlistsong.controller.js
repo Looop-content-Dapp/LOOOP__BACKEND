@@ -105,69 +105,168 @@ export const getAllPlayListForUser = async (req, res) => {
 
 // Get a specific playlist with its songs
 export const getPlayListSongs = async (req, res) => {
-  try {
-    const { playlistId } = req.params;
+    try {
+      const { playlistId } = req.params;
 
-    if (!playlistId) {
-      return res.status(400).json({
-        message: "Playlist ID is required"
-      });
-    }
+      if (!playlistId) {
+        return res.status(400).json({
+          message: "Playlist ID is required"
+        });
+      }
 
-    const playlist = await PlayListName.aggregate([
-      {
-        $match: {
-          $expr: {
-            $eq: [
-              "$_id",
-              { $toObjectId: playlistId }
-            ],
+      // Aggregate playlist and songs
+      const playlistAgg = await PlayListName.aggregate([
+        {
+          $match: {
+            $expr: {
+              $eq: ["$_id", { $toObjectId: playlistId }],
+            },
           },
         },
-      },
-      {
-        $lookup: {
-          from: "playlistsongs",
-          localField: "_id",
-          foreignField: "playlistId",
-          as: "songs",
-          pipeline: [
-            {
-              $lookup: {
-                from: "tracks",
-                localField: "trackId",
-                foreignField: "_id",
-                as: "trackDetails"
-              }
-            },
-            {
-              $unwind: "$trackDetails"
-            },
-            {
-              $sort: { addedAt: -1 }
-            }
-          ]
+        {
+          $lookup: {
+            from: "playlistsongs",
+            localField: "_id",
+            foreignField: "playlistId",
+            as: "songs",
+            pipeline: [
+              {
+                $lookup: {
+                  from: "tracks",
+                  localField: "trackId",
+                  foreignField: "_id",
+                  as: "trackDetails",
+                  pipeline: [
+                    {
+                      $lookup: {
+                        from: "songs",
+                        localField: "songId",
+                        foreignField: "_id",
+                        as: "songData"
+                      }
+                    },
+                    {
+                      $lookup: {
+                        from: "releases",
+                        localField: "releaseId",
+                        foreignField: "_id",
+                        as: "releaseData"
+                      }
+                    },
+                    {
+                      $lookup: {
+                        from: "artists",
+                        localField: "artistId",
+                        foreignField: "_id",
+                        as: "artistData"
+                      }
+                    },
+                    {
+                      $addFields: {
+                        song: { $arrayElemAt: ["$songData", 0] },
+                        release: { $arrayElemAt: ["$releaseData", 0] },
+                        artist: { $arrayElemAt: ["$artistData", 0] }
+                      }
+                    },
+                    {
+                      $project: {
+                        _id: 1,
+                        title: 1,
+                        duration: "$song.duration",
+                        songData: { // Ensure songData is returned as an object
+                          _id: "$song._id",
+                          fileUrl: "$song.fileUrl",
+                          format: "$song.format",
+                          bitrate: "$song.bitrate"
+                        },
+                        releaseImage: {
+                          $ifNull: [
+                            "$release.artwork.cover_image.high",
+                            "$release.artwork.cover_image.medium"
+                          ]
+                        },
+                        artist: {
+                          _id: "$artist._id",
+                          name: "$artist.name",
+                          imageUrl: "$artist.imageUrl"
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              { $unwind: "$trackDetails" },
+              {
+                $addFields: {
+                  addedAt: "$addedAt",
+                  addedBy: "$userId"
+                }
+              },
+              { $sort: { addedAt: -1 } }
+            ]
+          }
         },
-      }
-    ]);
+        {
+          $project: {
+            _id: 1,
+            title: 1,
+            coverImage: 1,
+            songs: 1
+          }
+        }
+      ]);
 
-    if (!playlist || playlist.length === 0) {
-      return res.status(404).json({
-        message: "Playlist not found"
+      if (!playlistAgg || playlistAgg.length === 0) {
+        return res.status(404).json({
+          message: "Playlist not found"
+        });
+      }
+
+      const playlist = playlistAgg[0];
+
+      // Get number of saves (number of users who saved this playlist)
+      const numberOfSaves = await PlayListSongs.countDocuments({ playlistId });
+      const numberOfSongs = playlist.songs.length;
+
+      // Format songs array
+      const formattedSongs = playlist.songs.map(song => ({
+        _id: song.trackDetails._id,
+        title: song.trackDetails.title,
+        duration: song.trackDetails.duration,
+        songData: song.trackDetails.songData[0],
+        releaseImage: song.trackDetails.releaseImage,
+        artist: song.trackDetails.artist
+      }));
+      console.log("formmated", formattedSongs)
+
+      // Calculate total duration
+      const totalDuration = formattedSongs.reduce(
+        (sum, song) => sum + (song.duration || 0), 0
+      );
+
+      // Build response
+      const response = {
+        _id: playlist._id,
+        title: playlist.title,
+        coverImage: playlist.coverImage,
+        numberOfSaves,
+        numberOfSongs,
+        totalDuration, // <-- Added total duration here
+        songs: formattedSongs
+      };
+    //   console.log("formmated", response)
+
+      return res.status(200).json({
+        message: "Successfully retrieved playlist and songs",
+        data: response
+      });
+    } catch (error) {
+      return res.status(500).json({
+        message: "Error fetching playlist",
+        error: error.message
       });
     }
-
-    return res.status(200).json({
-      message: "Successfully retrieved playlist and songs",
-      data: playlist[0]
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error fetching playlist",
-      error: error.message
-    });
-  }
-};
+  };
 
 // Create a new playlist
 export const createPlaylist = async (req, res) => {
@@ -217,69 +316,73 @@ export const createPlaylist = async (req, res) => {
 
 // Add song(s) to playlist.js
 export const addSongToPlaylist = async (req, res) => {
-  try {
-    const { tracks, playlistId, userId } = req.body;
+    try {
+      const { tracks, playlistIds, userId } = req.body;
 
-    if (!tracks || !playlistId || !userId) {
-      return res.status(400).json({
-        message: "Missing required fields: tracks, playlistId, and userId are required"
-      });
-    }
+      if (!tracks || !playlistIds || !userId) {
+        return res.status(400).json({
+          message: "Missing required fields: tracks, playlistIds, and userId are required"
+        });
+      }
 
-    const trackIds = (Array.isArray(tracks) ? tracks : [tracks])
-      .map(id => id.toString());
+      const trackIds = (Array.isArray(tracks) ? tracks : [tracks])
+        .map(id => id.toString());
 
-    const playlist = await PlayListName.findById(playlistId);
-    if (!playlist) {
-      return res.status(404).json({ message: "Playlist not found" });
-    }
+      const playlistIdArray = (Array.isArray(playlistIds) ? playlistIds : [playlistIds])
+        .map(id => id.toString());
 
-    if (!playlist.isCollaborative && playlist.userId !== userId) {
-      return res.status(403).json({ message: "Not authorized to modify this playlist" });
-    }
+      let totalAddedTracks = 0;
 
-    // Get existing songs
-    const existingSongs = await PlayListSongs.find({ playlistId });
-    const existingTrackIds = new Set(existingSongs.map(song => song.trackId.toString()));
+      for (const playlistId of playlistIdArray) {
+        const playlist = await PlayListName.findById(playlistId);
+        if (!playlist) {
+          return res.status(404).json({ message: `Playlist not found for ID: ${playlistId}` });
+        }
 
-    // Filter out duplicates
-    const newTrackIds = trackIds.filter(id => !existingTrackIds.has(id));
+        if (!playlist.isCollaborative && playlist.userId !== userId) {
+          return res.status(403).json({ message: "Not authorized to modify this playlist" });
+        }
 
-    if (newTrackIds.length === 0) {
+        // Get existing songs
+        const existingSongs = await PlayListSongs.find({ playlistId });
+        const existingTrackIds = new Set(existingSongs.map(song => song.trackId.toString()));
+
+        // Filter out duplicates
+        const newTrackIds = trackIds.filter(id => !existingTrackIds.has(id));
+
+        if (newTrackIds.length > 0) {
+          // Add new songs
+          const songsToAdd = newTrackIds.map(trackId => ({
+            trackId,
+            playlistId,
+            userId,
+            addedAt: new Date()
+          }));
+
+          await PlayListSongs.insertMany(songsToAdd);
+
+          // Update playlist
+          await PlayListName.findByIdAndUpdate(playlistId, {
+            $inc: { totalTracks: newTrackIds.length },
+            lastModified: Date.now()
+          });
+
+          totalAddedTracks += newTrackIds.length;
+        }
+      }
+
       return res.status(200).json({
-        message: "No new tracks to add",
-        data: { addedTracks: 0 }
+        message: `Successfully added ${totalAddedTracks} tracks to playlists`,
+        data: { addedTracks: totalAddedTracks }
+      });
+    } catch (error) {
+      console.error("Error adding songs:", error);
+      return res.status(500).json({
+        message: "Error adding songs to playlists",
+        error: error.message
       });
     }
-
-    // Add new songs
-    const songsToAdd = newTrackIds.map(trackId => ({
-      trackId,
-      playlistId,
-      userId,
-      addedAt: new Date()
-    }));
-
-    await PlayListSongs.insertMany(songsToAdd);
-
-    // Update playlist
-    await PlayListName.findByIdAndUpdate(playlistId, {
-      $inc: { totalTracks: newTrackIds.length },
-      lastModified: Date.now()
-    });
-
-    return res.status(200).json({
-      message: `Successfully added ${newTrackIds.length} tracks to playlist`,
-      data: { addedTracks: newTrackIds.length }
-    });
-  } catch (error) {
-    console.error("Error adding songs:", error);
-    return res.status(500).json({
-      message: "Error adding songs to playlist",
-      error: error.message
-    });
-  }
-};
+  };
 
 // Remove song from playlist
 export const removeSongFromPlaylist = async (req, res) => {
