@@ -23,12 +23,16 @@ const sampleAudioUrls = [
   'https://cdn.trendybeatz.com/audio/OdumoduBlvck-Ft-Victony-Pity-This-Boy-(TrendyBeatz.com).mp3',
 
   // Additional Free Music Archive URLs
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/no_curator/Tours/Enthusiast/Tours_-_01_-_Enthusiast.mp3',
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Chad_Crouch/Arps/Chad_Crouch_-_Shipping_Lanes.mp3',
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Irsens_Tale/Kai_Engel_-_04_-_Moonlight_Reprise.mp3',
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Irsens_Tale/Kai_Engel_-_05_-_Great_Expectations.mp3',
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Irsens_Tale/Kai_Engel_-_06_-_Interception.mp3',
-  'https://files.freemusicarchive.org/storage-freemusicarchive-org/music/ccCommunity/Kai_Engel/Irsens_Tale/Kai_Engel_-_07_-_Anxiety.mp3',
+  'https://cdn.trendybeatz.com/audio/Ruger-Jay-Jay-(TrendyBeatz.com).mp3',
+  'https://cdn.trendybeatz.com/audio/Ayra-Starr-All-The-Love-(TrendyBeatz.com).mp3',
+  'https://cdn.trendybeatz.com/audio/Rema-Smooth-Criminal-(TrendyBeatz.com).mp3',
+  'https://cdn.trendybeatz.com/audio/Rema-DND-(TrendyBeatz.com).mp3',
+  'https://cdn.trendybeatz.com/audio/Rema-Baby-Is-It-A-Crime-(TrendyBeatz.com).mp3',
+  'https://cdn.trendybeatz.com/audio/Olamide-Ft-Asake-New-Religion-(TrendyBeatz.com).mp3',
+  "https://cdn.trendybeatz.com/audio/Olamide-Ft-Rema-Mukulu-(TrendyBeatz.com).mp3",
+  "https://cdn.trendybeatz.com/audio/Olamide-No-Worries-(TrendyBeatz.com).mp3",
+  "https://cdn.trendybeatz.com/audio/Blaqbonez-Like-Ice-Spice-(TrendyBeatz.com).mp3",
+  "https://cdn.trendybeatz.com/audio/Davido-Ft-Odumodublvck-and-Chike-Funds-(TrendyBeatz.com).mp3"
 
 ];
 

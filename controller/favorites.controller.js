@@ -1,101 +1,9 @@
 import { Favorites } from "../models/favorites.model.js";
+import { Track } from "../models/track.model.js";
 import { Release } from "../models/releases.model.js";
+import mongoose from "mongoose";
 
-// Add track to favorites
-export const addTrackToFavorites = async (req, res) => {
-  try {
-    const { userId, trackId } = req.body;
-
-    if (!userId || !trackId) {
-      return res.status(400).json({
-        message: "userId and trackId are required"
-      });
-    }
-
-    let userFavorites = await Favorites.findOne({ userId });
-
-    if (!userFavorites) {
-      userFavorites = new Favorites({ userId, tracks: [] });
-    }
-
-    // Check if track already exists in favorites
-    const trackExists = userFavorites.tracks.some(
-      track => track.trackId.toString() === trackId
-    );
-
-    if (trackExists) {
-      return res.status(400).json({
-        message: "Track already in favorites"
-      });
-    }
-
-    userFavorites.tracks.push({
-      trackId,
-      addedAt: new Date()
-    });
-
-    await userFavorites.save();
-
-    return res.status(200).json({
-      message: "Track added to favorites successfully",
-      data: userFavorites
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error adding track to favorites",
-      error: error.message
-    });
-  }
-};
-
-// Add release to favorites
-export const addReleaseToFavorites = async (req, res) => {
-  try {
-    const { userId, releaseId } = req.body;
-
-    if (!userId || !releaseId) {
-      return res.status(400).json({
-        message: "userId and releaseId are required"
-      });
-    }
-
-    let userFavorites = await Favorites.findOne({ userId });
-
-    if (!userFavorites) {
-      userFavorites = new Favorites({ userId, releases: [] });
-    }
-
-    // Check if release already exists in favorites
-    const releaseExists = userFavorites.releases.some(
-      release => release.releaseId.toString() === releaseId
-    );
-
-    if (releaseExists) {
-      return res.status(400).json({
-        message: "Release already in favorites"
-      });
-    }
-
-    userFavorites.releases.push({
-      releaseId,
-      addedAt: new Date()
-    });
-
-    await userFavorites.save();
-
-    return res.status(200).json({
-      message: "Release added to favorites successfully",
-      data: userFavorites
-    });
-  } catch (error) {
-    return res.status(500).json({
-      message: "Error adding release to favorites",
-      error: error.message
-    });
-  }
-};
-
-// Get user's favorite tracks
+// Get user's favorite tracks with detailed information
 export const getFavoriteTracks = async (req, res) => {
   try {
     const { userId } = req.params;
@@ -103,41 +11,63 @@ export const getFavoriteTracks = async (req, res) => {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const favorites = await Favorites.findOne({ userId })
-      .populate({
-        path: 'tracks.trackId',
-        populate: [
-          {
-            path: 'artistId',
-            model: 'artist', // Changed from 'artists' to 'artist'
-            select: 'name profileImage'
-          },
-          {
-            path: 'releaseId',
-            model: 'releases',
-            select: 'title artwork'
+    const favorites = await Favorites.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      { $unwind: "$tracks" },
+      { $sort: { "tracks.addedAt": -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "tracks.trackId",
+          foreignField: "_id",
+          as: "trackDetails"
+        }
+      },
+      { $unwind: "$trackDetails" },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "trackDetails.artistId",
+          foreignField: "_id",
+          as: "artistDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "trackDetails.releaseId",
+          foreignField: "_id",
+          as: "releaseDetails"
+        }
+      },
+      {
+        $project: {
+          _id: "$tracks._id",
+          addedAt: "$tracks.addedAt",
+          track: {
+            _id: "$trackDetails._id",
+            title: "$trackDetails.title",
+            duration: "$trackDetails.duration",
+            artist: { $arrayElemAt: ["$artistDetails", 0] },
+            release: { $arrayElemAt: ["$releaseDetails", 0] }
           }
-        ]
-      })
-      .lean();
+        }
+      }
+    ]);
 
-    if (!favorites) {
-      return res.status(200).json({
-        message: "No favorites found",
-        data: { tracks: [] }
-      });
-    }
-
-    const tracks = favorites.tracks
-      .sort((a, b) => b.addedAt - a.addedAt)
-      .slice(skip, skip + parseInt(limit));
+    const total = await Favorites.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      { $project: { count: { $size: "$tracks" } } }
+    ]);
 
     return res.status(200).json({
       message: "Successfully retrieved favorite tracks",
       data: {
-        tracks,
-        total: favorites.tracks.length,
-        hasMore: favorites.tracks.length > (skip + tracks.length)
+        tracks: favorites,
+        total: total[0]?.count || 0,
+        hasMore: total[0]?.count > (skip + favorites.length)
       }
     });
   } catch (error) {
@@ -148,42 +78,72 @@ export const getFavoriteTracks = async (req, res) => {
   }
 };
 
-// Get user's favorite releases
+// Get user's favorite releases with detailed information
 export const getFavoriteReleases = async (req, res) => {
   try {
     const { userId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const { page = 1, limit = 20, type } = req.query;
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    const favorites = await Favorites.findOne({ userId })
-      .populate({
-        path: 'releases.releaseId',
-        populate: {
-          path: 'artistId',
-          model: 'artist', // Changed from 'artists' to 'artist'
-          select: 'name profileImage'
-        }
-      })
-      .lean();
+    const matchStage = {
+      userId: new mongoose.Types.ObjectId(userId)
+    };
 
-    if (!favorites) {
-      return res.status(200).json({
-        message: "No favorites found",
-        data: { releases: [] }
-      });
+    if (type) {
+      matchStage["releases.type"] = type;
     }
 
-    const releases = favorites.releases
-      .sort((a, b) => b.addedAt - a.addedAt)
-      .slice(skip, skip + parseInt(limit));
+    const favorites = await Favorites.aggregate([
+      { $match: matchStage },
+      { $unwind: "$releases" },
+      { $sort: { "releases.addedAt": -1 } },
+      { $skip: skip },
+      { $limit: parseInt(limit) },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releases.releaseId",
+          foreignField: "_id",
+          as: "releaseDetails"
+        }
+      },
+      { $unwind: "$releaseDetails" },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "releaseDetails.artistId",
+          foreignField: "_id",
+          as: "artistDetails"
+        }
+      },
+      {
+        $project: {
+          _id: "$releases._id",
+          addedAt: "$releases.addedAt",
+          type: "$releases.type",
+          release: {
+            _id: "$releaseDetails._id",
+            title: "$releaseDetails.title",
+            artwork: "$releaseDetails.artwork",
+            artist: { $arrayElemAt: ["$artistDetails", 0] },
+            releaseDate: "$releaseDetails.dates.release_date"
+          }
+        }
+      }
+    ]);
+
+    const total = await Favorites.aggregate([
+      { $match: matchStage },
+      { $project: { count: { $size: "$releases" } } }
+    ]);
 
     return res.status(200).json({
       message: "Successfully retrieved favorite releases",
       data: {
-        releases,
-        total: favorites.releases.length,
-        hasMore: favorites.releases.length > (skip + releases.length)
+        releases: favorites,
+        total: total[0]?.count || 0,
+        hasMore: total[0]?.count > (skip + favorites.length)
       }
     });
   } catch (error) {
@@ -252,4 +212,207 @@ export const removeReleaseFromFavorites = async (req, res) => {
   }
 };
 
+// Add item to favorites (handles both tracks and releases)
+export const addToFavorites = async (req, res) => {
+  try {
+    const { userId, itemId, itemType } = req.body;
 
+    if (!userId || !itemId || !itemType) {
+      return res.status(400).json({
+        message: "userId, itemId, and itemType are required",
+        required: ["userId", "itemId", "itemType (track or release)"]
+      });
+    }
+
+    if (!['track', 'release'].includes(itemType)) {
+      return res.status(400).json({
+        message: "Invalid itemType. Must be either 'track' or 'release'"
+      });
+    }
+
+    // Verify item exists
+    let item;
+    if (itemType === 'track') {
+      item = await Track.findById(itemId);
+    } else {
+      item = await Release.findById(itemId);
+    }
+
+    if (!item) {
+      return res.status(404).json({
+        message: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} not found`
+      });
+    }
+
+    // Prepare update operation based on item type
+    const updateOperation = {
+      $addToSet: {
+        [itemType === 'track' ? 'tracks' : 'releases']: {
+          [`${itemType}Id`]: itemId,
+          ...(itemType === 'release' && { type: item.type }),
+          addedAt: new Date()
+        }
+      }
+    };
+
+    // Add to favorites using findOneAndUpdate
+    const result = await Favorites.findOneAndUpdate(
+      { userId },
+      updateOperation,
+      {
+        new: true,
+        upsert: true
+      }
+    );
+
+    return res.status(200).json({
+      message: `${itemType.charAt(0).toUpperCase() + itemType.slice(1)} added to favorites successfully`,
+      data: result
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error adding item to favorites",
+      error: error.message
+    });
+  }
+};
+
+// Get user's favorite items (both tracks and releases)
+export const getFavoriteItems = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 20, type } = req.query;
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    // Get tracks
+    const tracks = await Favorites.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      { $unwind: "$tracks" },
+      { $sort: { "tracks.addedAt": -1 } },
+      {
+        $lookup: {
+          from: "tracks",
+          localField: "tracks.trackId",
+          foreignField: "_id",
+          as: "trackDetails"
+        }
+      },
+      { $unwind: "$trackDetails" },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "trackDetails.artistId",
+          foreignField: "_id",
+          as: "artistDetails"
+        }
+      },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "trackDetails.releaseId",
+          foreignField: "_id",
+          as: "releaseDetails"
+        }
+      },
+      {
+        $project: {
+          _id: "$tracks._id",
+          addedAt: "$tracks.addedAt",
+          itemType: "track",
+          item: {
+            _id: "$trackDetails._id",
+            title: "$trackDetails.title",
+            duration: "$trackDetails.duration",
+            artist: { $arrayElemAt: ["$artistDetails", 0] },
+            release: { $arrayElemAt: ["$releaseDetails", 0] }
+          }
+        }
+      }
+    ]);
+
+    // Get releases
+    const matchStage = {
+      userId: new mongoose.Types.ObjectId(userId)
+    };
+
+    if (type) {
+      matchStage["releases.type"] = type;
+    }
+
+    const releases = await Favorites.aggregate([
+      { $match: matchStage },
+      { $unwind: "$releases" },
+      { $sort: { "releases.addedAt": -1 } },
+      {
+        $lookup: {
+          from: "releases",
+          localField: "releases.releaseId",
+          foreignField: "_id",
+          as: "releaseDetails"
+        }
+      },
+      { $unwind: "$releaseDetails" },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "releaseDetails.artistId",
+          foreignField: "_id",
+          as: "artistDetails"
+        }
+      },
+      {
+        $project: {
+          _id: "$releases._id",
+          addedAt: "$releases.addedAt",
+          itemType: "release",
+          type: "$releases.type",
+          item: {
+            _id: "$releaseDetails._id",
+            title: "$releaseDetails.title",
+            artwork: "$releaseDetails.artwork",
+            artist: { $arrayElemAt: ["$artistDetails", 0] },
+            releaseDate: "$releaseDetails.dates.release_date"
+          }
+        }
+      }
+    ]);
+
+    // Combine and sort by addedAt
+    const allItems = [...tracks, ...releases]
+      .sort((a, b) => b.addedAt - a.addedAt)
+      .slice(skip, skip + parseInt(limit));
+
+    // Get total counts
+    const [trackCount, releaseCount] = await Promise.all([
+      Favorites.aggregate([
+        { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+        { $project: { count: { $size: "$tracks" } } }
+      ]),
+      Favorites.aggregate([
+        { $match: matchStage },
+        { $project: { count: { $size: "$releases" } } }
+      ])
+    ]);
+
+    const totalCount = (trackCount[0]?.count || 0) + (releaseCount[0]?.count || 0);
+
+    return res.status(200).json({
+      message: "Successfully retrieved favorite items",
+      data: {
+        items: allItems,
+        counts: {
+          total: totalCount,
+          tracks: trackCount[0]?.count || 0,
+          releases: releaseCount[0]?.count || 0
+        },
+        hasMore: totalCount > (skip + allItems.length)
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: "Error fetching favorite items",
+      error: error.message
+    });
+  }
+};

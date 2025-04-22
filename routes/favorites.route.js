@@ -1,7 +1,7 @@
 import { Router } from "express";
 import {
-  addTrackToFavorites,
-  addReleaseToFavorites,
+//   addTrackToFavorites,
+//   addReleaseToFavorites,
   getFavoriteTracks,
   getFavoriteReleases,
   removeTrackFromFavorites,
@@ -11,8 +11,8 @@ import {
 const favoritesRouter = Router();
 
 // Add items to favorites
-favoritesRouter.post("/tracks", addTrackToFavorites);
-favoritesRouter.post("/releases", addReleaseToFavorites);
+// favoritesRouter.post("/tracks", addTrackToFavorites);
+// favoritesRouter.post("/releases", addReleaseToFavorites);
 
 // Get favorite items
 favoritesRouter.get("/tracks/:userId", getFavoriteTracks);

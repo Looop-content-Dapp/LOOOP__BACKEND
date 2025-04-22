@@ -167,7 +167,7 @@ export const createArtist = async (req, res) => {
       artistname,
       profileImage,
       bio,
-      genres,
+      genres,  // This contains genre names
       twitter,
       tiktok,
       instagram,
@@ -219,6 +219,10 @@ export const createArtist = async (req, res) => {
 
     let isNewArtist = false;
 
+    // Convert genre names to ObjectIds
+    const genreDocuments = await Genre.find({ name: { $in: genres } });
+    const genreIds = genreDocuments.map(genre => genre._id);
+
     // If artist doesn't exist, create new profile
     if (!artist) {
       isNewArtist = true;
@@ -227,7 +231,7 @@ export const createArtist = async (req, res) => {
         email: user.email,
         profileImage,
         biography: bio,
-        genres,
+        genres: genreIds,  // Use the array of ObjectIds instead of genre names
         address1,
         address2,
         country,
@@ -256,7 +260,7 @@ export const createArtist = async (req, res) => {
       verificationDocuments: {
         email: user.email,
         profileImage,
-        genres,
+        genreIds,
         address1,
         country,
         city,
@@ -277,7 +281,7 @@ export const createArtist = async (req, res) => {
     });
 
     // Get genre names for response
-    const getGenre = await Genre.find({ _id: { $in: genres } });
+    const getGenre = await Genre.find({ _id: { $in: genreIds } });
     const genreNames = getGenre.map((genre) => genre.name);
 
     const artistData = {
