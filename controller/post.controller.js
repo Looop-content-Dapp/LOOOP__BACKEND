@@ -125,7 +125,7 @@ export const getAllPosts = async (req, res) => {
 // Get single post
 export const getPost = async (req, res) => {
     try {
-      const { userId } = req.query; 
+      const { userId } = req.query;
 
       const post = await Post.findById(req.params.id)
         .populate({
@@ -367,6 +367,7 @@ export const getAllPostsByCommunity = async (req, res) => {
           return {
             ...post.toObject(),
             likes,
+            hasLiked: userId ? likes.some(like => like.userId._id.toString() === userId) : false,
             likeCount: likes.length,
             comments: commentsWithReplies,
             commentCount
@@ -419,6 +420,7 @@ export const getAllPostsByCommunity = async (req, res) => {
           return {
             ...post.toObject(),
             likes,
+            hasLiked: userId ? likes.some(like => like.userId._id.toString() === userId) : false,
             likeCount: likes.length,
             comments: commentsWithReplies,
             commentCount
@@ -471,6 +473,7 @@ export const getAllPostsByCommunity = async (req, res) => {
           return {
             ...post.toObject(),
             likes,
+            hasLiked: userId ? likes.some(like => like.userId._id.toString() === userId) : false,
             likeCount: likes.length,
             comments: commentsWithReplies,
             commentCount
