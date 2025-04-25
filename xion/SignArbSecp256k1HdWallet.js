@@ -89,7 +89,7 @@ export class SignArbSecp256k1HdWallet extends DirectSecp256k1HdWallet {
     });
   }
 
-  static async generate(length = 12, options = {}) {
+  static async generate(length = 32, options = {}) {
     const entropyLength = 4 * Math.floor((11 * length) / 33);
     const entropy = Random.getBytes(entropyLength);
     const mnemonic = Bip39.encode(entropy);
