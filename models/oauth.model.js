@@ -7,7 +7,7 @@ import { Schema, SchemaTypes, model } from "mongoose";
 // "refresh_token": "tGzv3JOkF0XG5Qx2TlKWIA",
 // "example_parameter": "example_value"
 const OAuthTokenObjectSchema = new Schema({
-    provider: { // 'spotify', 'instagram', 'google' etc.
+    provider: { 
         type: SchemaTypes.String,
         required: true
     },

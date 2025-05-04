@@ -5,13 +5,17 @@ export const createUserSchema = yup.object().shape({
     .string()
     .trim()
     .email("Must be a valid email")
-    .required("Email is required"),
+    .when('oauthprovider', {
+      is: (val) => val === 'xion' || val === 'argent',
+      then: () => yup.string().email("Must be a valid email").nullable().optional(),
+      otherwise: () => yup.string().email("Must be a valid email").required("Email is required")
+    }),
   password: yup
     .string()
     .trim()
     .min(6, "Password must be at least 6 characters")
     .when('oauthprovider', {
-      is: (val) => val && val.length > 0,
+      is: (val) => val === 'xion' || val === 'argent' || val === 'oauth',
       then: () => yup.string().optional().nullable(),
       otherwise: () => yup.string().required("Password is required")
     }),
@@ -25,6 +29,13 @@ export const createUserSchema = yup.object().shape({
     .required("Gender is required"),
   referralCode: yup.string().trim().optional(),
   oauthprovider: yup.string().trim().optional(),
+  channel: yup.string().trim().optional(),
+  walletAddress: yup.string().trim().when('oauthprovider', {
+    is: (val) => val === 'xion' || val === 'argent',
+    then: () => yup.string().required("Wallet address is required for wallet authentication"),
+    otherwise: () => yup.string().optional()
+  }),
+  bio: yup.string().optional().nullable(),
 });
 
 export const signInSchema = yup.object().shape({
@@ -32,12 +43,27 @@ export const signInSchema = yup.object().shape({
     .string()
     .trim()
     .email("Must be a valid email")
-    .required("Email is required"),
+    .when('oauthprovider', {
+      is: (val) => val === 'xion' || val === 'argent',
+      then: () => yup.string().email("Must be a valid email").nullable().optional(),
+      otherwise: () => yup.string().email("Must be a valid email").required("Email is required")
+    }),
   password: yup
     .string()
     .trim()
     .min(6, "Password must be at least 6 characters")
-    .required("Password is required"),
+    .when('oauthprovider', {
+      is: (val) => val === 'xion' || val === 'argent' || val === 'oauth',
+      then: () => yup.string().optional().nullable(),
+      otherwise: () => yup.string().required("Password is required")
+    }),
+  oauthprovider: yup.string().trim().optional(),
+  channel: yup.string().trim().optional(),
+  walletAddress: yup.string().trim().when('oauthprovider', {
+    is: (val) => val === 'xion' || val === 'argent',
+    then: () => yup.string().required("Wallet address is required for wallet authentication"),
+    otherwise: () => yup.string().optional()
+  }),
 });
 
 export const googleAuthSchema = yup.object().shape({
@@ -58,4 +84,9 @@ export const verifyOtpSchema = yup.object().shape({
     .email("Must be a valid email")
     .required("Email is required"),
   otp: yup.string().required("OTP is required"),
+});
+
+export const walletAuthSchema = yup.object().shape({
+  walletAddress: yup.string().trim().required("Wallet address is required"),
+  oauthprovider: yup.string().trim().oneOf(['xion', 'argent'], "Invalid wallet provider").required("Provider is required"),
 });

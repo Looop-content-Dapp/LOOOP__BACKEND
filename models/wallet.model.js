@@ -5,12 +5,12 @@ const walletSchema = new Schema(
     email: { type: String, required: true, unique: true },
     xion: {
       type: {
-        address: { type: String, required: true },
-        encryptedMnemonic: { type: String, required: true },
-        iv: { type: String, required: true },
-        salt: { type: String, required: true },
+        address: { type: String, default: null },
+        encryptedMnemonic: { type: String, default: null },
+        iv: { type: String, default: null },
+        salt: { type: String, default: null },
       },
-      required: true,
+      default: null,
     },
     recoveryToken: { type: String, default: null },
     recoveryTokenExpiry: { type: Date, default: null },
