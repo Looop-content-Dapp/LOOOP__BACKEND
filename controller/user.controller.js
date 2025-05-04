@@ -263,7 +263,6 @@ const createUser = async (req, res) => {
         age,
         gender,
         referralCode,
-        channel,
         oauthprovider,
         walletAddress,
         bio
@@ -373,7 +372,7 @@ const createUser = async (req, res) => {
       const starknetTokenBoundAccount = await tokenbound.createAccount({
         tokenContract: process.env.NFT_CONTRACT_ADDRESS,
         tokenId: process.env.NFT_TOKEN_ID,
-        salt: username,
+        salt: salt,
       });
 
       wallets.starknet = {
@@ -429,7 +428,7 @@ const createUser = async (req, res) => {
         userData.email = email;
       } else if (isWalletAuth) {
         // Use a placeholder email for wallet-only auth
-        userData.email = `${username}-${Date.now()}@wallet-auth.placeholder`;
+        userData.email = ``;
       }
 
       // Add password if provided
