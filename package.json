@@ -62,7 +62,7 @@
     "shamir-secret-sharing": "^0.0.4",
     "spotify-web-api-node": "^5.0.2",
     "starknet": "^6.24.1",
-    "starknet-tokenbound-sdk": "^0.3.9",
+    "starknet-tokenbound-sdk": "^0.4.0",
     "validator": "^13.12.0",
     "winston": "^3.17.0",
     "ws": "^8.18.1",

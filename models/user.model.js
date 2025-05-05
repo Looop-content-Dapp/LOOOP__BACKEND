@@ -120,7 +120,8 @@ const userSchema = new Schema({
   security: {
     type: securitySettingsSchema,
     default: {}
-  }
+  },
+  oauthprovider: { type: String },
 });
 
 export const User = model("users", userSchema);

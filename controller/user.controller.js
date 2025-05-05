@@ -263,6 +263,7 @@ const createUser = async (req, res) => {
         age,
         gender,
         referralCode,
+        channel,
         oauthprovider,
         walletAddress,
         bio
@@ -274,10 +275,12 @@ const createUser = async (req, res) => {
       // Skip validation for wallet-based authentication or OAuth providers
       if (isWalletAuth) {
         // For wallet-based auth, validate with custom wallet schema
-        await walletAuthSchema.validate({
-          walletAddress,
-          oauthprovider
-        });
+        if (!walletAddress) {
+          return res.status(400).json({
+            status: "failed",
+            message: "Wallet address is required for wallet authentication"
+          });
+        }
 
         // Then validate the user data with a modified schema
         const walletUserSchema = yup.object().shape({
@@ -372,7 +375,7 @@ const createUser = async (req, res) => {
       const starknetTokenBoundAccount = await tokenbound.createAccount({
         tokenContract: process.env.NFT_CONTRACT_ADDRESS,
         tokenId: process.env.NFT_TOKEN_ID,
-        salt: salt,
+        salt: username,
       });
 
       wallets.starknet = {
@@ -402,10 +405,10 @@ const createUser = async (req, res) => {
           });
         }
       } else {
-        // For non-Xion auth without email, create a placeholder
+        // For non-Xion auth without email, create a placeholder wallet address
         wallets.xion = {
-          address: `placeholder-${Date.now()}`,
-          mnemonic: "placeholder-no-mnemonic"
+          address: `wallet-${Date.now()}`,
+          mnemonic: "wallet-auth-no-mnemonic"
         };
       }
 
@@ -423,12 +426,9 @@ const createUser = async (req, res) => {
         bio: bio || null,
       };
 
-      // Add email if provided or generate placeholder for wallet auth
+      // Add email only if provided, not adding placeholder emails
       if (email) {
         userData.email = email;
-      } else if (isWalletAuth) {
-        // Use a placeholder email for wallet-only auth
-        userData.email = ``;
       }
 
       // Add password if provided
