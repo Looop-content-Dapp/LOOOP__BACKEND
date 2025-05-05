@@ -1114,7 +1114,7 @@ export const getUserFeed = async (req, res) => {
             ...post.toObject(),
             likes, // Full array of likes with user details
             likeCount: likes.length,
-            hasLiked: likes.some(like => like.userId._id.toString() === userId), // Check if current user liked
+            hasLiked: likes.some(like => like.userId && like.userId._id && like.userId._id.toString() === userId), // Added null checks
             comments: commentsWithReplies,
             commentCount
           };
