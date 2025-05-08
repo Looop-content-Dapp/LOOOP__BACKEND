@@ -47,6 +47,118 @@ const abstraxionAuth = new AbstraxionAuth();
 config();
 
 const otpStore = {};
+const passwordResetTokens = {};
+
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Email is required"
+      });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found"
+      });
+    }
+
+    // Generate reset token
+    const resetToken = generateOtp();
+    const expiresAt = Date.now() + 30 * 60 * 1000; // 30 minutes
+
+    // Store token with expiration
+    passwordResetTokens[email] = {
+      token: resetToken,
+      expiresAt
+    };
+
+    // Send reset email
+    await sendEmail(email, "Reset Your Password", "reset-password", {
+      email,
+      resetToken
+    });
+
+    return res.status(200).json({
+      status: "success",
+      message: "Password reset instructions sent to your email"
+    });
+  } catch (error) {
+    console.error("Password reset request error:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error processing password reset request",
+      error: error.message
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, token, newPassword } = req.body;
+
+    if (!email || !token || !newPassword) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Email, token and new password are required"
+      });
+    }
+
+    // Validate token
+    const resetData = passwordResetTokens[email];
+    if (!resetData || resetData.token !== token) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid or expired reset token"
+      });
+    }
+
+    if (Date.now() > resetData.expiresAt) {
+      delete passwordResetTokens[email];
+      return res.status(400).json({
+        status: "failed",
+        message: "Reset token has expired"
+      });
+    }
+
+    // Find user and update password
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found"
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update user's password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Clear reset token
+    delete passwordResetTokens[email];
+
+    return res.status(200).json({
+      status: "success",
+      message: "Password has been reset successfully"
+    });
+  } catch (error) {
+    console.error("Password reset error:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error resetting password",
+      error: error.message
+    });
+  }
+};
 
 const getAllUsers = async (req, res) => {
   try {
@@ -978,35 +1090,34 @@ const getUserFriends = async (req, res) => {
           as: "friendData",
         },
       },
-
-      {
-        $lookup: {
-          from: "users",
-          localField: "friendData._id",
-          foreignField: "_id",
-          as: "user",
-        },
-      },
       {
         $unwind: "$friendData",
       },
       {
-        $unwind: "$user",
-      },
-      {
         $project: {
-          userId: "$user._id",
-          name: "$user.email",
-          profileImage: "$user.profileImage",
-          // name: "$friendData.name",
+          userId: "$friendData._id",
+          username: "$friendData.username",
+          fullname: "$friendData.fullname",
+          email: "$friendData.email",
+          profileImage: "$friendData.profileImage",
+          age: "$friendData.age",
+          gender: "$friendData.gender",
+          bio: "$friendData.bio",
+          createdAt: "$friendData.createdAt",
+          updatedAt: "$friendData.updatedAt",
+          isVerified: "$friendData.isVerified",
+          lastSeen: "$friendData.lastSeen",
+          status: "$friendData.status"
         },
       },
     ]);
 
     return res.status(200).json({
-      message: `success`,
-      friends,
+      status: "success",
+      message: "Friends fetched successfully",
+      data: friends,
     });
+
   } catch (error) {
     console.log(error);
     return res.status(500).json({
@@ -2306,4 +2417,6 @@ export {
   getUserLibrary,
   getUserWalletBalance,
   updateUserProfile,
+  resetPassword,
+  requestPasswordReset
 };

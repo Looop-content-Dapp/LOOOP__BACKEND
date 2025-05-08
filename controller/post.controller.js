@@ -1052,11 +1052,11 @@ export const getUserFeed = async (req, res) => {
         ...(postType && { postType })
       };
 
-      // Get posts with pagination
+      // Get posts with pagination and populate artist and community details
       const [posts, total] = await Promise.all([
         Post.find(query)
-          .populate('artistId', 'name email profileImage genre verified')
-          .populate('communityId', 'name description coverImage')
+          .populate('artistId', 'name email profileImage genre verified bio socialLinks stats createdAt')
+          .populate('communityId', 'communityName description coverImage tribePass members admins owner stats')
           .sort({ createdAt: -1 })
           .skip((page - 1) * limit)
           .limit(limit),
@@ -1070,7 +1070,7 @@ export const getUserFeed = async (req, res) => {
           const likes = await Like.find({ postId: post._id })
             .populate({
               path: 'userId',
-              select: 'email profileImage bio name username' // Added more user fields
+              select: 'email profileImage bio name username'
             });
 
           const commentCount = await Comment.countDocuments({
@@ -1110,13 +1110,30 @@ export const getUserFeed = async (req, res) => {
             })
           );
 
+          // Get artist's community details separately
+          const artistCommunity = await Community.findOne({ createdBy: post.artistId._id })
+            .select('communityName description coverImage tribePass members admins owner stats');
+
+          // Get community members count
+          const communityMembersCount = await CommunityMember.countDocuments({
+            communityId: post.communityId._id
+          });
+
           return {
             ...post.toObject(),
-            likes, // Full array of likes with user details
+            likes,
             likeCount: likes.length,
-            hasLiked: likes.some(like => like.userId && like.userId._id && like.userId._id.toString() === userId), // Added null checks
+            hasLiked: likes.some(like => like.userId && like.userId._id && like.userId._id.toString() === userId),
             comments: commentsWithReplies,
-            commentCount
+            commentCount,
+            artistDetails: {
+              ...post.artistId.toObject(),
+              community: artistCommunity
+            },
+            communityDetails: {
+              ...post.communityId.toObject(),
+              memberCount: communityMembersCount
+            }
           };
         })
       );
