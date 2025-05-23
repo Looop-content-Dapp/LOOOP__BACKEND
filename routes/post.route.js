@@ -17,7 +17,8 @@ import {
   getCommentReplies,
   getUserFeed,
   getCommentById,
-  replyToComment
+  replyToComment,
+  getPrivatePostsForSubscribers
 } from "../controller/post.controller.js";
 
 const postRouter = Router();
@@ -50,5 +51,8 @@ postRouter.get("/announcements/active", getActiveAnnouncements);
 
 postRouter.get('/comments/:commentId', getCommentById);
 postRouter.post('/comments/reply', replyToComment);
+
+// Private posts route for subscribers
+postRouter.get("/private/:userId", getPrivatePostsForSubscribers);
 
 export default postRouter;

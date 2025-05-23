@@ -8,6 +8,18 @@ const socialLinksSchema = new Schema({
   website: String,
 });
 
+const walletSchema = new Schema({
+  balance: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  currency: {
+    type: String,
+    default: 'USD'
+  }
+});
+
 const artistSchema = new Schema(
   {
     artistId: {
@@ -75,6 +87,10 @@ const artistSchema = new Schema(
     labels: [String],
     isActive: { type: Boolean, default: true },
     genres: [{ type: Schema.Types.ObjectId, ref: "genres", required: true }],
+    wallet: {
+      type: walletSchema,
+      default: () => ({})
+    }
   },
   {
     timestamps: true,

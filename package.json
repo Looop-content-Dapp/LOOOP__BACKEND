@@ -12,7 +12,10 @@
     "dev": "nodemon index.js",
     "clean": "rm -rf dist",
     "copy-files": "mkdir -p dist && cp -r index.js package.json .env* config controller emails middlewares models routes services utils validations_schemas xion dist/",
-    "build": "npm run clean && npm run copy-files"
+    "build": "npm run clean && npm run copy-files",
+    "test": "mocha tests/**/*.test.js --exit",
+    "test:watch": "mocha tests/**/*.test.js --watch",
+    "test:coverage": "nyc mocha tests/**/*.test.js --exit"
   },
   "keywords": [],
   "author": "",
@@ -70,6 +73,11 @@
   },
   "packageManager": "pnpm@9.14.4+sha512.c8180b3fbe4e4bca02c94234717896b5529740a6cbadf19fa78254270403ea2f27d4e1d46a08a0f56c89b63dc8ebfd3ee53326da720273794e6200fcf0d184ab",
   "devDependencies": {
-    "nodemon": "^3.1.9"
+    "nodemon": "^3.1.9",
+    "chai": "^4.3.7",
+    "mocha": "^10.2.0",
+    "mongodb-memory-server": "^9.1.1",
+    "nyc": "^15.1.0",
+    "sinon": "^15.1.0"
   }
 }
