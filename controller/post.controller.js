@@ -5,6 +5,7 @@ import { Like } from "../models/likes.model.js";
 import { Community } from "../models/community.model.js";
 import { User } from "../models/user.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
+import { UserSubscription } from '../models/userSubscription.model.js';
 
 // Helper function to populate post details
 const populatePostDetails = async (post) => {
@@ -1502,3 +1503,42 @@ export const replyToComment = async (req, res) => {
       });
     }
   };
+
+// Fetch private posts for subscribers
+export const getPrivatePostsForSubscribers = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { artistId } = req.query;
+
+    // Check if the user is subscribed to the artist
+    const subscription = await UserSubscription.findOne({
+      userId,
+      artistId,
+      status: 'active'
+    });
+
+    if (!subscription) {
+      return res.status(403).json({
+        message: "You are not subscribed to this artist"
+      });
+    }
+
+    // Fetch private posts for the artist
+    const privatePosts = await Post.find({
+      artistId,
+      visibility: 'private',
+      status: 'published'
+    }).populate('artistId', 'name email profileImage genre verified');
+
+    return res.status(200).json({
+      message: "Successfully retrieved private posts",
+      data: privatePosts
+    });
+  } catch (error) {
+    console.error("Error in getPrivatePostsForSubscribers:", error);
+    return res.status(500).json({
+      message: "Error fetching private posts",
+      error: error.message
+    });
+  }
+};
