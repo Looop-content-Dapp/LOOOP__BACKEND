@@ -25,6 +25,7 @@ import AbstraxionAuth from './xion/AbstraxionAuth.js';
 import transactionrouter from "./routes/transaction.routes.js";
 import passSubscriptionRoute from "./routes/passSubscription.routes.js";
 import favoritesRouter from "./routes/favorites.route.js";
+import subscriptionRouter from './routes/subscription.routes.js';
 
 
 config();
@@ -67,6 +68,9 @@ app.use("/api/notifications", notificationRoutes);
 
 // Register pass subscription routes
 app.use('/api/pass-subscriptions', passSubscriptionRoute);
+
+// Register subscription routes
+app.use("/api/subscriptions", subscriptionRouter);
 
 // Update PORT definition to use environment variable
 const PORT = process.env.PORT || 3000;
