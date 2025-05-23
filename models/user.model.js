@@ -1,4 +1,5 @@
 import { Schema, SchemaTypes, model } from "mongoose";
+import bcrypt from "bcryptjs";
 
 const securitySettingsSchema = new Schema({
   isGoogleAuthEnabled: {
@@ -28,9 +29,29 @@ const securitySettingsSchema = new Schema({
   }
 });
 
+// const walletSchema = new Schema({
+//   address: String,
+//   mnemonic: String,
+//   balance: {
+//     type: Number,
+//     default: 0
+//   }
+// });
+
 const userSchema = new Schema({
-  email: { type: String, required: true, unique: true },
-  username: { type: String, required: true, unique: true },
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true,
+    lowercase: true
+  },
+  username: {
+    type: String,
+    required: true,
+    unique: true,
+    trim: true
+  },
   fullname: { type: String, required: true },
   age: { type: String, required: true },
   gender: {
@@ -38,7 +59,11 @@ const userSchema = new Schema({
     required: true,
     enum: ["male", "female"],
   },
-  password: { type: String },
+  password: {
+    type: String,
+    required: true,
+    minlength: 6
+  },
   profileImage: { type: String, default: null },
   bio: { type: String, default: null },
   isPremium: { type: Boolean, default: false },
@@ -122,6 +147,30 @@ const userSchema = new Schema({
     default: {}
   },
   oauthprovider: { type: String },
+  isActive: {
+    type: Boolean,
+    default: true
+  }
+}, {
+  timestamps: true
 });
 
-export const User = model("users", userSchema);
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  
+  try {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare password
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+export const User = model("user", userSchema);
