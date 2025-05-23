@@ -3,7 +3,6 @@ import assert from 'assert'
 import crypto from 'crypto';
 import { config } from 'dotenv';
 import { Paystack } from 'paystack-sdk';
-import User from '../models/user.model';
 
 // load .env file
 config();
@@ -38,9 +37,9 @@ export async function initializePaystackTransaction(req, res, email, amount) {
 
 
 
-// 
+//
 // <<<<<========================== START of WebHook Functions ================================
-// 
+//
 export async function paystackWebhookHandler(req, res) {
     try {
         // Validate the event signature
@@ -153,16 +152,16 @@ function chargeSuccessEventHandler(event) {
     //     }
     //   }
 }
-// 
+//
 //========================== END of WebHook Functions ================================>>>>>
-// 
+//
 
 
 
 
-// 
+//
 // <<========================== (private) UnExported Functions Stay Below ================================>>
-// 
+//
 
 // Load Paystack keys & Initialize SDK
 function initializePaystack() {
