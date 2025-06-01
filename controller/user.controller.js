@@ -425,31 +425,40 @@ const createUser = async (req, res) => {
       userObj.oauthprovider = oauthprovider;
     }
 
-    // Create StarkNet wallet
+    // Create StarkNet wallet and attempt deployment
+    let walletInfo;
     try {
-      const wallet = await starknetService.createUserWallet(email);
+      // Create the wallet first
+      walletInfo = await starknetService.createUserWallet(email);
       userObj.wallets = {
         starknet: {
-          address: wallet.address,
+          address: walletInfo.address,
           isDeployed: false
         }
       };
-    } catch (error) {
-      console.error('TokenBound account creation failed:', error);
-      return res.status(500).json({
-        status: 'failed',
-        message: 'Failed to create TokenBound account',
-        error: error.message,
+
+      // Create and save the user
+      const user = new User(userObj);
+      const savedUser = await user.save();
+
+      // Attempt to deploy the wallet asynchronously
+      starknetService.deployUserWallet(email)
+        .then(deploymentResult => {
+          // Update user's wallet deployment status if successful
+          User.findByIdAndUpdate(savedUser._id, {
+            'wallets.starknet.isDeployed': true
+          }).exec();
+          console.log('Wallet deployed successfully:', deploymentResult);
+        })
+        .catch(deployError => {
+          console.error('Wallet deployment failed:', deployError);
+          // We don't throw here as we want the user creation to succeed regardless
+        });
+
+      const referralEntry = new ReferralCode({
+        code: refcode,
+        userId: savedUser._id,
       });
-    }
-
-    const user = new User(userObj);
-    const savedUser = await user.save();
-
-    const referralEntry = new ReferralCode({
-      code: refcode,
-      userId: savedUser._id,
-    });
 
     await referralEntry.save();
 
