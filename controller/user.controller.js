@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import bcrypt from "bcryptjs";
 import validator from "validator";
 import { config } from "dotenv";
@@ -27,7 +27,6 @@ import { generateOtp } from "../utils/helpers/generateotp.js";
 import {
   createUserSchema,
   signInSchema,
-  walletAuthSchema,
 } from "../validations_schemas/auth.validation.js";
 import { validateGoogleToken } from "../middlewares/googleauth.js";
 import { validateAppleToken } from "../middlewares/appleauth.js";
@@ -39,7 +38,7 @@ import XionWalletService from "../xion/wallet.service.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { Track } from "../models/track.model.js";
 import { Release } from "../models/releases.model.js";
-import * as yup from "yup";
+import { starknetService } from '../services/starknet.service.js';
 
 const abstraxionAuth = new AbstraxionAuth();
 
@@ -366,299 +365,187 @@ const verifyEmailOTP = async (req, res) => {
 };
 
 const createUser = async (req, res) => {
+  try {
+    const {
+      email,
+      password,
+      username,
+      fullname,
+      age,
+      gender,
+      referralCode,
+      oauthprovider,
+      bio,
+    } = req.body;
+
+    // Validate request body - the schema will handle password validation based on oauthprovider
+    await createUserSchema.validate(req.body);
+
+    const existingEmailUser = await User.findOne({ email });
+    if (existingEmailUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Email already in use" });
+    }
+
+    const existingUsernameUser = await User.findOne({ username });
+    if (existingUsernameUser) {
+      return res
+        .status(400)
+        .json({ status: "failed", message: "Username already in use" });
+    }
+
+    // Only hash password if it's provided and not empty (for non-OAuth users)
+    let hashedPassword;
+    if (password && password.trim() !== '') {
+      const salt = await bcrypt.genSalt(10);
+      hashedPassword = await bcrypt.hash(password, salt);
+    }
+
+    const refcode = await generateUniqueReferralCode(username);
+
+    // Create user object with common properties
+    const userObj = {
+      email,
+      username,
+      fullname,
+      age,
+      gender,
+      bio,
+      referralCode: refcode,
+    };
+
+    // Add password only if it exists (for non-OAuth users)
+    if (hashedPassword) {
+      userObj.password = hashedPassword;
+    }
+
+    // Add oauthprovider if it exists
+    if (oauthprovider) {
+      userObj.oauthprovider = oauthprovider;
+    }
+
+    // Create StarkNet wallet
     try {
-      const {
-        email,
-        password,
-        username,
-        fullname,
-        age,
-        gender,
-        referralCode,
-        channel,
-        oauthprovider,
-        walletAddress,
-        bio
-      } = req.body;
-
-      // Check which authentication method is being used
-      const isWalletAuth = oauthprovider === "xion" || oauthprovider === "argent";
-
-      // Skip validation for wallet-based authentication or OAuth providers
-      if (isWalletAuth) {
-        // For wallet-based auth, validate with custom wallet schema
-        if (!walletAddress) {
-          return res.status(400).json({
-            status: "failed",
-            message: "Wallet address is required for wallet authentication"
-          });
+      const wallet = await starknetService.createUserWallet(email);
+      userObj.wallets = {
+        starknet: {
+          address: wallet.address,
+          isDeployed: false
         }
-
-        // Then validate the user data with a modified schema
-        const walletUserSchema = yup.object().shape({
-          username: yup.string().trim().required("Username is required"),
-          fullname: yup.string().trim().required("Fullname is required"),
-          age: yup.string().trim().required("Age is required"),
-          gender: yup
-            .string()
-            .trim()
-            .oneOf(["male", "female"], "Gender must be 'male' or 'female'")
-            .required("Gender is required"),
-        });
-
-        await walletUserSchema.validate({
-          username,
-          fullname,
-          age,
-          gender,
-        });
-      } else if (oauthprovider === "oauth") {
-        // OAuth validation
-        const oauthSchema = createUserSchema.clone();
-        oauthSchema.fields.password = oauthSchema.fields.password.optional();
-        await oauthSchema.validate(req.body);
-      } else {
-        // Traditional email/password validation
-        await createUserSchema.validate(req.body);
-      }
-
-      // Check for existing username
-      const existingUsernameUser = await User.findOne({ username });
-      if (existingUsernameUser) {
-        return res
-          .status(400)
-          .json({ status: "failed", message: "Username already in use" });
-      }
-
-      // Check for existing email if provided
-      if (email) {
-        const existingEmailUser = await User.findOne({ email });
-        if (existingEmailUser) {
-          return res
-            .status(400)
-            .json({ status: "failed", message: "Email already in use" });
-        }
-      }
-
-      // Check for existing wallet if provided
-      if (walletAddress && isWalletAuth) {
-        const walletField = oauthprovider === "xion" ? "wallets.xion.address" : "wallets.starknet.address";
-        const existingWalletUser = await User.findOne({ [walletField]: walletAddress });
-        if (existingWalletUser) {
-          return res
-            .status(400)
-            .json({ status: "failed", message: "Wallet address already associated with an account" });
-        }
-      }
-
-      // Hash password if provided
-      let hashedPassword = null;
-      if (password) {
-        const salt = await bcrypt.genSalt(10);
-        hashedPassword = await bcrypt.hash(password, salt);
-      }
-
-      // Generate a simple salt for token bound account
-      const generateSimpleSalt = () => {
-        return Math.random().toString(36).substring(2, 10);
       };
-
-      // Setup token bound account (existing code)
-      const account = {
-        address: process.env.ACCT_ADDRESS,
-        privateKey: process.env.PRIVATE_KEY,
-      };
-
-      const options = {
-        walletClient: account,
-        version: TBAVersion.V3,
-        chain_id: TBAChainID.sepolia,
-        jsonRPC:
-          "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_7/SJrfoNSORPvz7PkhNneqhqTpnielFNxS",
-      };
-
-      const tokenbound = new TokenboundClient(options);
-      let xionwallet = null;
-
-      // Setup wallets based on authentication channel
-      let wallets = {};
-
-      // Create Starknet token bound account
-      const starknetTokenBoundAccount = await tokenbound.createAccount({
-        tokenContract: process.env.NFT_CONTRACT_ADDRESS,
-        tokenId: process.env.NFT_TOKEN_ID,
-        salt: username,
-      });
-
-      wallets.starknet = {
-        address: starknetTokenBoundAccount.account,
-      };
-
-      // Setup Xion wallet based on authentication method
-      if (oauthprovider === "xion" && walletAddress) {
-        // If it's a Xion wallet auth, use the provided wallet address
-        wallets.xion = {
-          address: walletAddress,
-          mnemonic: "wallet-auth-no-mnemonic" // Placeholder for schema requirement
-        };
-      } else if (email && oauthprovider !== "xion" && oauthprovider !== "argent") {
-        // Create new Xion wallet through auth service if email is provided and not using wallet auth
-        xionwallet = await abstraxionAuth.signup(email);
-        if (xionwallet) {
-          wallets.xion = {
-            address: xionwallet.address,
-            mnemonic: xionwallet.mnemonic,
-          };
-        } else {
-          // If wallet creation failed
-          return res.status(400).json({
-            status: "failed",
-            message: "Failed to create Xion wallet. Please try again later."
-          });
-        }
-      } else {
-        // For non-Xion auth without email, create a placeholder wallet address
-        wallets.xion = {
-          address: `wallet-${Date.now()}`,
-          mnemonic: "wallet-auth-no-mnemonic"
-        };
-      }
-
-      // Generate referral code
-      const refcode = await generateUniqueReferralCode(username);
-
-      // Create user object based on authentication method
-      const userData = {
-        username,
-        fullname,
-        age,
-        gender,
-        wallets,
-        referralCode: refcode,
-        bio: bio || null,
-      };
-
-      // Add email only if provided, not adding placeholder emails
-      if (email) {
-        userData.email = email;
-      }
-
-      // Add password if provided
-      if (hashedPassword) userData.password = hashedPassword;
-
-      const user = new User(userData);
-      const savedUser = await user.save();
-
-      // Create referral entry
-      const referralEntry = new ReferralCode({
-        code: refcode,
-        userId: savedUser._id,
-      });
-
-      await referralEntry.save();
-
-      // Process referral if provided (existing code)
-      if (referralCode) {
-        const ownerReferral = await ReferralCode.findOne({
-          code: referralCode,
-        });
-        if (ownerReferral) {
-          let reward;
-
-          switch (true) {
-            case ownerReferral.referralCount === 3:
-              reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
-              break;
-            case ownerReferral.referralCount === 10:
-              reward = referralConfig.referralRewards.PURCHASE;
-              break;
-            case ownerReferral.referralCount === 5:
-              reward = referralConfig.referralRewards.PROFILE_COMPLETION;
-              break;
-            default:
-              reward = referralConfig.referralRewards.SOCIAL_SHARE;
-              break;
-          }
-          ownerReferral.rewardPoints += reward.points;
-          ownerReferral.rewardsHistory.push({
-            points: reward.points,
-            reason: reward.description,
-            date: new Date(),
-          });
-          await ownerReferral.save();
-
-          await User.findByIdAndUpdate(ownerReferral.userId, {
-            $push: { referralCodeUsed: savedUser._id },
-            $inc: { referralCount: 1 },
-          });
-        }
-      }
-
-      // Get followed artists (same as original code)
-      const followedArtists = await Follow.find({ follower: savedUser._id })
-        .select("following")
-        .lean();
-
-      const artistIds = followedArtists.map((f) => f.following);
-
-      // Get complete details of followed artists (same as original code)
-      const followingArtists = await Artist.aggregate([
-        {
-          $match: { _id: { $in: artistIds } },
-        },
-        {
-          $lookup: {
-            from: "follows",
-            localField: "_id",
-            foreignField: "following",
-            as: "followers",
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            profileImage: 1,
-            verified: 1,
-            followers: {
-              $map: {
-                input: "$followers",
-                as: "follower",
-                in: "$$follower.follower",
-              },
-            },
-            isUserFollowing: true,
-          },
-        },
-      ]);
-
-      const userWithoutPassword = user.toObject();
-      delete userWithoutPassword.password;
-
-      // If Xion wallet has mnemonic, don't expose it
-      if (userWithoutPassword.wallets?.xion?.mnemonic) {
-        userWithoutPassword.wallets.xion = {
-          address: userWithoutPassword.wallets.xion.address
-        };
-      }
-
-      userWithoutPassword.following = followingArtists.length;
-      userWithoutPassword.followingArtists = followingArtists;
-
-      return res.status(200).json({
-        status: "success",
-        message: "Successfully created a user",
-        data: { user: userWithoutPassword },
-      });
     } catch (error) {
-      console.log(error, "error");
+      console.error('TokenBound account creation failed:', error);
       return res.status(500).json({
-        status: "failed",
-        message: "Error creating user",
+        status: 'failed',
+        message: 'Failed to create TokenBound account',
         error: error.message,
       });
     }
-  };
+
+    const user = new User(userObj);
+    const savedUser = await user.save();
+
+    const referralEntry = new ReferralCode({
+      code: refcode,
+      userId: savedUser._id,
+    });
+
+    await referralEntry.save();
+
+    if (referralCode) {
+      const ownerReferral = await ReferralCode.findOne({
+        code: referralCode,
+      });
+      if (ownerReferral) {
+        let reward;
+
+        switch (true) {
+          case ownerReferral.referralCount === 3:
+            reward = referralConfig.referralRewards.NEW_USER_SIGNUP;
+            break;
+          case ownerReferral.referralCount === 10:
+            reward = referralConfig.referralRewards.PURCHASE;
+            break;
+          case ownerReferral.referralCount === 5:
+            reward = referralConfig.referralRewards.PROFILE_COMPLETION;
+            break;
+          default:
+            reward = referralConfig.referralRewards.SOCIAL_SHARE;
+            break;
+        }
+        ownerReferral.rewardPoints += reward.points;
+        ownerReferral.rewardsHistory.push({
+          points: reward.points,
+          reason: reward.description,
+          date: new Date(),
+        });
+        await ownerReferral.save();
+
+        await User.findByIdAndUpdate(ownerReferral.userId, {
+          $push: { referralCodeUsed: savedUser._id },
+          $inc: { referralCount: 1 },
+        });
+      }
+    }
+
+    const followedArtists = await Follow.find({ follower: savedUser._id })
+      .select("following")
+      .lean();
+
+    const artistIds = followedArtists.map((f) => f.following);
+
+    // Get complete details of followed artists
+    const followingArtists = await Artist.aggregate([
+      {
+        $match: { _id: { $in: artistIds } },
+      },
+      {
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "following",
+          as: "followers",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          profileImage: 1,
+          verified: 1,
+          followers: {
+            $map: {
+              input: "$followers",
+              as: "follower",
+              in: "$$follower.follower",
+            },
+          },
+          isUserFollowing: true,
+        },
+      },
+    ]);
+
+    const userWithoutPassword = user.toObject();
+    delete userWithoutPassword.password;
+
+    userWithoutPassword.following = followingArtists.length;
+    userWithoutPassword.followingArtists = followingArtists;
+
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully created a user",
+      data: { user: userWithoutPassword },
+    });
+  } catch (error) {
+    console.log(error, "error");
+    return res.status(500).json({
+      status: "failed",
+      message: "Error creating user",
+      error: error.message,
+    });
+  }
+};
 
 const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
@@ -1024,17 +911,79 @@ const deleteUser = async (req, res) => {
   try {
     const { userId } = req.params;
 
-    await User.deleteOne({
-      _id: userId,
-    });
+    // Validate userId
+    if (!validator.isMongoId(userId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid user ID format"
+      });
+    }
 
-    return res.status(200).json({
-      message: "User deleted successfully",
-    });
+    // Check if user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: "failed",
+        message: "User not found"
+      });
+    }
+
+    // Delete all associated data in a transaction
+    const session = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        // Delete user's preferences
+        await Preferences.deleteMany({ userId }, { session });
+
+        // Delete user's favorite artists
+        await FaveArtist.deleteMany({ userId }, { session });
+
+        // Delete user's follows and followers
+        await Follow.deleteMany({
+          $or: [{ follower: userId }, { following: userId }]
+        }, { session });
+
+        // Delete user's friends relationships
+        await Friends.deleteMany({
+          $or: [{ userId }, { friendId: userId }]
+        }, { session });
+
+        // Delete user's community memberships
+        await CommunityMember.deleteMany({ userId }, { session });
+
+        // Delete user's last played tracks
+        await LastPlayed.deleteMany({ userId }, { session });
+
+        // Delete user's favorites
+        await Favorites.deleteMany({ userId }, { session });
+
+        // Delete user's referral codes
+        await ReferralCode.deleteMany({ userId }, { session });
+
+        // Delete user's subscriptions
+        await Subscriber.deleteMany({ userId }, { session });
+
+        // Delete the user
+        await User.deleteOne({ _id: userId }, { session });
+      });
+
+      await session.commitTransaction();
+      return res.status(200).json({
+        status: "success",
+        message: "User and all associated data deleted successfully"
+      });
+    } catch (error) {
+      await session.abortTransaction();
+      throw error;
+    } finally {
+      session.endSession();
+    }
   } catch (error) {
-    console.log(error);
+    console.error('Error deleting user:', error);
     return res.status(500).json({
-      error: error.message,
+      status: "failed",
+      message: "Error deleting user",
+      error: error.message
     });
   }
 };
@@ -1107,7 +1056,7 @@ const getUserFriends = async (req, res) => {
           updatedAt: "$friendData.updatedAt",
           isVerified: "$friendData.isVerified",
           lastSeen: "$friendData.lastSeen",
-          status: "$friendData.status"
+          status: "$friendData.status",
         },
       },
     ]);
@@ -1117,7 +1066,6 @@ const getUserFriends = async (req, res) => {
       message: "Friends fetched successfully",
       data: friends,
     });
-
   } catch (error) {
     console.log(error);
     return res.status(500).json({
@@ -1390,142 +1338,95 @@ const signIn = async (req, res) => {
 };
 
 export const oauth = async (req, res) => {
+  try {
+    const { email, token, channel } = req.body;
+
+    let isTokenValid;
+
+    if (channel === "google") {
+      isTokenValid = await validateGoogleToken(token, email);
+    } else {
+      isTokenValid = await validateAppleToken(token, email);
+    }
+
+    if (!isTokenValid) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid token",
+      });
+    }
+
+    let user = await User.findOne({ email: email });
+
+    if (!user) {
+      const newUser = new User({
+        email: email,
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "User created successfully",
+        data: {
+          user: {
+            ...(newUser?.toObject ? newUser.toObject() : newUser),
+          },
+          isNewUser: true,
+        },
+      });
+    }
+
+    // Get followed artists with details
+    const followedArtists = await Follow.find({ follower: user._id })
+      .select("following")
+      .lean();
+
+    const artistIds = followedArtists.map((f) => f.following);
+
+    // Get complete details of followed artists
+    const followingArtists = await Artist.aggregate([
+      {
+        $match: { _id: { $in: artistIds } },
+      },
+      {
+        $lookup: {
+          from: "follows",
+          localField: "_id",
+          foreignField: "following",
+          as: "followers",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          name: 1,
+          profileImage: 1,
+          verified: 1,
+          followers: {
+            $map: {
+              input: "$followers",
+              as: "follower",
+              in: "$$follower.follower",
+            },
+          },
+          isUserFollowing: true,
+        },
+      },
+    ]);
+
+    // existing user checks
+    const isArtist = await Artist.findOne({
+      userId: user._id,
+      verified: true,
+    });
+
+    const hasClaim = await ArtistClaim.findOne({
+      userId: user._id,
+    });
+
     try {
-      const { email, token, channel, walletAddress } = req.body;
+      const xionLoggedInUser = await XionWalletService.loginAccount(email);
 
-      let isTokenValid = false;
-
-      // Check authentication method based on channel
-      if (channel === "google") {
-        isTokenValid = await validateGoogleToken(token, email);
-      } else if (channel === "apple") {
-        isTokenValid = await validateAppleToken(token, email);
-      } else if (channel === "xion" || channel === "argent") {
-        // For wallet-based auth, we don't need traditional token validation
-        // Just check if the wallet address is provided
-        isTokenValid = !!walletAddress;
-      } else {
-        return res.status(400).json({
-          status: "failed",
-          message: "Invalid authentication channel",
-        });
-      }
-
-      if (!isTokenValid) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Invalid authentication credentials",
-        });
-      }
-
-      // Find user based on email or wallet address
-      let user;
-
-      if (channel === "xion" || channel === "argent") {
-        // Find user by wallet address
-        const walletPath = channel === "xion" ? "wallets.xion.address" : "wallets.starknet.address";
-        user = await User.findOne({ [walletPath]: walletAddress });
-      } else {
-        // Find user by email for traditional auth
-        user = await User.findOne({ email });
-      }
-
-      if (!user) {
-        // Create basic user object for response
-        const newUserData = channel === "xion" || channel === "argent"
-          ? { wallets: { [channel]: { address: walletAddress } } }
-          : { email };
-
-        return res.status(200).json({
-          status: "success",
-          message: "User not found. Please complete registration.",
-          data: {
-            user: newUserData,
-            isNewUser: true,
-          },
-        });
-      }
-
-      // Get followed artists with details (same as original code)
-      const followedArtists = await Follow.find({ follower: user._id })
-        .select("following")
-        .lean();
-
-      const artistIds = followedArtists.map((f) => f.following);
-
-      // Get complete details of followed artists (same as original code)
-      const followingArtists = await Artist.aggregate([
-        {
-          $match: { _id: { $in: artistIds } },
-        },
-        {
-          $lookup: {
-            from: "follows",
-            localField: "_id",
-            foreignField: "following",
-            as: "followers",
-          },
-        },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            profileImage: 1,
-            verified: 1,
-            followers: {
-              $map: {
-                input: "$followers",
-                as: "follower",
-                in: "$$follower.follower",
-              },
-            },
-            isUserFollowing: true,
-          },
-        },
-      ]);
-
-      // Existing user checks
-      const isArtist = await Artist.findOne({
-        userId: user._id,
-        verified: true,
-      });
-
-      const hasClaim = await ArtistClaim.findOne({
-        userId: user._id,
-      });
-
-      try {
-        // For wallet-based auth, we don't need to call the wallet service
-        const userData = {
-          ...user._doc,
-          artist: isArtist === null ? null : isArtist?.id,
-          artistClaim: hasClaim === null ? null : hasClaim?.id,
-          following: followingArtists.length,
-          followingArtists: followingArtists,
-        };
-        delete userData.password;
-        delete userData.referralCode;
-        delete userData.referralCount;
-        delete userData.referralCodeUsed;
-
-        if (user.wallets?.xion?.mnemonic) {
-          // Ensure we don't expose sensitive wallet data
-          userData.wallets = {
-            ...userData.wallets,
-            xion: {
-              address: userData.wallets.xion.address,
-            },
-          };
-        }
-
-        return res.status(200).json({
-          status: "success",
-          message: "Sign in successful",
-          data: userData,
-        });
-      } catch (walletError) {
-        console.error("Wallet service error:", walletError);
-
+      if (!xionLoggedInUser) {
         const userData = {
           ...user._doc,
           artist: isArtist === null ? null : isArtist?.id,
@@ -1544,15 +1445,60 @@ export const oauth = async (req, res) => {
           data: userData,
         });
       }
-    } catch (error) {
-      console.error("OAuth error:", error);
-      return res.status(500).json({
-        status: "failed",
-        message: "Error signing in",
-        error: error.message,
+
+      const userData = {
+        ...user._doc,
+        wallets: {
+          ...user._doc.wallets,
+          xion: {
+            address: xionLoggedInUser.walletAddress,
+          },
+        },
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+        following: followingArtists.length,
+        followingArtists: followingArtists,
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful",
+        data: userData,
+      });
+    } catch (walletError) {
+      console.error("Wallet service error:", walletError);
+
+      const userData = {
+        ...user._doc,
+        artist: isArtist === null ? null : isArtist?.id,
+        artistClaim: hasClaim === null ? null : hasClaim?.id,
+        following: followingArtists.length,
+        followingArtists: followingArtists,
+      };
+      delete userData.password;
+      delete userData.referralCode;
+      delete userData.referralCount;
+      delete userData.referralCodeUsed;
+
+      return res.status(200).json({
+        status: "success",
+        message: "Sign in successful (wallet service unavailable)",
+        data: userData,
       });
     }
-  };
+  } catch (error) {
+    console.error("OAuth error:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error signing in",
+      error: error.message,
+    });
+  }
+};
 
 // Add track to favorites
 const addToLibrary = async (req, res) => {
@@ -2418,5 +2364,5 @@ export {
   getUserWalletBalance,
   updateUserProfile,
   resetPassword,
-  requestPasswordReset
+  requestPasswordReset,
 };

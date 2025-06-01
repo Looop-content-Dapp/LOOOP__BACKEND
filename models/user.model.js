@@ -61,7 +61,7 @@ const userSchema = new Schema({
   },
   password: {
     type: String,
-    required: true,
+    default: null,
     minlength: 6
   },
   profileImage: { type: String, default: null },
@@ -115,16 +115,18 @@ const userSchema = new Schema({
   },
   wallets: {
     starknet: {
-      type: {
-        address: { type: String, default: null },
-        balance: { type: Number, default: 0 },
+        address: String,
+        encryptedPrivateKey: String,
+        iv: String,
+        salt: String,
+        isDeployed: Boolean,
+        constructorCalldata: Array,
+        addressSalt: String
       },
-      default: null,
-    },
     xion: {
       type: {
-        address: { type: String, required: true },
-        mnemonic: { type: String, required: true },
+        address: { type: String, default: null },
+        mnemonic: { type: String, default: null },
         balance: { type: Number, default: 0 },
       },
       default: null,
@@ -158,7 +160,7 @@ const userSchema = new Schema({
 // Hash password before saving
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);

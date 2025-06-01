@@ -1,5 +1,11 @@
 import { get, Types } from "mongoose";
 import validator from "validator";
+import mongoose from "mongoose";
+import {
+  TokenboundClient,
+  TBAVersion,
+  TBAChainID,
+} from "starknet-tokenbound-sdk";
 
 import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";
@@ -13,6 +19,9 @@ import { Follow } from "../models/followers.model.js";
 import crypto from "crypto";
 import { PassSubscription } from "../models/passSubscription.model.js";
 import Transaction from '../models/Transaction.model.js';
+import { ArtistSubscriptionPlan } from "../models/artistSubscriptionPlan.model.js";
+import { starknetService } from "../services/starknet.service.js";
+import { CallData } from "starknet";
 
 const abstraxionAuth = new AbstraxionAuth();
 
@@ -143,6 +152,8 @@ export const checkIfTokenSymbolExist = async (req, res) => {
 };
 
 export const createCommunity = async (req, res) => {
+  let isResponseSent = false;
+
   try {
     const {
       communityName,
@@ -236,82 +247,221 @@ export const createCommunity = async (req, res) => {
           .json({ status: "failed", message: "Artist not found" });
       }
 
+      // Get the user associated with the artist to access their wallet
+      const user = await User.findOne({ email: artist.email });
+      if (!user) {
+        return res
+          .status(404)
+          .json({ status: "failed", message: "User account for artist not found" });
+      }
+
+      // Check if user has a Starknet wallet
+      if (!user.wallets || !user.wallets.starknet || !user.wallets.starknet.address) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Artist does not have a Starknet wallet configured",
+        });
+      }
+
       if (artist.verified === true) {
-        const msg = {
-          create_collection: {
-            name: communityName,
-            symbol: communitySymbol,
-            collection_info: coverImage,
-          },
-        };
+        try {
+            console.log(artist.email, "this is the email")
 
-        await abstraxionAuth.login(artist.email);
-        console.log("artist email", artist.email);
-        const execute = await abstraxionAuth.executeSmartContract(
-          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-          msg,
-          "auto"
-        );
+        const contractCaller = await starknetService.getUserWalletInfo(artist.email);
 
-        console.log(execute, "execute");
-
-        const transactionHash = execute.transactionHash;
-        const artistWallet = execute.sender;
-
-        const CollectionMsg = {
-          artist_collections: {
-            artist: artistWallet,
-          },
-        };
-
-        const getArtistCollection = await abstraxionAuth.querySmartContract(
-          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-          CollectionMsg
-        );
-
-        console.log(getArtistCollection, "getArtistCollection");
-
-        const collection = getArtistCollection.collections[0];
-        const contractAddress = collection.contract_address;
-        const contractSymbol = collection.symbol;
-
-        const validateImageType = isValidImageType(collectibleType);
-
-        if (validateImageType) {
-          const community = new Community({
-            communityName,
-            description,
-            coverImage,
-            tribePass: {
-              collectibleName,
-              collectibleDescription,
-              collectibleImage,
-              collectibleType,
-              contractAddress: contractAddress,
-              communitySymbol: contractSymbol,
-              transactionHash: transactionHash,
-            },
-            createdBy: artistId,
-          });
-
-          await community.save();
-          await community.populate(
-            "createdBy",
-            "name email profileImage genre verified"
-          );
-
-          return res.status(200).json({
-            status: "success",
-            message: "Community created successfully",
-            data: community,
-          });
-        } else {
-          return res.status(400).json({
-            status: "failed",
-            message: "Invalid image type",
-          });
+        if (!contractCaller || !contractCaller.address || !contractCaller.privateKey) {
+          if (!isResponseSent) {
+            isResponseSent = true;
+            return res.status(400).json({
+              status: "failed",
+              message: "Could not retrieve wallet information for the artist"
+            });
+          }
         }
-      } else {
+
+        console.log("this is the wallet calling function", contractCaller)
+
+ // Helper function to convert string to ByteArray for long strings
+  function stringToByteArray(str) {
+    if (str.length <= 31) {
+      // Use short string for strings <= 31 characters
+      return starknetService.stringToFelt(str);
+    } else {
+      // Use ByteArray for longer strings
+      const encoder = new TextEncoder();
+      const bytes = encoder.encode(str);
+      return {
+        data: Array.from(bytes),
+        pending_word: 0,
+        pending_word_len: 0
+      };
+    }
+  }
+
+  // Process the parameters properly
+  const processedCalldata = {
+    pauser: user.wallets.starknet.address,
+    name: stringToByteArray(collectibleName),  // Short string, should work
+    symbol: stringToByteArray(communitySymbol), // Short string, should work
+    collection_details: [{
+      name: stringToByteArray(collectibleName),
+      description: stringToByteArray(collectibleDescription), // Might be long
+      image: stringToByteArray(collectibleImage), // Long URL - needs ByteArray
+      type: stringToByteArray(collectibleType), // Short string
+      communityName: stringToByteArray(communityName),
+      communitySymbol: stringToByteArray(communitySymbol),
+      communityImage: stringToByteArray(coverImage), // Long URL - needs ByteArray
+      communityDescription: stringToByteArray(description), // Long description - needs ByteArray
+    }]
+  };
+
+  console.log("Processed calldata:", processedCalldata);
+
+//   const collectionContractCall = await starknetService.executeTransaction(
+//     "0x0292010c95c853d3e3238c47367e04d07939d9f48274c53da78ed02a8266a17b",
+//     "withdraw",
+//     [
+//         "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+//         "0x03e5bcbbb9834dd78da8c0dc114f071852ebe58d7e7d4e6732810542de61180d",
+//         1000000000000000000,
+//     ],
+//     {
+//       address: "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4",
+//       privateKey: "0x05d67e95f8d5913249452a410db389110c390a36eb0e2ecb092c670ba945b8b9"
+//     }
+//   );
+
+//   const collectionContractCall = await starknetService.executeTransaction(
+//     "0x0292010c95c853d3e3238c47367e04d07939d9f48274c53da78ed02a8266a17b",
+//     "create_collection",
+//     [
+//         "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+//         "wizkid22",
+//         "WIZZ",
+//         "Wiskid valid"
+//     ],
+//     {
+//       address: "0x03e5bcbbb9834dd78da8c0dc114f071852ebe58d7e7d4e6732810542de61180d",
+//       privateKey: "0x038e50caa562f48b04e1ed76e81abbe51a45346f0491d26d9e6fb2b9f11fd036"
+//     }
+//   );
+
+//   console.log("Collection contract call result:", collectionContractCall);
+
+
+  const deployContractCall = await starknetService.executeTransaction(
+    "0x0292010c95c853d3e3238c47367e04d07939d9f48274c53da78ed02a8266a17b",
+    "deploy_account",
+    [
+        "0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab07201858f4287c938d",
+        "0x03e5bcbbb9834dd78da8c0dc114f071852ebe58d7e7d4e6732810542de61180d",
+         1,
+    ],
+    {
+      address: "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4",
+      privateKey: "0x05d67e95f8d5913249452a410db389110c390a36eb0e2ecb092c670ba945b8b9"
+    }
+  );
+
+    //   const deployResult = await starknetService.deployUserWallet("wizkid21@gmail.com");
+
+    //     console.log("this is the collection contract call", deployResult)
+
+          const validateImageType = isValidImageType(collectibleType);
+
+          if (validateImageType) {
+            // Start a MongoDB session for transaction consistency
+            // const session = await mongoose.startSession();
+            // session.startTransaction();
+
+            // try {
+            // //   Create community
+            //   const community = new Community({
+            //     communityName,
+            //     description,
+            //     coverImage,
+            //     tribePass: {
+            //       collectibleName,
+            //       collectibleDescription,
+            //       collectibleImage,
+            //       collectibleType,
+            //       contractAddress: "0x3635c6162f978c1a502b0fbcdf8626f2eacd7f1457967392a3b01d2f4803c6d",
+            //       communitySymbol: "StarBoy",
+            //       transactionHash: "0x7513d791846bcf5d724fac0208ecbaaca816f67dc73b38d685d0b71c9f3d034",
+            //     },
+            //     createdBy: artistId,
+            //   });
+
+            //   await community.save({ session });
+
+            //   // Create default subscription plan for the artist
+            //   const defaultPlan = new ArtistSubscriptionPlan({
+            //     artistId,
+            //     name: `${communityName} Subscription`,
+            //     description: `Monthly subscription to ${communityName} community`,
+            //     price: {
+            //       amount: 9.99, // Default price
+            //       currency: 'USD'
+            //     },
+            //     duration: 30, // 30 days
+            //     features: [
+            //       'Access to exclusive content',
+            //       'Community membership',
+            //       'Early access to releases'
+            //     ],
+            //     splitPercentage: {
+            //       artist: 85,
+            //       platform: 15
+            //     },
+            //     status: 'active'
+            //   });
+
+            //   await defaultPlan.save({ session });
+
+            //   // Commit transaction
+            //   await session.commitTransaction();
+
+            //   // Populate community data for response
+            //   await community.populate(
+            //     "createdBy",
+            //     "name email profileImage genre verified"
+            //   );
+
+            //   return res.status(200).json({
+            //     status: "success",
+            //     message: "Community created successfully with subscription plan",
+            //     data: {
+            //       community,
+            //       subscriptionPlan: defaultPlan
+            //     }
+            //   });
+            // } catch (error) {
+            //   // Abort transaction on error
+            //   await session.abortTransaction();
+            //   throw error;
+            // } finally {
+            //   session.endSession();
+            // }
+          } else if (!isResponseSent) {
+            isResponseSent = true;
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid image type",
+            });
+          }
+        } catch (error) {
+          console.error("Tokenbound execution error:", error);
+          if (!isResponseSent) {
+            isResponseSent = true;
+            return res.status(500).json({
+              status: "failed",
+              message: "Error executing smart contract",
+              error: error.message,
+            });
+          }
+        }
+      } else if (!isResponseSent) {
+        isResponseSent = true;
         return res.status(400).json({
           status: "failed",
           message: "This artist is not verified",
@@ -325,15 +475,18 @@ export const createCommunity = async (req, res) => {
     }
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      status: "failed",
-      message: "Error creating tribe",
-      error: error
-        ? error.message.includes(`Symbol is already taken`)
-          ? "Token Symbol is already taken"
-          : error.message
-        : error.message,
-    });
+    if (!isResponseSent) {
+      isResponseSent = true;
+      return res.status(500).json({
+        status: "failed",
+        message: "Error creating tribe",
+        error: error
+          ? error.message.includes(`Symbol is already taken`)
+            ? "Token Symbol is already taken"
+            : error.message
+          : error.message,
+      });
+    }
   }
 };
 
@@ -374,9 +527,10 @@ export const deleteCommunity = async (req, res) => {
   }
 };
 
+
 export const joinCommunity = async (req, res) => {
     try {
-      const { userId, communityId, type, paymentMethod = "wallet" } = req.body;
+      const { userId, communityId, type, paymentMethod = "card" } = req.body;
 
       // Validate required fields
       if (!userId || !communityId || !type) {
@@ -448,32 +602,38 @@ export const joinCommunity = async (req, res) => {
         status: "pending",
         paymentMethod,
         type: "mint_pass",
-        blockchain: "XION",
+        blockchain: "Starknet",
         title: "Tribe Pass Minting",
-        message: "Minting tribe pass on XION network",
+        message: "Minting tribe pass on Starknet network",
         metadata: {
           communityId: community.tribePass.contractAddress,
         },
       });
 
+
+
       try {
-        // Login with user's email before minting
-        await abstraxionAuth.login(user.email);
+        console.log(community.tribePass.contractAddress, "community.tribePass.contractAddress");
 
-        const mint = await abstraxionAuth.mintPass(
-          community.tribePass.contractAddress
-        );
+        const account = {
+            address: "0x07e3a9c87437b85faaf4b4baba09b779c4b2850c86470405866991b8cfaf220f",
+            privateKey: "0x020822010d5a763023da167f93e6c745abdf84389c8331274ad0e3e3e002e911"
+        }
 
-        // Extract token ID from the mint result
-        const tokenId = mint.events
-          ?.find(e => e.type === "wasm")
-          ?.attributes
-          ?.find(attr => attr.key === "token_id")
-          ?.value || "0";
+        const mint_pass = await starknetService.executeTransaction(
+            community.tribePass.contractAddress,
+            "mint_ticket_nft",
+            [
+                "0x07e3a9c87437b85faaf4b4baba09b779c4b2850c86470405866991b8cfaf220f"
+            ],
+            account
+          );
+
+          console.log(mint_pass, "whiteList");
 
         // Update transaction with success status
         transaction.status = "success";
-        transaction.transactionHash = mint.transactionHash;
+        transaction.transactionHash = mint_pass.transactionHash;
         await transaction.save();
 
         // Create subscription record
@@ -486,7 +646,7 @@ export const joinCommunity = async (req, res) => {
             userId: userId,
             communityId: communityId,
             contractAddress: community.tribePass.contractAddress,
-            tokenId,
+            tokenId: mint_pass?.eventData?.tokenId,
             expiryDate,
             renewalPrice: 5000000,
             currency: "USDC",
@@ -496,7 +656,7 @@ export const joinCommunity = async (req, res) => {
             nextRenewalDate,
             paymentStatus: "paid",
             paymentMethod,
-            transactionHash: mint.transactionHash,
+            transactionHash: mint_pass.transactionHash,
             collectibelType: "Tribe Pass",
             usageStats: {
               lastUsed: new Date(),
@@ -539,13 +699,8 @@ export const joinCommunity = async (req, res) => {
           status: "success",
           message: "Successfully joined community",
           data: {
-            communitymember,
-            transaction: {
-              id: transaction._id,
-              hash: mint.transactionHash,
-            },
-            contractAddress: community.tribePass.contractAddress,
-          },
+            mint_pass,
+          }
         });
 
       } catch (error) {
@@ -553,8 +708,8 @@ export const joinCommunity = async (req, res) => {
         transaction.status = "failed";
         transaction.message = error.message;
         await transaction.save();
-
         throw error;
+        return
       }
 
     } catch (error) {
@@ -1410,7 +1565,7 @@ export const getFollowedArtistsCommunities = async (req, res) => {
         })
           .populate({
             path: "userId",
-            model: "users",
+            model: "user",
             select: "name email profileImage",
           })
           .lean();

@@ -2,7 +2,7 @@ import mongoose, { Types, model } from "mongoose";
 const { Schema } = mongoose;
 
 const memberSchema = new Schema({
-  userId: { type: Types.ObjectId, ref: "users", required: true }, // Changed from "User" to "users"
+  userId: { type: Types.ObjectId, ref: "user", required: true }, // Changed from "User" to "users"
   communityId: {
     type: Types.ObjectId,
     ref: "Community",
