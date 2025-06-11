@@ -51,7 +51,7 @@ userRouter.post("/subcribetoartist/:userId/:artistId", subcribeToArtist);
 
 userRouter.put("/changepremiumstate/:userId", subcribeToPremium);
 
-userRouter.delete("/:userId", deleteUser);
+userRouter.delete("/delete/:userId", deleteUser);
 userRouter.get("/email/:email", getUserByEmail);
 userRouter.post("/signin", signIn);
 userRouter.post("/check", checkIfUserNameExist);

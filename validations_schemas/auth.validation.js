@@ -9,8 +9,11 @@ export const createUserSchema = yup.object().shape({
   password: yup
     .string()
     .trim()
-    .min(6, "Password must be at least 6 characters")
-    .required("Password is required"),
+    .when('oauthprovider', {
+      is: (val) => val && ['google', 'apple', 'oauth'].includes(val),
+      then: (schema) => schema.optional().transform(value => value === '' ? undefined : value),
+      otherwise: (schema) => schema.min(6, "Password must be at least 6 characters").required("Password is required"),
+    }),
   username: yup.string().trim().required("Username is required"),
   fullname: yup.string().trim().required("Fullname is required"),
   age: yup.string().trim().required("Age is required"),
@@ -23,7 +26,7 @@ export const createUserSchema = yup.object().shape({
   oauthprovider: yup.string().trim().optional(),
   channel: yup.string().trim().optional(),
   walletAddress: yup.string().trim().optional(),
-  bio: yup.string().optional().nullable(),
+  bio: yup.string().trim().optional().nullable(),
 });
 
 export const signInSchema = yup.object().shape({
@@ -35,8 +38,11 @@ export const signInSchema = yup.object().shape({
   password: yup
     .string()
     .trim()
-    .min(6, "Password must be at least 6 characters")
-    .required("Password is required"),
+    .when('oauthprovider', {
+      is: (val) => val && ['google', 'apple', 'oauth'].includes(val),
+      then: (schema) => schema.optional().transform(value => value === '' ? undefined : value),
+      otherwise: (schema) => schema.min(6, "Password must be at least 6 characters").required("Password is required"),
+    }),
 });
 
 export const googleAuthSchema = yup.object().shape({
@@ -57,17 +63,4 @@ export const verifyOtpSchema = yup.object().shape({
     .email("Must be a valid email")
     .required("Email is required"),
   otp: yup.string().required("OTP is required"),
-});
-
-export const walletAuthSchema = yup.object().shape({
-  walletAddress: yup.string().trim().required("Wallet address is required"),
-  oauthprovider: yup.string().trim().oneOf(['xion', 'argent'], "Invalid wallet provider").required("Provider is required"),
-  username: yup.string().trim().required("Username is required"),
-  fullname: yup.string().trim().required("Fullname is required"),
-  age: yup.string().trim().required("Age is required"),
-  gender: yup
-    .string()
-    .trim()
-    .oneOf(["male", "female"], "Gender must be 'male' or 'female'")
-    .required("Gender is required"),
 });
