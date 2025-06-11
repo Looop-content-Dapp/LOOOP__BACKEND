@@ -264,83 +264,85 @@ export const createCommunity = async (req, res) => {
         try {
           console.log(artist.email, "this is the email");
 
-          const createCollectionCall =
-            await starknetService.executeCreateCollection(artist.email, {
+      const collection = await starknetService.executeCreateCollection(artist.email, {
               collectibleName,
               communitySymbol,
               collectibleName,
             });
 
-          console.log("createCollectionCall", createCollectionCall);
+       await starknetService.getCollectionDetails(
+          user.wallets.starknet.address
+        );
+        console.log("details", details);
 
           const validateImageType = isValidImageType(collectibleType);
 
           if (validateImageType) {
             // Start a MongoDB session for transaction consistency
-            // const session = await mongoose.startSession();
-            // session.startTransaction();
-            // try {
-            // //   Create community
-            //   const community = new Community({
-            //     communityName,
-            //     description,
-            //     coverImage,
-            //     tribePass: {
-            //       collectibleName,
-            //       collectibleDescription,
-            //       collectibleImage,
-            //       collectibleType,
-            //       contractAddress: "0x3635c6162f978c1a502b0fbcdf8626f2eacd7f1457967392a3b01d2f4803c6d",
-            //       communitySymbol: "StarBoy",
-            //       transactionHash: "0x7513d791846bcf5d724fac0208ecbaaca816f67dc73b38d685d0b71c9f3d034",
-            //     },
-            //     createdBy: artistId,
-            //   });
-            //   await community.save({ session });
-            //   // Create default subscription plan for the artist
-            //   const defaultPlan = new ArtistSubscriptionPlan({
-            //     artistId,
-            //     name: `${communityName} Subscription`,
-            //     description: `Monthly subscription to ${communityName} community`,
-            //     price: {
-            //       amount: 9.99, // Default price
-            //       currency: 'USD'
-            //     },
-            //     duration: 30, // 30 days
-            //     features: [
-            //       'Access to exclusive content',
-            //       'Community membership',
-            //       'Early access to releases'
-            //     ],
-            //     splitPercentage: {
-            //       artist: 85,
-            //       platform: 15
-            //     },
-            //     status: 'active'
-            //   });
-            //   await defaultPlan.save({ session });
-            //   // Commit transaction
-            //   await session.commitTransaction();
-            //   // Populate community data for response
-            //   await community.populate(
-            //     "createdBy",
-            //     "name email profileImage genre verified"
-            //   );
-            //   return res.status(200).json({
-            //     status: "success",
-            //     message: "Community created successfully with subscription plan",
-            //     data: {
-            //       community,
-            //       subscriptionPlan: defaultPlan
-            //     }
-            //   });
-            // } catch (error) {
-            //   // Abort transaction on error
-            //   await session.abortTransaction();
-            //   throw error;
-            // } finally {
-            //   session.endSession();
-            // }
+            const session = await mongoose.startSession();
+            session.startTransaction();
+            try {
+            //   Create community
+              const community = new Community({
+                communityName,
+                description,
+                coverImage,
+                tribePass: {
+                  collectibleName,
+                  collectibleDescription,
+                  collectibleImage,
+                  collectibleType,
+                  contractAddress: collection.eventData.contractAddress,
+                  communitySymbol: "StarBoy",
+                  transactionHash: "0x7513d791846bcf5d724fac0208ecbaaca816f67dc73b38d685d0b71c9f3d034",
+                },
+                createdBy: artistId,
+              });
+              await community.save({ session });
+              // Create default subscription plan for the artist
+              const defaultPlan = new ArtistSubscriptionPlan({
+                artistId,
+                name: `${communityName} Subscription`,
+                description: `Monthly subscription to ${communityName} community`,
+                price: {
+                  amount: 9.99, // Default price
+                  currency: 'USD'
+                },
+                duration: 30, // 30 days
+                features: [
+                  'Access to exclusive content',
+                  'Community membership',
+                  'Early access to releases'
+                ],
+                splitPercentage: {
+                  artist: 85,
+                  platform: 15
+                },
+                status: 'active'
+              });
+              await defaultPlan.save({ session });
+              // Commit transaction
+              await session.commitTransaction();
+              // Populate community data for response
+              await community.populate(
+                "createdBy",
+                "name email profileImage genre verified"
+              );
+              return res.status(200).json({
+                status: "success",
+                message: "Community created successfully with subscription plan",
+                data: {
+                  community,
+                  subscriptionPlan: defaultPlan
+                }
+              });
+            } catch (error) {
+              // Abort transaction on error
+              await session.abortTransaction();
+              throw error;
+            } finally {
+              session.endSession();
+            }
           } else if (!isResponseSent) {
             isResponseSent = true;
             return res.status(400).json({

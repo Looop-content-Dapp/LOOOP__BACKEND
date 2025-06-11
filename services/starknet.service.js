@@ -35,7 +35,7 @@ export default class StarknetService {
       timeout: 30000,
     });
     this.Factory =
-      "0x030255a55da8ffefb1794bfb6896c4909f67c13de2a3c8226c763d37c288c9a9";
+      "0x01506d709e65937451c344c59e6a122f7427e4a63a7792017d0ad16e787b49c0";
     this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
     this.usdcPriceId =
       "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
@@ -155,9 +155,6 @@ export default class StarknetService {
       contract.connect(account0);
       console.log(`Contract instance created for address ${this.Factory}`);
 
-      // const processedCalldata = {};
-      // console.log("processedCalldata", processedCalldata);
-
       const myCall = contract.populate("create_collection", [
         account.address,
         calldata.collectibleName, // Short string, should work
@@ -176,15 +173,17 @@ export default class StarknetService {
       console.log(`Transaction receipt for method create_collection:`, receipt);
 
       const mintEvent = receipt.events[1];
+      console.log("mint event",mintEvent)
       const eventData = {
         recipientAddress: mintEvent.data[0],
         tokenId: parseInt(mintEvent.data[1], 16),
         param: parseInt(mintEvent.data[2], 16),
-        contractAddress: mintEvent.from_address,
+        contractAddress: mintEvent.data[2],
         blockNumber: receipt.block_number,
         transactionHash: receipt.transaction_hash,
         status: receipt.execution_status,
       };
+      console.log("eventdata", eventData)
 
       return {
         transactionHash: res.transaction_hash,
@@ -201,20 +200,15 @@ export default class StarknetService {
     }
   }
 
-  async getCollectionDetails(contractAddress) {
-    const calldata = [
-      {
-        pauser: ContractAddress,
-        name: ByteArray,
-        symbol: ByteArray,
-        collection_details: ByteArray,
-      },
-    ];
+  async getCollectionDetails( address) {
     try {
-      const contract = this.getContract(contractAddress, factoryAbi);
-      console.log(`Contract instance created for address ${contractAddress}`);
+      const contract = this.getContract(this.Factory, factoryAbi);
+      console.log(`Contract instance created for address ${this.Factory}`);
 
-      const res = await contract.get_artist_collections(calldata);
+      const details = contract.populate("get_artist_collections", [
+        address,
+      ]);
+      const res = await contract.get_artist_collections(details.calldata);
       console.log(
         `Transaction for method get_collection executed with hash:`,
         res
@@ -244,7 +238,7 @@ export default class StarknetService {
    * @param {Account} account - The account to sign and send the transaction
    * @returns {Promise<Object>} - Transaction result
    */
-  async executeMint(email, calldata = []) {
+  async executeMint(email, calldata = [], contractAddress) {
     const account = await this.getUserWalletInfo(email);
 
     const account0 = new Account(
@@ -255,11 +249,11 @@ export default class StarknetService {
       constants.TRANSACTION_VERSION.V3
     );
 
-    const { abi } = await this.provider.getClassAt(this.Factory);
+    const { abi } = await this.provider.getClassAt(contractAddress);
     try {
-      const contract = this.getContract(this.Factory, abi);
+      const contract = this.getContract(contractAddress, abi);
       contract.connect(account0);
-      console.log(`Contract instance created for address ${this.Factory}`);
+      console.log(`Contract instance created for address ${contractAddress}`);
 
       const myCall = contract.populate("mint_pass", calldata);
       const res = await contract.mint_pass(myCall.calldata);
