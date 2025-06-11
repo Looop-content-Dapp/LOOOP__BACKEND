@@ -1,8 +1,22 @@
-import { Provider, Contract, Account, ec, json, stark, uint256, shortString, CallData, constants, RpcProvider, hash } from 'starknet';
-import dotenv from 'dotenv';
-import { User } from '../models/user.model.js';
-import crypto from 'crypto';
-import { Wallet } from '../models/wallet.model.js';
+import { HermesClient } from "@pythnetwork/hermes-client";
+import crypto from "crypto";
+import dotenv from "dotenv";
+import {
+  Account,
+  CallData,
+  constants,
+  Contract,
+  ec,
+  hash,
+  RpcProvider,
+  shortString,
+  stark,
+  uint256,
+} from "starknet";
+import { factoryAbi } from "../Abis/factory_abi.js";
+import { usdcAbi } from "../Abis/usdc_abi.js";
+import { Wallet } from "../models/wallet.model.js";
+import { erc20 } from "../Abis/erc20abi.js";
 
 dotenv.config();
 
@@ -11,19 +25,31 @@ dotenv.config();
  */
 export default class StarknetService {
   constructor() {
-    // Use RPC provider with the endpoint from .env or fallback to a reliable public node
-    const nodeUrl = "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_6/SJrfoNSORPvz7PkhNneqhqTpnielFNxS"
+    const nodeUrl =
+      "https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_6/SJrfoNSORPvz7PkhNneqhqTpnielFNxS";
     console.log(`Initializing StarkNet provider with node URL: ${nodeUrl}`);
 
     this.provider = new RpcProvider({
       nodeUrl: nodeUrl,
-      // Add retries for better reliability
-      retries: 3,
-      // Add a reasonable timeout
-      timeout: 30000
+      retries: 1,
+      timeout: 30000,
     });
+    this.Factory =
+      "0x030255a55da8ffefb1794bfb6896c4909f67c13de2a3c8226c763d37c288c9a9";
+    this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
+    this.usdcPriceId =
+      "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
+    this.USDC_ABI = [
+      {
+        name: "balanceOf",
+        type: "function",
+        inputs: [{ name: "account", type: "felt" }],
+        outputs: [{ name: "balance", type: "Uint256" }],
+        stateMutability: "view",
+      },
+    ];
   }
-//https://starknet-sepolia.public.blastapi.io
+
   /**
    * Initialize a contract instance
    * @param {string} contractAddress - The contract address
@@ -44,42 +70,54 @@ export default class StarknetService {
     return new Account(this.provider, accountAddress, privateKey);
   }
 
+  stringToByteArray(str) {
+    // This will split the string into 31-byte chunks and convert each to a felt
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(str);
+    const felts = [];
+    for (let i = 0; i < bytes.length; i += 31) {
+      const chunk = bytes.slice(i, i + 31);
+      let felt = 0n;
+      for (let j = 0; j < chunk.length; j++) {
+        felt = (felt << 8n) + BigInt(chunk[j]);
+      }
+      felts.push("0x" + felt.toString(16));
+    }
+    return {
+      data: felts,
+      pending_word: "0",
+      pending_word_len: "0",
+    };
+  }
 
   /**
-   * Call a read-only method on a contract with enhanced details
-   * @param {string} contractAddress - The contract address
-   * @param {Object} abi - The contract ABI
+   * Call a read-only method on a contract
+   * @param {string} contractAddress - The cxontract address
    * @param {string} method - The method name
    * @param {Array} calldata - The call data
    * @returns {Promise<Object>} - The result with contract details
    */
   async callContract(contractAddress, method, calldata = []) {
     try {
-      // Get contract class information
-      const { abi: contractAbi } = await this.provider.getClassAt(contractAddress);
-
-      // Create contract instance
+      const { abi: contractAbi } = await this.provider.getClassAt(
+        contractAddress
+      );
       const contract = this.getContract(contractAddress, contractAbi);
       console.log(`Contract instance created for address ${contractAddress}`);
 
-      // Call the method
       const result = await contract.call(method, calldata);
       console.log(`Result of calling contract method ${method}:`, result);
 
-      // Get additional contract information
-      const contractInfo = {
-        address: contractAddress,
-        method: method,
-        result: result,
-        timestamp: Date.now(),
-        status: 'success'
-      };
-
       return {
-        contractInfo,
-        result
+        contractInfo: {
+          address: contractAddress,
+          method: method,
+          result: result,
+          timestamp: Date.now(),
+          status: "success",
+        },
+        result,
       };
-
     } catch (error) {
       console.error(`Error calling contract method ${method}:`, error);
       return {
@@ -87,76 +125,169 @@ export default class StarknetService {
           address: contractAddress,
           method: method,
           timestamp: Date.now(),
-          status: 'failed',
-          error: error.message
+          status: "failed",
+          error: error.message,
         },
-        result: null
+        result: null,
       };
     }
   }
 
-
-   /**
-   * Execute a transaction on a StarkNet smart contract with event handling
-   * @param {string} contractAddress - The address of the target smart contract on StarkNet
-   * @param {string} method - The name of the contract method to execute
-   * @param {Array} calldata - Array of parameters to pass to the contract method
-   * @param {Account} account - The StarkNet account that will sign and send the transaction
-   * @returns {Promise<Object>} Returns an object containing:
-   *   - transactionHash: The hash of the executed transaction
-   *   - receipt: Complete transaction receipt with execution details
-   *   - eventData: Parsed event data from the transaction (if a mint event is emitted), including:
-   *     - recipientAddress: Address of the token recipient
-   *     - tokenId: ID of the minted token (parsed from hex)
-   *     - param: Additional parameter from the event (parsed from hex)
-   *     - contractAddress: Address of the contract that emitted the event
-   *     - blockNumber: Block number where the transaction was included
-   *     - transactionHash: Hash of the transaction
-   *     - status: Execution status of the transaction
-   * @throws {Error} Throws if transaction execution fails or event parsing fails
+  /**
+   * Create a collection by retrieving the user's wallet using email
+   * @param {string} email - The user's email address
+   * @param {Array} calldata - The calldata for the transaction
+   * @returns {Promise<Object>} - Transaction result
    */
-  async executeTransaction(contractAddress, method, calldata = [], account) {
+  async executeCreateCollection(email, calldata) {
+    // Retrieve and decrypt the user's wallet
+    const account = await this.getUserWalletInfo(email);
+    console.log("account", account);
     const account0 = new Account(
-        this.provider,
-        account.address,
-        account.privateKey,
-        undefined,
-        constants.TRANSACTION_VERSION.V3
+      this.provider,
+      account.address,
+      account.privateKey,
+      undefined,
+      constants.TRANSACTION_VERSION.V3
     );
-
-    const { abi } = await this.provider.getClassAt(contractAddress);
     try {
-      console.log("input", contractAddress, abi, method, calldata, account)
-      const contract = this.getContract(contractAddress, abi);
+      const contract = this.getContract(this.Factory, factoryAbi);
       contract.connect(account0);
-      console.log(`Contract instance created for address ${contractAddress}`);
+      console.log(`Contract instance created for address ${this.Factory}`);
 
-      const myCall = contract.populate(method, calldata);
-      const res = await contract[method](myCall.calldata);
-      console.log(`Transaction for method ${method} executed with hash:`, res);
-      const receipt = await this.provider.waitForTransaction(res.transaction_hash);
-      console.log(`Transaction receipt for method ${method}:`, receipt);
+      // const processedCalldata = {};
+      // console.log("processedCalldata", processedCalldata);
 
-        // Extract relevant data from the mint event (second event in the array)
-        const mintEvent = receipt.events[1];
-        const eventData = {
-          recipientAddress: mintEvent.data[0],  // recipient address
-          tokenId: parseInt(mintEvent.data[1], 16),  // token ID as number
-          param: parseInt(mintEvent.data[2], 16),  // additional parameter as number
-          contractAddress: mintEvent.from_address,  // contract that emitted the event
-          blockNumber: receipt.block_number,
-          transactionHash: receipt.transaction_hash,
-          status: receipt.execution_status
-        };
+      const myCall = contract.populate("create_collection", [
+        account.address,
+        calldata.collectibleName, // Short string, should work
+        calldata.communitySymbol, // Short string, should work
+        calldata.collectibleName,
+      ]);
+
+      const res = await contract.create_collection(myCall.calldata);
+      console.log(
+        `Transaction for method create_collection executed with hash:`,
+        res
+      );
+      const receipt = await this.provider.waitForTransaction(
+        res.transaction_hash
+      );
+      console.log(`Transaction receipt for method create_collection:`, receipt);
+
+      const mintEvent = receipt.events[1];
+      const eventData = {
+        recipientAddress: mintEvent.data[0],
+        tokenId: parseInt(mintEvent.data[1], 16),
+        param: parseInt(mintEvent.data[2], 16),
+        contractAddress: mintEvent.from_address,
+        blockNumber: receipt.block_number,
+        transactionHash: receipt.transaction_hash,
+        status: receipt.execution_status,
+      };
 
       return {
         transactionHash: res.transaction_hash,
         receipt,
         eventData,
-        mintEvent
+        mintEvent,
       };
     } catch (error) {
-      console.error(`Error executing transaction for method ${method}:`, error);
+      console.error(
+        `Error executing transaction for method create_collection:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  async getCollectionDetails(contractAddress) {
+    const calldata = [
+      {
+        pauser: ContractAddress,
+        name: ByteArray,
+        symbol: ByteArray,
+        collection_details: ByteArray,
+      },
+    ];
+    try {
+      const contract = this.getContract(contractAddress, factoryAbi);
+      console.log(`Contract instance created for address ${contractAddress}`);
+
+      const res = await contract.get_artist_collections(calldata);
+      console.log(
+        `Transaction for method get_collection executed with hash:`,
+        res
+      );
+
+      const eventData = {
+        collection: res,
+      };
+      console.log("eventData", eventData);
+
+      return {
+        eventData,
+      };
+    } catch (error) {
+      console.error(
+        `Error executing transaction for method get_collection:`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Execute a transaction on a StarkNet smart contract
+   * @param {string} method - The method name
+   * @param {Array} calldata - Array of parameters
+   * @param {Account} account - The account to sign and send the transaction
+   * @returns {Promise<Object>} - Transaction result
+   */
+  async executeMint(email, calldata = []) {
+    const account = await this.getUserWalletInfo(email);
+
+    const account0 = new Account(
+      this.provider,
+      account.address,
+      account.privateKey,
+      undefined,
+      constants.TRANSACTION_VERSION.V3
+    );
+
+    const { abi } = await this.provider.getClassAt(this.Factory);
+    try {
+      const contract = this.getContract(this.Factory, abi);
+      contract.connect(account0);
+      console.log(`Contract instance created for address ${this.Factory}`);
+
+      const myCall = contract.populate("mint_pass", calldata);
+      const res = await contract.mint_pass(myCall.calldata);
+      console.log(`Transaction for method mint_pass executed with hash:`, res);
+      const receipt = await this.provider.waitForTransaction(
+        res.transaction_hash
+      );
+      console.log(`Transaction receipt for method mint_pass:`, receipt);
+
+      const mintEvent = receipt.events[1];
+      const eventData = {
+        recipientAddress: mintEvent.data[0],
+        tokenId: parseInt(mintEvent.data[1], 16),
+        param: parseInt(mintEvent.data[2], 16),
+        contractAddress: mintEvent.from_address,
+        blockNumber: receipt.block_number,
+        transactionHash: receipt.transaction_hash,
+        status: receipt.execution_status,
+      };
+
+      return {
+        transactionHash: res.transaction_hash,
+        receipt,
+        eventData,
+        mintEvent,
+      };
+    } catch (error) {
+      console.error(`Error executing transaction for method mint_pass:`, error);
       throw error;
     }
   }
@@ -212,35 +343,39 @@ export default class StarknetService {
    */
   generateKeyPair() {
     try {
-      // // Method 1: For newer versions of starknet.js
-      // if (typeof ec.starkCurve !== 'undefined') {
-      //   const privateKey = `0x${ec.starkCurve.randomPrivateKey().toString('hex')}`;
-      //   const publicKey = ec.starkCurve.getStarkKey(privateKey);
-      //   return { privateKey, publicKey };
-      // }
-      // Method 2: For older versions using getKeyPair
-      if (typeof ec.getKeyPair === 'function') {
+      if (typeof ec.getKeyPair === "function") {
         const privateKey = stark.randomAddress();
         const keyPair = ec.getKeyPair(privateKey);
         const publicKey = ec.getStarkKey(keyPair);
         return { privateKey, publicKey };
       }
-
-      // Add fallback method if neither condition is met
-      throw new Error('No compatible method found to generate key pair');
+      throw new Error("No compatible method found to generate key pair");
     } catch (error) {
-      console.error('Error generating key pair:', error);
-      throw error; // Re-throw the error to be handled by the caller
+      console.error("Error generating key pair:", error);
+      throw error;
     }
   }
 
   /**
-   * Convert a string to felt (field element)
+   * Convert a string to felt
    * @param {string} str - The string to convert
    * @returns {string} - The felt representation
    */
   stringToFelt(str) {
-    return shortString.encodeShortString(str);
+    const size = Math.ceil(str.length / 31);
+    const arr = Array(size);
+
+    let offset = 0;
+    for (let i = 0; i < size; i++) {
+      const substr = str.substring(offset, offset + 31).split("");
+      const ss = substr.reduce(
+        (memo, c) => memo + c.charCodeAt(0).toString(16),
+        ""
+      );
+      arr[i] = BigInt("0x" + ss);
+      offset += 31;
+    }
+    return arr;
   }
 
   /**
@@ -262,17 +397,15 @@ export default class StarknetService {
   }
 
   /**
-   * Create a Starknet wallet for a user with encrypted storage
+   * Create a Starknet wallet for a user
    * @param {string} email - The user's email address
    * @returns {Promise<Object>} - The wallet information
    */
   async createUserWallet(email) {
     try {
-      // Check if user already has a wallet
       let wallet = await Wallet.findOne({ email });
 
       if (wallet?.starknet?.encryptedPrivateKey) {
-        // Return existing wallet if it has encryption data
         const decryptedPrivateKey = this.decryptPrivateKey(
           wallet.starknet.encryptedPrivateKey,
           wallet.starknet.iv,
@@ -281,33 +414,32 @@ export default class StarknetService {
         return {
           address: wallet.starknet.address,
           privateKey: decryptedPrivateKey,
-          isDeployed: wallet.starknet.isDeployed || false
+          isDeployed: wallet.starknet.isDeployed || false,
         };
       }
 
-      // Using Open Zeppelin account contract v0.8.1
-      const OZaccountClassHash = '0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f';
-
-      // Generate public and private key pair
+      const OZaccountClassHash =
+        "0x061dac032f228abef9c6626f995015233097ae253a7f72d68552db02f2971b8f";
       const privateKey = stark.randomAddress();
-      console.log('New OZ account:\nprivateKey=', privateKey);
+      console.log("New OZ account:\nprivateKey=", privateKey);
       const starkKeyPub = ec.starkCurve.getStarkKey(privateKey);
-      console.log('publicKey=', starkKeyPub);
+      console.log("publicKey=", starkKeyPub);
 
-      // Calculate future address of the account
       const constructorCallData = CallData.compile({ publicKey: starkKeyPub });
       const contractAddress = hash.calculateContractAddressFromHash(
         starkKeyPub,
         OZaccountClassHash,
         constructorCallData,
-        0 // Address salt is 0 for OZ accounts
+        0
       );
-      console.log('Precalculated account address=', contractAddress);
+      console.log("Precalculated account address=", contractAddress);
 
-      // Encrypt private key
-      const { encrypted: encryptedPrivateKey, iv, salt } = this.encryptPrivateKey(privateKey);
+      const {
+        encrypted: encryptedPrivateKey,
+        iv,
+        salt,
+      } = this.encryptPrivateKey(privateKey);
 
-      // Create or update wallet
       if (!wallet) {
         wallet = new Wallet({ email });
       }
@@ -320,48 +452,57 @@ export default class StarknetService {
         isDeployed: false,
         constructorCalldata: constructorCallData,
         addressSalt: starkKeyPub,
-        classHash: OZaccountClassHash
+        classHash: OZaccountClassHash,
       };
 
       await wallet.save();
 
-      console.log('Starknet wallet saved successfully:', {
+      console.log("Starknet wallet saved successfully:", {
         email,
         address: contractAddress,
         hasEncryptedKey: !!encryptedPrivateKey,
         hasIv: !!iv,
-        hasSalt: !!salt
+        hasSalt: !!salt,
       });
 
       return {
         address: contractAddress,
         privateKey,
-        isDeployed: false
+        isDeployed: false,
       };
     } catch (error) {
-      console.error('Error creating Starknet wallet for user:', error);
+      console.error("Error creating Starknet wallet for user:", error);
       throw error;
     }
   }
 
   /**
-   * Deploy a previously created Starknet wallet
+   * Deploy a Starknet wallet and fund it
    * @param {string} email - The user's email
-   * @returns {Promise<Object>} - The deployment result
+   * @param {string} funderAddress - Address to fund the wallet
+   * @param {string} funderPrivateKey - Private key of the funder
+   * @param {number} amount - Amount to fund in wei
+   * @returns {Promise<Object>} - The deployment and funding result
    */
-  async deployUserWallet(email) {
+  async deployUserWallet(
+    email,
+    funderAddress,
+    funderPrivateKey,
+    amount = 10000000000000000000
+  ) {
     try {
       const wallet = await Wallet.findOne({ email });
       if (!wallet?.starknet) {
-        throw new Error('No Starknet wallet found for user');
+        throw new Error("No Starknet wallet found for user");
       }
 
       if (wallet.starknet.isDeployed) {
         return {
           address: wallet.starknet.address,
-          message: 'Wallet already deployed'
+          message: "Wallet already deployed",
         };
       }
+
       console.log("Wallet data:", wallet.starknet);
 
       // Decrypt the private key
@@ -372,183 +513,121 @@ export default class StarknetService {
       );
       console.log("Decrypted private key successfully");
 
-      // Verify provider connection before proceeding
-      try {
-        const chainId = await this.provider.getChainId();
-        console.log(`Connected to StarkNet network with chain ID: ${chainId}`);
-      } catch (networkError) {
-        console.error('StarkNet provider connection failed:', networkError);
-        throw new Error(`Failed to connect to StarkNet network: ${networkError.message}. Please check your network connection and RPC endpoint.`);
-      }
+      // Verify provider connection
+      const chainId = await this.provider.getChainId();
+      console.log(`Connected to StarkNet network with chain ID: ${chainId}`);
 
-      // Create a prefunded account to pay for deployment
-      // In production, this should be a secure account with funds
-      // For testing, we'll use a predefined account with funds
-      const prefundedAccount = new Account(
+      // Fund the wallet before deployment
+      const fundingResult = await this.fundUserWallet(
+        wallet.starknet.address,
+        funderAddress,
+        funderPrivateKey,
+        amount
+      );
+      console.log("Wallet funding result:", fundingResult);
+
+      // Create account instance for deployment
+      const accountToBeDeployed = new Account(
         this.provider,
-        process.env.STARKNET_PREFUNDED_ADDRESS,
-        process.env.STARKNET_PREFUNDED_PRIVATE_KEY,
+        wallet.starknet.address,
+        privateKey,
         undefined,
         constants.TRANSACTION_VERSION.V3
       );
 
-      // Verify the prefunded account has funds
-      try {
-        // Use call method to get balance from ETH contract
-        const ethContractAddress = '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7'; // ETH contract on StarkNet
-        const { abi } = await this.provider.getClassAt(ethContractAddress);
-        const ethContract = new Contract(abi, ethContractAddress, this.provider);
+      // Prepare deployment payload
+      const starkKeyPub = ec.starkCurve.getStarkKey(privateKey);
+      const constructorCalldata = CallData.compile({ publicKey: starkKeyPub });
+      const deployAccountPayload = {
+        classHash: wallet.starknet.classHash,
+        constructorCalldata: constructorCalldata,
+        addressSalt: starkKeyPub,
+        contractAddress: wallet.starknet.address,
+      };
+      console.log("Deployment payload:", deployAccountPayload);
 
-        try {
-          const result = await ethContract.call('balanceOf', [process.env.STARKNET_PREFUNDED_ADDRESS]);
-          console.log(`Prefunded account balance result:`, result);
+      // Deploy the account
+      const { transaction_hash, contract_address } =
+        await accountToBeDeployed.deployAccount(deployAccountPayload);
+      console.log("Account deployment transaction hash:", transaction_hash);
 
-          if (result && result.balance && result.balance.low === 0n) {
-            console.warn('Warning: Prefunded account may have zero balance. Deployment might fail.');
-          }
-        } catch (innerError) {
-          console.error('Error calling balanceOf:', innerError);
-        }
-      } catch (balanceError) {
-        console.error('Failed to check prefunded account balance:', balanceError);
-        // Continue anyway as this might not be critical
-      }
-
-      // Deploy the account using the Universal Deployer Contract (UDC)
-      let deploymentResult;
-      try {
-        console.log('Starting account deployment using UDC approach');
-
-        // Get the public key from constructor calldata
-        const publicKey = wallet.starknet.constructorCalldata[0];
-
-        // Replace the public key formatting section with:
-        let formattedPublicKey = publicKey;
-        if (typeof publicKey === 'string') {
-          formattedPublicKey = publicKey.startsWith('0x') ? publicKey : `0x${publicKey}`;
-        } else {
-          formattedPublicKey = `0x${BigInt(publicKey).toString(16).padStart(64, '0')}`;
-        }
-
-        console.log('Formatted public key for constructor calldata:', formattedPublicKey);
-
-        // Use the UDC to deploy the contract
-        // The UDC address is the same on all StarkNet networks
-        const UDC_ADDRESS = '0x041a78e741e5af2fec34b695679bc6891742439f7afb8484ecd77666661ad02bf';
-
-        // Prepare the deployment transaction
-        const deployTx = {
-          contractAddress: UDC_ADDRESS,
-          entrypoint: 'deployContract',
-          calldata: [
-            wallet.starknet.classHash,
-            wallet.starknet.addressSalt,
-            '0x1',
-            formattedPublicKey
-          ],
-          maxFee: '0x1000000000000000',
-          // Add these resource bounds
-          resourceBounds: {
-            maxFee: '0x1000000000000000',
-            maxPricePerUnit: '0x1000000000000000'
-          }
-        };
-
-        console.log('Using UDC for deployment with payload:', deployTx);
-
-        // Execute the deployment transaction
-        const { transaction_hash } = await prefundedAccount.execute(deployTx);
-        console.log('Account deployment transaction hash via UDC:', transaction_hash);
-
-        // Set the deployment result
-        deploymentResult = {
-          transaction_hash,
-          contract_address: wallet.starknet.address
-        };
-
-        // Wait for transaction to be confirmed
-        console.log('Waiting for deployment transaction to be confirmed...');
-        const txReceipt = await this.provider.waitForTransaction(transaction_hash, {
+      // Wait for transaction confirmation
+      const txReceipt = await this.provider.waitForTransaction(
+        transaction_hash,
+        {
           retryInterval: 2000,
-          maxRetries: 15
-        });
-        console.log('Deployment transaction receipt:', txReceipt);
+          maxRetries: 15,
+        }
+      );
+      console.log("Deployment transaction receipt:", txReceipt);
 
-        // Update wallet deployment status
-        wallet.starknet.isDeployed = true;
-        await wallet.save();
+      // Update wallet deployment status
+      wallet.starknet.isDeployed = true;
+      await wallet.save();
 
-        return {
-          address: wallet.starknet.address,
-          transactionHash: transaction_hash,
-          status: txReceipt?.status || 'ACCEPTED_ON_L2',
-          message: 'Wallet deployment completed successfully'
-        };
-      } catch (deployError) {
-        console.error('Account deployment failed:', deployError);
+      return {
+        address: contract_address || wallet.starknet.address,
+        transactionHash: transaction_hash,
+        fundingTransactionHash: fundingResult.transactionHash,
+        status: txReceipt?.status || "ACCEPTED_ON_L2",
+        message: "Wallet deployed and funded successfully",
+      };
+    } catch (error) {
+      console.error("Error deploying and funding Starknet wallet:", error);
+      throw new Error(`Failed to deploy and fund wallet: ${error.message}`);
+    }
+  }
 
-        // Try alternative approach with direct deployAccount
-        try {
-          console.log('Trying alternative deployment method...');
-
-          // Create a temporary account instance for the wallet being deployed
-          const accountToBeDeployed = new Account(
+  /**
+   * Fund a Starknet wallet with ETH
+   * @param {string} recipientAddress - The wallet address to fund
+   * @param {string} funderAddress - The funder's address
+   * @param {string} funderPrivateKey - The funder's private key
+   * @param {number} amount - Amount to transfer in wei
+   * @returns {Promise<Object>} - The funding transaction result
+   */
+  async fundUserWallet(
+    recipientAddress,
+     funderAddress = "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4",
+    funderPrivateKey = "0x05d67e95f8d5913249452a410db389110c390a36eb0e2ecb092c670ba945b8b9",
+    amount = 10000000000000000000
+  ) {
+    try {
+        const funderAccount = new Account(
             this.provider,
-            wallet.starknet.address,
-            privateKey,
+            funderAddress,
+            funderPrivateKey,
             undefined,
             constants.TRANSACTION_VERSION.V3
           );
+      const ethContractAddress =
+        "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
+      const ethContract = this.getContract(ethContractAddress, erc20);
+      ethContract.connect(funderAccount)
 
-          // Get the public key from the wallet
-          const starkKeyPub = ec.starkCurve.getStarkKey(privateKey);
-          console.log('Derived public key from private key:', starkKeyPub);
+      // Prepare transfer call
+      const transferCall = ethContract.populate("transfer", [
+        recipientAddress,
+        amount
+      ]);
 
-          // Prepare constructor calldata with the correct public key
-          const constructorCalldata = CallData.compile({ publicKey: starkKeyPub });
-          console.log('Compiled constructor calldata:', constructorCalldata);
+      // Execute transfer
+      const res = await ethContract.transfer(transferCall.calldata);
 
-          // Prepare the deployment payload
-          const deployAccountPayload = {
-            classHash: wallet.starknet.classHash,
-            constructorCalldata: constructorCalldata,
-            addressSalt: starkKeyPub,
-            contractAddress: wallet.starknet.address
-          };
+      console.log("Funding transaction hash:", res);
 
-          console.log('Using direct deploy account payload:', deployAccountPayload);
+      // Wait for transaction confirmation
+      const receipt = await this.provider.waitForTransaction(res.transaction_hash);
+      console.log("Funding transaction receipt:", receipt);
 
-          // Deploy the account
-          const { transaction_hash, contract_address } = await accountToBeDeployed.deployAccount(deployAccountPayload);
-          console.log('Account deployment transaction hash:', transaction_hash);
-
-          // Wait for transaction to be confirmed
-          const txReceipt = await this.provider.waitForTransaction(transaction_hash, {
-            retryInterval: 2000,
-            maxRetries: 15
-          });
-          console.log('Deployment transaction receipt:', txReceipt);
-
-          // Update wallet deployment status
-          wallet.starknet.isDeployed = true;
-          await wallet.save();
-
-          return {
-            address: contract_address || wallet.starknet.address,
-            transactionHash: transaction_hash,
-            status: txReceipt?.status || 'ACCEPTED_ON_L2',
-            message: 'Wallet deployment completed successfully'
-          };
-        } catch (alternativeError) {
-          console.error('Alternative deployment method also failed:', alternativeError);
-
-          // If both methods fail, throw an error
-          throw new Error(`Failed to deploy account: ${deployError.message}. Alternative method also failed: ${alternativeError.message}. This could be due to network issues, insufficient funds, or incompatible RPC endpoint.`);
-        }
-      }
+      return {
+        transactionHash: res.transaction_hash,
+        status: receipt?.status || "ACCEPTED_ON_L2",
+        amount: amount,
+      };
     } catch (error) {
-      console.error('Error deploying Starknet wallet:', error);
-      throw error;
+      console.error("Error funding wallet:", error);
+      throw new Error(`Failed to fund wallet: ${error.message}`);
     }
   }
 
@@ -560,21 +639,21 @@ export default class StarknetService {
   encryptPrivateKey(privateKey) {
     const salt = crypto.randomBytes(16);
     const key = crypto.pbkdf2Sync(
-      process.env.SERVER_SECRET || 'your-secret-key',
+      process.env.SERVER_SECRET || "your-secret-key",
       salt,
       100000,
       32,
-      'sha256'
+      "sha256"
     );
     const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
-    let encrypted = cipher.update(privateKey, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
+    const cipher = crypto.createCipheriv("aes-256-cbc", key, iv);
+    let encrypted = cipher.update(privateKey, "utf8", "hex");
+    encrypted += cipher.final("hex");
 
     return {
       encrypted,
-      iv: iv.toString('hex'),
-      salt: salt.toString('hex')
+      iv: iv.toString("hex"),
+      salt: salt.toString("hex"),
     };
   }
 
@@ -586,46 +665,39 @@ export default class StarknetService {
    * @returns {string} - The decrypted private key
    */
   decryptPrivateKey(encrypted, iv, salt) {
-    // Add validation for required parameters
     if (!encrypted || !iv || !salt) {
-      throw new Error('Missing required parameters for decryption');
+      throw new Error("Missing required parameters for decryption");
     }
 
-    const saltBuffer = Buffer.from(salt, 'hex');
-    const ivBuffer = Buffer.from(iv, 'hex');
+    const saltBuffer = Buffer.from(salt, "hex");
+    const ivBuffer = Buffer.from(iv, "hex");
     const key = crypto.pbkdf2Sync(
-      process.env.SERVER_SECRET || 'your-secret-key',
+      process.env.SERVER_SECRET || "your-secret-key",
       saltBuffer,
       100000,
       32,
-      'sha256'
+      "sha256"
     );
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, ivBuffer);
-    let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
+    const decipher = crypto.createDecipheriv("aes-256-cbc", key, ivBuffer);
+    let decrypted = decipher.update(encrypted, "hex", "utf8");
+    decrypted += decipher.final("utf8");
     return decrypted;
   }
 
   /**
-   * Get comprehensive transaction details by hashopen
+   * Get transaction details
    * @param {string} txHash - The transaction hash
    * @returns {Promise<Object>} - Complete transaction details
    */
   async getTransactionDetails(txHash) {
     try {
-      // Get transaction data
       const transaction = await this.provider.getTransaction(txHash);
-
-      // Get receipt data
       const receipt = await this.provider.getTransactionReceipt(txHash);
-
-      // Get block information if transaction is included in a block
       let blockInfo = null;
       if (transaction.block_number) {
         blockInfo = await this.provider.getBlock(transaction.block_number);
       }
 
-      // Combine all information into a comprehensive response
       return {
         transaction,
         receipt,
@@ -643,36 +715,41 @@ export default class StarknetService {
   }
 
   /**
-   * Retrieve and decrypt user's wallet information
+   * Retrieve user's wallet information
    * @param {string} email - The user's email address
-   * @returns {Promise<Object>} - The wallet information including address and decrypted private key
+   * @returns {Promise<Object>} - The wallet information
    */
   async getUserWalletInfo(email) {
     try {
       const wallet = await Wallet.findOne({ email });
-      console.log('Wallet found:', !!wallet);
-      console.log('Wallet starknet data:', wallet?.starknet);
+      console.log("Wallet found:", !!wallet);
+      console.log("Wallet starknet data:", wallet?.starknet);
 
       if (!wallet) {
-        throw new Error('No wallet found for user');
+        throw new Error("No wallet found for user");
       }
 
       if (!wallet?.starknet) {
-        throw new Error('No Starknet wallet found for user');
+        throw new Error("No Starknet wallet found for user");
       }
 
       const starknetWallet = wallet.starknet;
-      console.log('Starknet wallet data:', {
+      console.log("Starknet wallet data:", {
         hasAddress: !!starknetWallet.address,
         hasEncryptedPrivateKey: !!starknetWallet.encryptedPrivateKey,
         hasIv: !!starknetWallet.iv,
         hasSalt: !!starknetWallet.salt,
-        isDeployed: starknetWallet.isDeployed
+        isDeployed: starknetWallet.isDeployed,
       });
 
-      // Check if encryption data exists
-      if (!starknetWallet.encryptedPrivateKey || !starknetWallet.iv || !starknetWallet.salt) {
-        throw new Error('Wallet encryption data is missing. Please recreate the wallet.');
+      if (
+        !starknetWallet.encryptedPrivateKey ||
+        !starknetWallet.iv ||
+        !starknetWallet.salt
+      ) {
+        throw new Error(
+          "Wallet encryption data is missing. Please recreate the wallet."
+        );
       }
 
       const decryptedPrivateKey = this.decryptPrivateKey(
@@ -684,11 +761,58 @@ export default class StarknetService {
       return {
         address: starknetWallet.address,
         privateKey: decryptedPrivateKey,
-        isDeployed: starknetWallet.isDeployed || false
+        isDeployed: starknetWallet.isDeployed || false,
       };
     } catch (error) {
-      console.error('Error retrieving wallet information:', error);
+      console.error("Error retrieving wallet information:", error);
       throw error;
+    }
+  }
+
+  async getStarkNetUSDCBalance(starknetAddress, usdcAddress = null) {
+    try {
+      const USDC_ADDRESS =
+        usdcAddress ||
+        "0x0475e85c9f471885c1624c297862df9aaffa82ad55c7d1fde1ac892232445e06";
+      const contract = new Contract(usdcAbi, USDC_ADDRESS, this.provider);
+      const response = await contract.balance_of(starknetAddress);
+      console.log("response", response);
+
+      const balance = response;
+      if (!this.parseUint256(balance)) {
+        return {
+          address: starknetAddress,
+          balance: "0",
+          balanceFloat: 0,
+          usdcPrice: 1,
+          usdValue: 0,
+        };
+      }
+      const parsedBalance = this.parseUint256(balance);
+      console.log("parsedBalance", parsedBalance);
+      const balanceFloat = Number(this.parseUint256(balance)) / 1e6;
+      console.log("balanceFloat", balanceFloat);
+
+      // Get USDC price from Pyth
+      const priceUpdate = await this.hermesClient.getLatestPriceUpdates([
+        this.usdcPriceId,
+      ]);
+      const pythPrice = priceUpdate.parsed[0]?.price;
+      const usdcPrice = pythPrice
+        ? Number(pythPrice.price) / Math.pow(10, Math.abs(pythPrice.expo))
+        : 1;
+
+      return {
+        address: starknetAddress,
+        balance: balance.toString(),
+        balanceFloat,
+        usdcPrice,
+        usdValue: balanceFloat * usdcPrice,
+        response,
+      };
+    } catch (error) {
+      console.error("Error fetching StarkNet USDC balance:", error);
+      throw new Error("Failed to fetch StarkNet USDC balance");
     }
   }
 }

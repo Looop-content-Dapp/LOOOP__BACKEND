@@ -1,7 +1,6 @@
 import { starknetService } from '../services/starknet.service.js';
 import dotenv from 'dotenv';
-import { Account, constants, Contract, RpcProvider } from 'starknet';
-import fs from 'fs';
+import { Account, constants, } from 'starknet';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
@@ -25,7 +24,7 @@ const connectDB = async () => {
 };
 
 /**
- * Test StarkNet wallet creation and deployment
+ * Test StarkNet wallet creation, funding, and deployment
  */
 const testStarknetWallet = async () => {
   try {
@@ -40,28 +39,31 @@ const testStarknetWallet = async () => {
     console.log('Address:', wallet.address);
     console.log('Is Deployed:', wallet.isDeployed);
 
-    // Step 2: Fund the wallet (for testnet)
-    console.log('\n--- Step 2: Funding the wallet ---');
-    console.log(`To continue, you need to fund this wallet address: ${wallet.address}`);
-    console.log('You can use the Sepolia faucet: https://starknet-faucet.vercel.app/');
-    console.log('After funding, press Enter to continue...');
-
-    // Wait for user to fund the wallet
-    await new Promise(resolve => {
-      process.stdin.once('data', () => {
-        resolve();
-      });
-    });
-
-    // Step 3: Deploy the wallet
-    console.log('\n--- Step 3: Deploying wallet ---');
+    // Step 2: Deploy and fund the wallet
+    console.log('\n--- Step 2: Deploying and funding wallet ---');
     try {
-      const deploymentResult = await starknetService.deployUserWallet(testEmail);
-      console.log('Deployment result:', deploymentResult);
+      // Provide funder address and private key from environment variables
+      const funderAddress = "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4";
+      const funderPrivateKey = "0x05d67e95f8d5913249452a410db389110c390a36eb0e2ecb092c670ba945b8b9";
+      console.log('Funder Address:', funderAddress);
+      console.log('Funder Private Key:', funderPrivateKey);
+      const amount = 10000000000000000000; // 0.1 ETH in wei
 
-      // Step 4: Test a simple transaction (optional)
+      if (!funderAddress || !funderPrivateKey) {
+        throw new Error('Funder address or private key not provided in environment variables');
+      }
+
+      const deploymentResult = await starknetService.deployUserWallet(
+        testEmail,
+        funderAddress,
+        funderPrivateKey,
+        amount
+      );
+      console.log('Deployment and funding result:', deploymentResult);
+
+      // Step 3: Test a simple transaction (optional)
       if (deploymentResult.status === 'ACCEPTED_ON_L2' || deploymentResult.status === 'ACCEPTED_ON_L1') {
-        console.log('\n--- Step 4: Testing a simple transaction ---');
+        console.log('\n--- Step 3: Testing a simple transaction ---');
 
         // Get wallet info
         const walletInfo = await starknetService.getUserWalletInfo(testEmail);
@@ -75,7 +77,7 @@ const testStarknetWallet = async () => {
           constants.TRANSACTION_VERSION.V3
         );
 
-        // Execute a simple transaction (transfer a small amount of ETH to the prefunded account)
+        // Execute a simple transaction (transfer a small amount of ETH back to the funder)
         const transferAmount = 1000n; // Very small amount
 
         // Execute transfer
@@ -83,7 +85,7 @@ const testStarknetWallet = async () => {
           contractAddress: '0x049d36570d4e46f48e99674bd3fcc84644ddd6b96f7c741b1562b82f9e004dc7', // ETH contract on StarkNet
           entrypoint: 'transfer',
           calldata: [
-            process.env.STARKNET_PREFUNDED_ADDRESS, // To address
+            funderAddress, // To address
             transferAmount.toString(), // Amount low
             '0' // Amount high
           ]
@@ -97,7 +99,7 @@ const testStarknetWallet = async () => {
       }
 
     } catch (error) {
-      console.error('Deployment failed:', error);
+      console.error('Deployment and funding failed:', error);
     }
 
   } catch (error) {
