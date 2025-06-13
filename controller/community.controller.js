@@ -1,4 +1,4 @@
-import { Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import validator from "validator";
 
 import crypto from "crypto";
@@ -264,17 +264,22 @@ export const createCommunity = async (req, res) => {
         try {
           console.log(artist.email, "this is the email");
 
-      const collection = await starknetService.executeCreateCollection(artist.email, {
+          const collection = await starknetService.executeCreateCollection(
+            artist.email,
+            {
               collectibleName,
               communitySymbol,
               collectibleName,
-            });
+            }
+          );
 
-       await starknetService.getCollectionDetails(
-          user.wallets.starknet.address
-        );
-        console.log("details", details);
+          const collectionDetails = await starknetService.getCollectionDetails(
+            user.wallets.starknet.address
+          );
 
+          console.log(collectionDetails, "collectionDetails");
+
+          const firstCollection = collectionDetails.data.collections[0];
           const validateImageType = isValidImageType(collectibleType);
 
           if (validateImageType) {
@@ -282,7 +287,7 @@ export const createCommunity = async (req, res) => {
             const session = await mongoose.startSession();
             session.startTransaction();
             try {
-            //   Create community
+              //   Create community
               const community = new Community({
                 communityName,
                 description,
@@ -292,35 +297,13 @@ export const createCommunity = async (req, res) => {
                   collectibleDescription,
                   collectibleImage,
                   collectibleType,
-                  contractAddress: collection.eventData.contractAddress,
-                  communitySymbol: "StarBoy",
-                  transactionHash: "0x7513d791846bcf5d724fac0208ecbaaca816f67dc73b38d685d0b71c9f3d034",
+                  contractAddress: firstCollection.address,
+                  communitySymbol: communitySymbol,
+                  transactionHash: collection.eventData.transactionHash,
                 },
                 createdBy: artistId,
               });
               await community.save({ session });
-              // Create default subscription plan for the artist
-              const defaultPlan = new ArtistSubscriptionPlan({
-                artistId,
-                name: `${communityName} Subscription`,
-                description: `Monthly subscription to ${communityName} community`,
-                price: {
-                  amount: 9.99, // Default price
-                  currency: 'USD'
-                },
-                duration: 30, // 30 days
-                features: [
-                  'Access to exclusive content',
-                  'Community membership',
-                  'Early access to releases'
-                ],
-                splitPercentage: {
-                  artist: 85,
-                  platform: 15
-                },
-                status: 'active'
-              });
-              await defaultPlan.save({ session });
               // Commit transaction
               await session.commitTransaction();
               // Populate community data for response
@@ -330,11 +313,10 @@ export const createCommunity = async (req, res) => {
               );
               return res.status(200).json({
                 status: "success",
-                message: "Community created successfully with subscription plan",
+                message: "Community created successfully",
                 data: {
                   community,
-                  subscriptionPlan: defaultPlan
-                }
+                },
               });
             } catch (error) {
               // Abort transaction on error
@@ -430,7 +412,7 @@ export const deleteCommunity = async (req, res) => {
 
 export const joinCommunity = async (req, res) => {
   try {
-    const { userId, communityId, type, paymentMethod = "card" } = req.body;
+    const { userId, communityId, type, paymentMethod = "wallet" } = req.body;
 
     // Validate required fields
     if (!userId || !communityId || !type) {
@@ -519,16 +501,10 @@ export const joinCommunity = async (req, res) => {
         "community.tribePass.contractAddress"
       );
 
-      const account = {
-        address:
-          "0x07e3a9c87437b85faaf4b4baba09b779c4b2850c86470405866991b8cfaf220f",
-        privateKey:
-          "0x020822010d5a763023da167f93e6c745abdf84389c8331274ad0e3e3e002e911",
-      };
-
-      const mint_pass = await starknetService.executeMint(user.email, [
-        "0x07e3a9c87437b85faaf4b4baba09b779c4b2850c86470405866991b8cfaf220f",
-      ]);
+      const mint_pass = await starknetService.executeMint(
+        user.email,
+        community.tribePass.contractAddress
+      );
 
       console.log(mint_pass, "whiteList");
 

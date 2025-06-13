@@ -1,79 +1,76 @@
+import { Types } from "mongoose";
+import validator from "validator";
 import { Artist } from "../models/artist.model.js";
+import { ArtistClaim } from "../models/artistClaim.model.js";
+import { Community } from "../models/community.model.js";
+import { CommunityMember } from "../models/communitymembers.model.js";
+import { FaveArtist } from "../models/faveartist.model.js";
+import { Follow } from "../models/followers.model.js";
+import { Genre } from "../models/genre.model.js";
+import { Post } from "../models/post.model.js";
+import { Release } from "../models/releases.model.js";
 import { Social } from "../models/socials.model.js";
 import { Subscriber } from "../models/subcriber.model.js";
-import { Follow } from "../models/followers.model.js";
-import { Post } from "../models/post.model.js";
-import validator from "validator";
-import { submitClaim } from "./artistClaim.controller.js";
 import { User } from "../models/user.model.js";
-import { Release } from "../models/releases.model.js";
-import { get, Types } from "mongoose";
-import { Genre } from "../models/genre.model.js";
-import { Community } from "../models/community.model.js";
-import { FaveArtist } from "../models/faveartist.model.js";
-import { CommunityMember } from "../models/communitymembers.model.js";
-import {
-  createArtistSchema,
-  signContractSchema,
-} from "../validations_schemas/artist.validation.js";
-import {sendEmail} from "../script.js";
+import { sendEmail } from "../script.js";
+import { createArtistSchema } from "../validations_schemas/artist.validation.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.js";
-import { ArtistClaim } from "../models/artistClaim.model.js";
+import { submitClaim } from "./artistClaim.controller.js";
 
 const abstraxionAuth = new AbstraxionAuth();
 
 export const getAllArtists = async (req, res) => {
-    try {
-      const Artists = await Artist.find({});
-      const populatedArtists = await Promise.all(
-        Artists.map(async (artist) => {
-          const genres = await Genre.find({ _id: { $in: artist.genres } });
-          const genreNames = genres.map((genre) => genre.name);
+  try {
+    const Artists = await Artist.find({});
+    const populatedArtists = await Promise.all(
+      Artists.map(async (artist) => {
+        const genres = await Genre.find({ _id: { $in: artist.genres } });
+        const genreNames = genres.map((genre) => genre.name);
 
-          const community = await Community.findOne({ createdBy: artist._id });
+        const community = await Community.findOne({ createdBy: artist._id });
 
-          const releases = await Release.find(
-            { artistId: artist._id },
-            { __v: 0 }
-          );
+        const releases = await Release.find(
+          { artistId: artist._id },
+          { __v: 0 }
+        );
 
-          const faveArtists = await FaveArtist.find({ artistId: artist._id });
-          const followers = faveArtists.map((faveArtist) => faveArtist.userId);
+        const faveArtists = await FaveArtist.find({ artistId: artist._id });
+        const followers = faveArtists.map((faveArtist) => faveArtist.userId);
 
-          const getCommunityMembers = await CommunityMember.find({
-            communityId: community?._id,
-          });
+        const getCommunityMembers = await CommunityMember.find({
+          communityId: community?._id,
+        });
 
-          const communityMembers = getCommunityMembers.map((g) => g.userId);
+        const communityMembers = getCommunityMembers.map((g) => g.userId);
 
-          return {
-            ...artist._doc,
-            genres: genreNames,
-            releases,
-            followers,
-            community: community?._id,
-            communityMembers: communityMembers,
-          };
-        })
-      );
+        return {
+          ...artist._doc,
+          genres: genreNames,
+          releases,
+          followers,
+          community: community?._id,
+          communityMembers: communityMembers,
+        };
+      })
+    );
 
-      // Shuffle the populated artists array
-      const shuffledArtists = populatedArtists
-        .map(value => ({ value, sort: Math.random() }))
-        .sort((a, b) => a.sort - b.sort)
-        .map(({ value }) => value);
+    // Shuffle the populated artists array
+    const shuffledArtists = populatedArtists
+      .map((value) => ({ value, sort: Math.random() }))
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value }) => value);
 
-      return res.status(200).json({
-        status: "success",
-        message: "Successfully fetched all artists",
-        data: shuffledArtists,
-      });
-    } catch (error) {
-      res
-        .status(500)
-        .json({ message: "Error fetching Artists", error: error.message });
-    }
-  };
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully fetched all artists",
+      data: shuffledArtists,
+    });
+  } catch (error) {
+    res
+      .status(500)
+      .json({ message: "Error fetching Artists", error: error.message });
+  }
+};
 
 export const getArtist = async (req, res) => {
   const { id } = req.params;
@@ -167,7 +164,7 @@ export const createArtist = async (req, res) => {
       artistname,
       profileImage,
       bio,
-      genres,  // This contains genre names
+      genres, // This contains genre names
       twitter,
       tiktok,
       instagram,
@@ -221,7 +218,7 @@ export const createArtist = async (req, res) => {
 
     // Convert genre names to ObjectIds
     const genreDocuments = await Genre.find({ name: { $in: genres } });
-    const genreIds = genreDocuments.map(genre => genre._id);
+    const genreIds = genreDocuments.map((genre) => genre._id);
 
     // If artist doesn't exist, create new profile
     if (!artist) {
@@ -231,7 +228,7 @@ export const createArtist = async (req, res) => {
         email: user.email,
         profileImage,
         biography: bio,
-        genres: genreIds,  // Use the array of ObjectIds instead of genre names
+        genres: genreIds, // Use the array of ObjectIds instead of genre names
         address1,
         address2,
         country,
@@ -316,75 +313,72 @@ export const createArtist = async (req, res) => {
 };
 
 export const signContract = async (req, res) => {
-    try {
-      const { userId, fullName } = req.body;
-      // Find user and validate
-      const user = await User.findById(userId);
-      if (!user) {
-        return res.status(404).json({
-          status: "failed",
-          message: "User not found"
-        });
-      }
-
-      // Find artist by user email
-      const artist = await Artist.findOne({ email: user.email });
-      if (!artist) {
-        return res.status(404).json({
-          status: "failed",
-          message: "Artist profile not found for this user"
-        });
-      }
-
-      const msg = {
-        sign_agreement: {
-          artist_address: user.wallets.xion.address,
-          artist_name: fullName,
-        },
-      };
-
-      await abstraxionAuth.login(user.email);
-      const sign = await abstraxionAuth.executeSmartContract(
-        "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
-        msg,
-        []
-      );
-
-      console.log("sign", sign);
-
-      if (sign) {
-        await User.findByIdAndUpdate(userId, {
-          artist: new Types.ObjectId(artist._id),
-          fullname: fullName,
-          updatedAt: new Date(),
-        });
-
-        await Artist.findByIdAndUpdate(
-          artist._id,
-          {
-            verified: true,
-            verifiedAt: new Date(),
-            updatedAt: new Date(),
-            userId: user._id,
-            fullName: fullName
-          },
-        );
-      }
-
-      return res.status(200).json({
-        status: "success",
-        message: "Contract created & signed successfully",
-        data: sign,
-      });
-    } catch (error) {
-      console.log(error);
-      const customerror = `Artist has already signed the agreement`;
-      return res.status(500).json({
+  try {
+    const { userId, fullName } = req.body;
+    // Find user and validate
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
         status: "failed",
         message: "User not found",
       });
     }
-  };
+
+    // Find artist by user email
+    const artist = await Artist.findOne({ email: user.email });
+    if (!artist) {
+      return res.status(404).json({
+        status: "failed",
+        message: "Artist profile not found for this user",
+      });
+    }
+
+    const msg = {
+      sign_agreement: {
+        artist_address: user.wallets.xion.address,
+        artist_name: fullName,
+      },
+    };
+
+    await abstraxionAuth.login(user.email);
+    const sign = await abstraxionAuth.executeSmartContract(
+      "xion1wpyzctmpz605z3kyjvl9q2hccdd5v285c872d9cdlau2vhywpzrsvsgun4",
+      msg,
+      []
+    );
+
+    console.log("sign", sign);
+
+    if (sign) {
+      await User.findByIdAndUpdate(userId, {
+        artist: new Types.ObjectId(artist._id),
+        fullname: fullName,
+        updatedAt: new Date(),
+      });
+
+      await Artist.findByIdAndUpdate(artist._id, {
+        verified: true,
+        verifiedAt: new Date(),
+        updatedAt: new Date(),
+        userId: user._id,
+        fullName: fullName,
+      });
+    }
+
+    return res.status(200).json({
+      status: "success",
+      message: "Contract created & signed successfully",
+      data: sign,
+    });
+  } catch (error) {
+    console.log(error);
+    const customerror = `Artist has already signed the agreement`;
+    return res.status(500).json({
+      status: "failed",
+      message: "User not found",
+    });
+  }
+};
 
 export const verifyArtistEmail = async (req, res) => {
   try {
@@ -486,93 +480,93 @@ export const getArtistMusicDetails = async (req, res) => {
     // Get all releases by the artist
     const releases = await Release.aggregate([
       {
-        $match: { artistId: new mongoose.Types.ObjectId(artistId) }
+        $match: { artistId: new mongoose.Types.ObjectId(artistId) },
       },
       {
-        $sort: { 'dates.release_date': -1 }
+        $sort: { "dates.release_date": -1 },
       },
       {
         $project: {
           _id: 1,
           title: 1,
           type: 1,
-          artwork: '$artwork.cover_image',
-          releaseDate: '$dates.release_date',
-          totalTracks: '$metadata.totalTracks'
-        }
-      }
+          artwork: "$artwork.cover_image",
+          releaseDate: "$dates.release_date",
+          totalTracks: "$metadata.totalTracks",
+        },
+      },
     ]);
 
     // Get all songs by the artist
     const songs = await Track.aggregate([
       {
-        $match: { artistId: new mongoose.Types.ObjectId(artistId) }
+        $match: { artistId: new mongoose.Types.ObjectId(artistId) },
       },
       {
         $lookup: {
-          from: 'releases',
-          localField: 'releaseId',
-          foreignField: '_id',
-          as: 'release'
-        }
+          from: "releases",
+          localField: "releaseId",
+          foreignField: "_id",
+          as: "release",
+        },
       },
       {
-        $unwind: '$release'
+        $unwind: "$release",
       },
       {
         $lookup: {
-          from: 'songs',
-          localField: 'songId',
-          foreignField: '_id',
-          as: 'songData'
-        }
+          from: "songs",
+          localField: "songId",
+          foreignField: "_id",
+          as: "songData",
+        },
       },
       {
-        $unwind: '$songData'
+        $unwind: "$songData",
       },
       {
         $project: {
           _id: 1,
           title: 1,
           duration: 1,
-          releaseDate: '$release.dates.release_date',
-          artwork: '$release.artwork.cover_image',
-          totalStreams: '$songData.analytics.totalStreams',
+          releaseDate: "$release.dates.release_date",
+          artwork: "$release.artwork.cover_image",
+          totalStreams: "$songData.analytics.totalStreams",
           release: {
-            _id: '$release._id',
-            title: '$release.title',
-            type: '$release.type'
-          }
-        }
+            _id: "$release._id",
+            title: "$release.title",
+            type: "$release.type",
+          },
+        },
       },
       {
-        $sort: { releaseDate: -1 }
-      }
+        $sort: { releaseDate: -1 },
+      },
     ]);
 
     // Get playlists featuring the artist's tracks
     const playlists = await PlayListName.aggregate([
       {
         $lookup: {
-          from: 'playlistsongs',
-          localField: '_id',
-          foreignField: 'playlistId',
-          as: 'songs'
-        }
+          from: "playlistsongs",
+          localField: "_id",
+          foreignField: "playlistId",
+          as: "songs",
+        },
       },
       {
         $lookup: {
-          from: 'tracks',
-          localField: 'songs.trackId',
-          foreignField: '_id',
-          as: 'tracks'
-        }
+          from: "tracks",
+          localField: "songs.trackId",
+          foreignField: "_id",
+          as: "tracks",
+        },
       },
       {
         $match: {
-          'tracks.artistId': new mongoose.Types.ObjectId(artistId),
-          isPublic: true
-        }
+          "tracks.artistId": new mongoose.Types.ObjectId(artistId),
+          isPublic: true,
+        },
       },
       {
         $project: {
@@ -581,50 +575,49 @@ export const getArtistMusicDetails = async (req, res) => {
           description: 1,
           coverImage: 1,
           totalTracks: 1,
-          followerCount: 1
-        }
+          followerCount: 1,
+        },
       },
       {
-        $limit: 5
-      }
+        $limit: 5,
+      },
     ]);
 
     // Format the response
     const response = {
       releases: {
         total: releases.length,
-        items: releases.map(release => ({
+        items: releases.map((release) => ({
           ...release,
-          releaseDate: release.releaseDate.toISOString().split('T')[0]
-        }))
+          releaseDate: release.releaseDate.toISOString().split("T")[0],
+        })),
       },
       songs: {
         total: songs.length,
-        items: songs.map(song => ({
+        items: songs.map((song) => ({
           ...song,
           duration: formatDuration(song.duration),
-          releaseDate: song.releaseDate.toISOString().split('T')[0],
-          totalStreams: formatNumber(song.totalStreams)
-        }))
+          releaseDate: song.releaseDate.toISOString().split("T")[0],
+          totalStreams: formatNumber(song.totalStreams),
+        })),
       },
       playlists: {
         total: playlists.length,
-        items: playlists
-      }
+        items: playlists,
+      },
     };
 
     return res.status(200).json({
       success: true,
       message: "Artist music details retrieved successfully",
-      data: response
+      data: response,
     });
-
   } catch (error) {
     console.error("Error fetching artist music details:", error);
     return res.status(500).json({
       success: false,
       message: "Error fetching artist music details",
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -633,15 +626,15 @@ export const getArtistMusicDetails = async (req, res) => {
 const formatDuration = (duration) => {
   const minutes = Math.floor(duration / 60);
   const seconds = Math.floor(duration % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
 const formatNumber = (num) => {
   if (num >= 1000000) {
-    return (num / 1000000).toFixed(1) + 'M';
+    return (num / 1000000).toFixed(1) + "M";
   }
   if (num >= 1000) {
-    return (num / 1000).toFixed(1) + 'K';
+    return (num / 1000).toFixed(1) + "K";
   }
   return num.toString();
 };

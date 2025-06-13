@@ -13,10 +13,11 @@ import {
   stark,
   uint256,
 } from "starknet";
+import { erc20 } from "../Abis/erc20abi.js";
 import { factoryAbi } from "../Abis/factory_abi.js";
+import { nftAbi } from "../Abis/nftAbi.js";
 import { usdcAbi } from "../Abis/usdc_abi.js";
 import { Wallet } from "../models/wallet.model.js";
-import { erc20 } from "../Abis/erc20abi.js";
 
 dotenv.config();
 
@@ -36,6 +37,8 @@ export default class StarknetService {
     });
     this.Factory =
       "0x01506d709e65937451c344c59e6a122f7427e4a63a7792017d0ad16e787b49c0";
+    this.usdcAddress =
+      "0x0475e85c9f471885c1624c297862df9aaffa82ad55c7d1fde1ac892232445e06";
     this.hermesClient = new HermesClient("https://hermes.pyth.network", {});
     this.usdcPriceId =
       "0xeaa020c61cc479712813461ce153894a96a6c00b21ed0cfc2798d1f9a9e9c94a";
@@ -173,17 +176,17 @@ export default class StarknetService {
       console.log(`Transaction receipt for method create_collection:`, receipt);
 
       const mintEvent = receipt.events[1];
-      console.log("mint event",mintEvent)
+      console.log("mint event", mintEvent);
       const eventData = {
         recipientAddress: mintEvent.data[0],
         tokenId: parseInt(mintEvent.data[1], 16),
         param: parseInt(mintEvent.data[2], 16),
-        contractAddress: mintEvent.data[2],
+        contractAddress: parseInt(mintEvent.data[2], 16),
         blockNumber: receipt.block_number,
         transactionHash: receipt.transaction_hash,
         status: receipt.execution_status,
       };
-      console.log("eventdata", eventData)
+      console.log("eventdata", eventData);
 
       return {
         transactionHash: res.transaction_hash,
@@ -200,27 +203,36 @@ export default class StarknetService {
     }
   }
 
-  async getCollectionDetails( address) {
+  async getCollectionDetails(address) {
     try {
       const contract = this.getContract(this.Factory, factoryAbi);
       console.log(`Contract instance created for address ${this.Factory}`);
 
-      const details = contract.populate("get_artist_collections", [
-        address,
-      ]);
+      const details = contract.populate("get_artist_collections", [address]);
       const res = await contract.get_artist_collections(details.calldata);
       console.log(
         `Transaction for method get_collection executed with hash:`,
         res
       );
 
-      const eventData = {
-        collection: res,
-      };
-      console.log("eventData", eventData);
+      const formattedCollections = res.map((collection) => ({
+        collectionId: Number(collection.collection_id),
+        name: this.feltToString(collection.name),
+        symbol: this.feltToString(collection.symbol),
+        artist: `0x${collection.artist.toString(16)}`,
+        address: `0x${collection.address.toString(16)}`,
+        createdAt: new Date(Number(collection.created_at) * 1000).toISOString(),
+        housePercentage: Number(collection.house_percentage),
+        artistPercentage: Number(collection.artist_percentage),
+        collectionInfo: this.feltToString(collection.collection_info),
+      }));
 
       return {
-        eventData,
+        status: "success",
+        data: {
+          collections: formattedCollections,
+          totalCollections: formattedCollections.length,
+        },
       };
     } catch (error) {
       console.error(
@@ -238,7 +250,7 @@ export default class StarknetService {
    * @param {Account} account - The account to sign and send the transaction
    * @returns {Promise<Object>} - Transaction result
    */
-  async executeMint(email, calldata = [], contractAddress) {
+  async executeMint(email, contractAddress) {
     const account = await this.getUserWalletInfo(email);
 
     const account0 = new Account(
@@ -248,15 +260,16 @@ export default class StarknetService {
       undefined,
       constants.TRANSACTION_VERSION.V3
     );
-
-    const { abi } = await this.provider.getClassAt(contractAddress);
     try {
-      const contract = this.getContract(contractAddress, abi);
+      const contract = this.getContract(contractAddress, nftAbi);
       contract.connect(account0);
       console.log(`Contract instance created for address ${contractAddress}`);
 
-      const myCall = contract.populate("mint_pass", calldata);
-      const res = await contract.mint_pass(myCall.calldata);
+      const myCall = contract.populate("mint_ticket_nft", [
+        5000000,
+        this.usdcAddress,
+      ]);
+      const res = await contract.mint_ticket_nft(myCall.calldata);
       console.log(`Transaction for method mint_pass executed with hash:`, res);
       const receipt = await this.provider.waitForTransaction(
         res.transaction_hash
@@ -582,27 +595,27 @@ export default class StarknetService {
    */
   async fundUserWallet(
     recipientAddress,
-     funderAddress = "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4",
+    funderAddress = "0x0620fd15e0b464c174933b5235c72a50376379ee1528719848e144385d0a1ed4",
     funderPrivateKey = "0x05d67e95f8d5913249452a410db389110c390a36eb0e2ecb092c670ba945b8b9",
     amount = 10000000000000000000
   ) {
     try {
-        const funderAccount = new Account(
-            this.provider,
-            funderAddress,
-            funderPrivateKey,
-            undefined,
-            constants.TRANSACTION_VERSION.V3
-          );
+      const funderAccount = new Account(
+        this.provider,
+        funderAddress,
+        funderPrivateKey,
+        undefined,
+        constants.TRANSACTION_VERSION.V3
+      );
       const ethContractAddress =
         "0x04718f5a0Fc34cC1AF16A1cdee98fFB20C31f5cD61D6Ab07201858f4287c938D";
       const ethContract = this.getContract(ethContractAddress, erc20);
-      ethContract.connect(funderAccount)
+      ethContract.connect(funderAccount);
 
       // Prepare transfer call
       const transferCall = ethContract.populate("transfer", [
         recipientAddress,
-        amount
+        amount,
       ]);
 
       // Execute transfer
@@ -611,7 +624,9 @@ export default class StarknetService {
       console.log("Funding transaction hash:", res);
 
       // Wait for transaction confirmation
-      const receipt = await this.provider.waitForTransaction(res.transaction_hash);
+      const receipt = await this.provider.waitForTransaction(
+        res.transaction_hash
+      );
       console.log("Funding transaction receipt:", receipt);
 
       return {
@@ -807,6 +822,76 @@ export default class StarknetService {
     } catch (error) {
       console.error("Error fetching StarkNet USDC balance:", error);
       throw new Error("Failed to fetch StarkNet USDC balance");
+    }
+  }
+
+  /**
+   * Execute a USDC transfer from user to artist
+   * @param {string} senderEmail - The sender's email address
+   * @param {string} recipientAddress - The recipient's StarkNet address
+   * @param {number} amount - Amount of USDC to transfer (in smallest unit, e.g. 1000000 for 1 USDC)
+   * @returns {Promise<Object>} - Transaction result
+   */
+  async executeUSDCTransfer(senderEmail, recipientAddress, amount) {
+    try {
+      // Get sender's wallet info
+      const senderAccount = await this.getUserWalletInfo(senderEmail);
+      if (!senderAccount.isDeployed) {
+        throw new Error("Sender's wallet is not deployed");
+      }
+
+      // Create account instance
+      const account0 = new Account(
+        this.provider,
+        senderAccount.address,
+        senderAccount.privateKey,
+        undefined,
+        constants.TRANSACTION_VERSION.V3
+      );
+
+      // Get USDC contract instance
+      const contract = this.getContract(this.usdcAddress, usdcAbi);
+      contract.connect(account0);
+
+      // Check sender's balance
+      const senderBalance = await this.getStarkNetUSDCBalance(
+        senderAccount.address
+      );
+      if (senderBalance.balanceFloat * 1e6 < amount) {
+        throw new Error("Insufficient USDC balance");
+      }
+
+      // Prepare transfer call
+      const transferCall = contract.populate("transfer", [
+        recipientAddress,
+        uint256.bnToUint256(amount),
+      ]);
+
+      // Execute transfer
+      const res = await contract.transfer(transferCall.calldata);
+      console.log("USDC transfer transaction hash:", res);
+
+      // Wait for transaction confirmation
+      const receipt = await this.provider.waitForTransaction(
+        res.transaction_hash
+      );
+      console.log("USDC transfer transaction receipt:", receipt);
+
+      // Get transaction details including events
+      const details = await this.getTransactionDetails(res.transaction_hash);
+
+      return {
+        transactionHash: res.transaction_hash,
+        receipt,
+        details,
+        status: receipt.execution_status,
+        amount,
+        from: senderAccount.address,
+        to: recipientAddress,
+      };
+    } catch (error) {
+      console.error("Error executing USDC transfer:", error);
+      throw error;
     }
   }
 }
