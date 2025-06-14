@@ -4,6 +4,7 @@ import { Release } from "../models/releases.model.js";
 import { PlayListName } from "../models/playlistnames.model.js";
 import { RecentSearch } from "../models/recentSearch.model.js";
 
+
 export const searchAll = async (req, res) => {
   try {
     const {

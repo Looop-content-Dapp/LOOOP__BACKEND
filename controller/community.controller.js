@@ -1,18 +1,19 @@
-import { get, Types } from "mongoose";
+import mongoose, { Types } from "mongoose";
 import validator from "validator";
 
+import crypto from "crypto";
 import { Artist } from "../models/artist.model.js";
 import { Community } from "../models/community.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
-import { Preferences } from "../models/preferences.model.js";
-import { User } from "../models/user.model.js";
-import contractHelper from "../xion/contractConfig.js";
-import AbstraxionAuth from "../xion/AbstraxionAuth.js";
-import { Post } from "../models/post.model.js";
 import { Follow } from "../models/followers.model.js";
-import crypto from "crypto";
 import { PassSubscription } from "../models/passSubscription.model.js";
-import Transaction from '../models/Transaction.model.js';
+import { Post } from "../models/post.model.js";
+import { Preferences } from "../models/preferences.model.js";
+import Transaction from "../models/Transaction.model.js";
+import { User } from "../models/user.model.js";
+import { starknetService } from "../services/starknet.service.js";
+import AbstraxionAuth from "../xion/AbstraxionAuth.js";
+import contractHelper from "../xion/contractConfig.js";
 
 const abstraxionAuth = new AbstraxionAuth();
 
@@ -143,6 +144,8 @@ export const checkIfTokenSymbolExist = async (req, res) => {
 };
 
 export const createCommunity = async (req, res) => {
+  let isResponseSent = false;
+
   try {
     const {
       communityName,
@@ -236,82 +239,112 @@ export const createCommunity = async (req, res) => {
           .json({ status: "failed", message: "Artist not found" });
       }
 
+      // Get the user associated with the artist to access their wallet
+      const user = await User.findOne({ email: artist.email });
+      if (!user) {
+        return res.status(404).json({
+          status: "failed",
+          message: "User account for artist not found",
+        });
+      }
+
+      // Check if user has a Starknet wallet
+      if (
+        !user.wallets ||
+        !user.wallets.starknet ||
+        !user.wallets.starknet.address
+      ) {
+        return res.status(400).json({
+          status: "failed",
+          message: "Artist does not have a Starknet wallet configured",
+        });
+      }
+
       if (artist.verified === true) {
-        const msg = {
-          create_collection: {
-            name: communityName,
-            symbol: communitySymbol,
-            collection_info: coverImage,
-          },
-        };
+        try {
+          console.log(artist.email, "this is the email");
 
-        await abstraxionAuth.login(artist.email);
-        console.log("artist email", artist.email);
-        const execute = await abstraxionAuth.executeSmartContract(
-          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-          msg,
-          "auto"
-        );
-
-        console.log(execute, "execute");
-
-        const transactionHash = execute.transactionHash;
-        const artistWallet = execute.sender;
-
-        const CollectionMsg = {
-          artist_collections: {
-            artist: artistWallet,
-          },
-        };
-
-        const getArtistCollection = await abstraxionAuth.querySmartContract(
-          "xion12s90sgu2vekmc25an5q72fvnm3jf2ncnx5xehjqd95ql2u284mxqdgykp0",
-          CollectionMsg
-        );
-
-        console.log(getArtistCollection, "getArtistCollection");
-
-        const collection = getArtistCollection.collections[0];
-        const contractAddress = collection.contract_address;
-        const contractSymbol = collection.symbol;
-
-        const validateImageType = isValidImageType(collectibleType);
-
-        if (validateImageType) {
-          const community = new Community({
-            communityName,
-            description,
-            coverImage,
-            tribePass: {
+          const collection = await starknetService.executeCreateCollection(
+            artist.email,
+            {
               collectibleName,
-              collectibleDescription,
-              collectibleImage,
-              collectibleType,
-              contractAddress: contractAddress,
-              communitySymbol: contractSymbol,
-              transactionHash: transactionHash,
-            },
-            createdBy: artistId,
-          });
-
-          await community.save();
-          await community.populate(
-            "createdBy",
-            "name email profileImage genre verified"
+              communitySymbol,
+              collectibleName,
+            }
           );
 
-          return res.status(200).json({
-            status: "success",
-            message: "Community created successfully",
-            data: community,
-          });
-        } else {
-          return res.status(400).json({
-            status: "failed",
-            message: "Invalid image type",
-          });
+          const collectionDetails = await starknetService.getCollectionDetails(
+            user.wallets.starknet.address
+          );
+
+          console.log(collectionDetails, "collectionDetails");
+
+          const firstCollection = collectionDetails.data.collections[0];
+          const validateImageType = isValidImageType(collectibleType);
+
+          if (validateImageType) {
+            // Start a MongoDB session for transaction consistency
+            const session = await mongoose.startSession();
+            session.startTransaction();
+            try {
+              //   Create community
+              const community = new Community({
+                communityName,
+                description,
+                coverImage,
+                tribePass: {
+                  collectibleName,
+                  collectibleDescription,
+                  collectibleImage,
+                  collectibleType,
+                  contractAddress: firstCollection.address,
+                  communitySymbol: communitySymbol,
+                  transactionHash: collection.eventData.transactionHash,
+                },
+                createdBy: artistId,
+              });
+              await community.save({ session });
+              // Commit transaction
+              await session.commitTransaction();
+              // Populate community data for response
+              await community.populate(
+                "createdBy",
+                "name email profileImage genre verified"
+              );
+              return res.status(200).json({
+                status: "success",
+                message: "Community created successfully",
+                data: {
+                  community,
+                },
+              });
+            } catch (error) {
+              // Abort transaction on error
+              await session.abortTransaction();
+              throw error;
+            } finally {
+              session.endSession();
+            }
+          } else if (!isResponseSent) {
+            isResponseSent = true;
+            return res.status(400).json({
+              status: "failed",
+              message: "Invalid image type",
+            });
+          }
+        } catch (error) {
+          console.error("Tokenbound execution error:", error);
+          if (!isResponseSent) {
+            isResponseSent = true;
+            return res.status(500).json({
+              status: "failed",
+              message: "Error executing smart contract",
+              error: error.message,
+            });
+          }
         }
-      } else {
+      } else if (!isResponseSent) {
+        isResponseSent = true;
         return res.status(400).json({
           status: "failed",
           message: "This artist is not verified",
@@ -325,15 +358,18 @@ export const createCommunity = async (req, res) => {
     }
   } catch (error) {
     console.error(error);
-    return res.status(500).json({
-      status: "failed",
-      message: "Error creating tribe",
-      error: error
-        ? error.message.includes(`Symbol is already taken`)
-          ? "Token Symbol is already taken"
-          : error.message
-        : error.message,
-    });
+    if (!isResponseSent) {
+      isResponseSent = true;
+      return res.status(500).json({
+        status: "failed",
+        message: "Error creating tribe",
+        error: error
+          ? error.message.includes(`Symbol is already taken`)
+            ? "Token Symbol is already taken"
+            : error.message
+          : error.message,
+      });
+    }
   }
 };
 
@@ -375,197 +411,192 @@ export const deleteCommunity = async (req, res) => {
 };
 
 export const joinCommunity = async (req, res) => {
-    try {
-      const { userId, communityId, type, paymentMethod = "wallet" } = req.body;
+  try {
+    const { userId, communityId, type, paymentMethod = "wallet" } = req.body;
 
-      // Validate required fields
-      if (!userId || !communityId || !type) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Missing required fields: userId, communityId, type are required",
-        });
-      }
-
-      if (!["starknet", "xion"].includes(type)) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Type must be either 'starknet' or 'xion'",
-        });
-      }
-
-      const user = await User.findById(userId);
-      if (!validator.isMongoId(userId) || !user) {
-        return res.status(400).json({
-          status: "failed",
-          message: !user ? "User not found" : "Invalid userID",
-        });
-      }
-
-      const userAddress = user.wallets?.[type]?.address;
-      if (!userAddress) {
-        return res.status(400).json({
-          status: "failed",
-          message: `User does not have a ${type} wallet address`,
-        });
-      }
-
-      if (!validator.isMongoId(communityId)) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Invalid communityID",
-        });
-      }
-
-      const community = await Community.findById(communityId);
-      if (!community) {
-        return res.status(400).json({
-          status: "failed",
-          message: "Community doesn't exist",
-        });
-      }
-
-      const userAlreadyExistinCommunity = await CommunityMember.findOne({
-        userId: userId,
-        communityId: communityId,
-      });
-
-      if (userAlreadyExistinCommunity) {
-        return res.status(400).json({
-          status: "failed",
-          message: "User already exists in community",
-        });
-      }
-
-      // Create a unique reference ID for the transaction
-      const referenceId = `MINT_${userAddress}_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
-
-      // Create pending transaction record
-      const transaction = await Transaction.create({
-        userId: userId,
-        referenceId,
-        amount: 5000000, // 5 USDC
-        currency: "USDC",
-        status: "pending",
-        paymentMethod,
-        type: "mint_pass",
-        blockchain: "XION",
-        title: "Tribe Pass Minting",
-        message: "Minting tribe pass on XION network",
-        metadata: {
-          communityId: community.tribePass.contractAddress,
-        },
-      });
-
-      try {
-        // Login with user's email before minting
-        await abstraxionAuth.login(user.email);
-
-        const mint = await abstraxionAuth.mintPass(
-          community.tribePass.contractAddress
-        );
-
-        // Extract token ID from the mint result
-        const tokenId = mint.events
-          ?.find(e => e.type === "wasm")
-          ?.attributes
-          ?.find(attr => attr.key === "token_id")
-          ?.value || "0";
-
-        // Update transaction with success status
-        transaction.status = "success";
-        transaction.transactionHash = mint.transactionHash;
-        await transaction.save();
-
-        // Create subscription record
-        const expiryDate = new Date();
-        expiryDate.setMonth(expiryDate.getMonth() + 1);
-        const nextRenewalDate = new Date(expiryDate);
-        nextRenewalDate.setDate(nextRenewalDate.getDate() - 7);
-
-        await PassSubscription.create({
-            userId: userId,
-            communityId: communityId,
-            contractAddress: community.tribePass.contractAddress,
-            tokenId,
-            expiryDate,
-            renewalPrice: 5000000,
-            currency: "USDC",
-            status: "active",
-            startDate: new Date(),
-            lastRenewalDate: new Date(),
-            nextRenewalDate,
-            paymentStatus: "paid",
-            paymentMethod,
-            transactionHash: mint.transactionHash,
-            collectibelType: "Tribe Pass",
-            usageStats: {
-              lastUsed: new Date(),
-              usageCount: 0
-            },
-            notifications: [{
-              type: "payment_success",
-              sentAt: new Date(),
-              read: false
-            }]
-          });
-
-        // Create community member
-        const communitymember = new CommunityMember({
-          userId,
-          communityId,
-        });
-        await communitymember.save();
-
-        // Update user's NFT contracts
-        await User.findByIdAndUpdate(
-          userId,
-          {
-            $push: {
-              nftContracts: {
-                contractAddress: community.tribePass.contractAddress,
-                communityId: communityId,
-              },
-            },
-          },
-          { new: true }
-        );
-
-        // Update community member count
-        await Community.findByIdAndUpdate(communityId, {
-          $inc: { memberCount: 1 },
-        });
-
-        return res.status(200).json({
-          status: "success",
-          message: "Successfully joined community",
-          data: {
-            communitymember,
-            transaction: {
-              id: transaction._id,
-              hash: mint.transactionHash,
-            },
-            contractAddress: community.tribePass.contractAddress,
-          },
-        });
-
-      } catch (error) {
-        // Update transaction with failed status
-        transaction.status = "failed";
-        transaction.message = error.message;
-        await transaction.save();
-
-        throw error;
-      }
-
-    } catch (error) {
-      console.error("Error in joinCommunity:", error);
-      return res.status(500).json({
+    // Validate required fields
+    if (!userId || !communityId || !type) {
+      return res.status(400).json({
         status: "failed",
-        message: "Error joining community",
-        error: error.message,
+        message:
+          "Missing required fields: userId, communityId, type are required",
       });
     }
-  };
+
+    if (!["starknet", "xion"].includes(type)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Type must be either 'starknet' or 'xion'",
+      });
+    }
+
+    const user = await User.findById(userId);
+    if (!validator.isMongoId(userId) || !user) {
+      return res.status(400).json({
+        status: "failed",
+        message: !user ? "User not found" : "Invalid userID",
+      });
+    }
+
+    const userAddress = user.wallets?.[type]?.address;
+    if (!userAddress) {
+      return res.status(400).json({
+        status: "failed",
+        message: `User does not have a ${type} wallet address`,
+      });
+    }
+
+    if (!validator.isMongoId(communityId)) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Invalid communityID",
+      });
+    }
+
+    const community = await Community.findById(communityId);
+    if (!community) {
+      return res.status(400).json({
+        status: "failed",
+        message: "Community doesn't exist",
+      });
+    }
+
+    const userAlreadyExistinCommunity = await CommunityMember.findOne({
+      userId: userId,
+      communityId: communityId,
+    });
+
+    if (userAlreadyExistinCommunity) {
+      return res.status(400).json({
+        status: "failed",
+        message: "User already exists in community",
+      });
+    }
+
+    // Create a unique reference ID for the transaction
+    const referenceId = `MINT_${userAddress}_${Date.now()}_${crypto
+      .randomBytes(4)
+      .toString("hex")}`;
+
+    // Create pending transaction record
+    const transaction = await Transaction.create({
+      userId: userId,
+      referenceId,
+      amount: 5000000, // 5 USDC
+      currency: "USDC",
+      status: "pending",
+      paymentMethod,
+      type: "mint_pass",
+      blockchain: "Starknet",
+      title: "Tribe Pass Minting",
+      message: "Minting tribe pass on Starknet network",
+      metadata: {
+        communityId: community.tribePass.contractAddress,
+      },
+    });
+
+    try {
+      console.log(
+        community.tribePass.contractAddress,
+        "community.tribePass.contractAddress"
+      );
+
+      const mint_pass = await starknetService.executeMint(
+        user.email,
+        community.tribePass.contractAddress
+      );
+
+      console.log(mint_pass, "whiteList");
+
+      // Update transaction with success status
+      transaction.status = "success";
+      transaction.transactionHash = mint_pass.transactionHash;
+      await transaction.save();
+
+      // Create subscription record
+      const expiryDate = new Date();
+      expiryDate.setMonth(expiryDate.getMonth() + 1);
+      const nextRenewalDate = new Date(expiryDate);
+      nextRenewalDate.setDate(nextRenewalDate.getDate() - 7);
+
+      await PassSubscription.create({
+        userId: userId,
+        communityId: communityId,
+        contractAddress: community.tribePass.contractAddress,
+        tokenId: mint_pass?.eventData?.tokenId,
+        expiryDate,
+        renewalPrice: 5000000,
+        currency: "USDC",
+        status: "active",
+        startDate: new Date(),
+        lastRenewalDate: new Date(),
+        nextRenewalDate,
+        paymentStatus: "paid",
+        paymentMethod,
+        transactionHash: mint_pass.transactionHash,
+        collectibelType: "Tribe Pass",
+        usageStats: {
+          lastUsed: new Date(),
+          usageCount: 0,
+        },
+        notifications: [
+          {
+            type: "payment_success",
+            sentAt: new Date(),
+            read: false,
+          },
+        ],
+      });
+
+      // Create community member
+      const communitymember = new CommunityMember({
+        userId,
+        communityId,
+      });
+      await communitymember.save();
+
+      // Update user's NFT contracts
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          $push: {
+            nftContracts: {
+              contractAddress: community.tribePass.contractAddress,
+              communityId: communityId,
+            },
+          },
+        },
+        { new: true }
+      );
+
+      // Update community member count
+      await Community.findByIdAndUpdate(communityId, {
+        $inc: { memberCount: 1 },
+      });
+
+      return res.status(200).json({
+        status: "success",
+        message: "Successfully joined community",
+        data: {
+          mint_pass,
+        },
+      });
+    } catch (error) {
+      // Update transaction with failed status
+      transaction.status = "failed";
+      transaction.message = error.message;
+      await transaction.save();
+      throw error;
+    }
+  } catch (error) {
+    console.error("Error in joinCommunity:", error);
+    return res.status(500).json({
+      status: "failed",
+      message: "Error joining community",
+      error: error.message,
+    });
+  }
+};
 
 export const searchCommunity = async (req, res) => {
   try {
@@ -642,198 +673,198 @@ export const searchCommunity = async (req, res) => {
 
     // Search Posts
     const posts = await Post.aggregate([
-        {
-          $match: {
-            $or: [
-              { content: { $regex: searchQuery, $options: "i" } },
-              { title: { $regex: searchQuery, $options: "i" } },
-            ],
-            status: "published",
-            visibility: "public",
-          },
+      {
+        $match: {
+          $or: [
+            { content: { $regex: searchQuery, $options: "i" } },
+            { title: { $regex: searchQuery, $options: "i" } },
+          ],
+          status: "published",
+          visibility: "public",
         },
-        {
-          $lookup: {
-            from: "artists",
-            localField: "artistId",
-            foreignField: "_id",
-            as: "artist",
-          },
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "artistId",
+          foreignField: "_id",
+          as: "artist",
         },
-        {
-          $lookup: {
-            from: "communities",
-            localField: "communityId",
-            foreignField: "_id",
-            as: "community",
-          },
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "communityId",
+          foreignField: "_id",
+          as: "community",
         },
-        {
-          $lookup: {
-            from: "likes",
-            localField: "_id",
-            foreignField: "postId",
-            as: "likes",
-          },
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "postId",
+          as: "likes",
         },
-        {
-          $lookup: {
-            from: "users",
-            localField: "likes.userId",
-            foreignField: "_id",
-            as: "likeUsers",
-          },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "likes.userId",
+          foreignField: "_id",
+          as: "likeUsers",
         },
-        {
-          $lookup: {
-            from: "comments",
-            let: { postId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: {
-                    $and: [
-                      { $eq: ["$postId", "$$postId"] },
-                      { $eq: ["$parentCommentId", null] },
-                    ],
-                  },
-                },
-              },
-              {
-                $sort: { createdAt: -1 },
-              },
-              {
-                $limit: 3,
-              },
-              {
-                $lookup: {
-                  from: "users",
-                  localField: "userId",
-                  foreignField: "_id",
-                  as: "user",
-                },
-              },
-              {
-                $unwind: "$user",
-              },
-              {
-                $lookup: {
-                  from: "comments",
-                  let: { commentId: "$_id" },
-                  pipeline: [
-                    {
-                      $match: {
-                        $expr: { $eq: ["$parentCommentId", "$$commentId"] },
-                      },
-                    },
-                    {
-                      $sort: { createdAt: -1 },
-                    },
-                    {
-                      $limit: 2,
-                    },
-                    {
-                      $lookup: {
-                        from: "users",
-                        localField: "userId",
-                        foreignField: "_id",
-                        as: "user",
-                      },
-                    },
-                    {
-                      $unwind: "$user",
-                    },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          let: { postId: "$_id" },
+          pipeline: [
+            {
+              $match: {
+                $expr: {
+                  $and: [
+                    { $eq: ["$postId", "$$postId"] },
+                    { $eq: ["$parentCommentId", null] },
                   ],
-                  as: "replies",
                 },
               },
-            ],
-            as: "comments",
-          },
-        },
-        {
-          $unwind: "$artist",
-        },
-        {
-          $unwind: "$community",
-        },
-        {
-          $project: {
-            _id: 1,
-            content: 1,
-            title: 1,
-            media: {
-              $filter: {
-                input: "$media",
-                as: "m",
-                cond: { $in: ["$$m.type", ["image", "video"]] },
-              },
             },
-            createdAt: 1,
-            artistId: {
-              _id: "$artist._id",
-              name: "$artist.name",
-              email: "$artist.email",
-              profileImage: "$artist.profileImage",
-              genre: "$artist.genre",
-              verified: "$artist.verified",
-              bio: "$artist.bio",
-              socialLinks: "$artist.socialLinks",
-              stats: "$artist.stats",
+            {
+              $sort: { createdAt: -1 },
             },
-            communityId: {
-              _id: "$community._id",
-              name: "$community.communityName",
-              description: "$community.description",
-              coverImage: "$community.coverImage",
-              tribePass: "$community.tribePass",
+            {
+              $limit: 3,
             },
-            likes: {
-              $map: {
-                input: "$likeUsers",
+            {
+              $lookup: {
+                from: "users",
+                localField: "userId",
+                foreignField: "_id",
                 as: "user",
-                in: {
-                  userId: "$$user._id",
-                  email: "$$user.email",
-                  profileImage: "$$user.profileImage",
-                  bio: "$$user.bio",
-                  name: "$$user.name",
-                  username: "$$user.username",
-                },
               },
             },
-            likeCount: { $size: "$likes" },
-            comments: {
-              $map: {
-                input: "$comments",
-                as: "comment",
-                in: {
-                  _id: "$$comment._id",
-                  content: "$$comment.content",
-                  createdAt: "$$comment.createdAt",
-                  user: {
-                    _id: "$$comment.user._id",
-                    email: "$$comment.user.email",
-                    profileImage: "$$comment.user.profileImage",
-                    bio: "$$comment.user.bio",
-                    name: "$$comment.user.name",
-                    username: "$$comment.user.username",
+            {
+              $unwind: "$user",
+            },
+            {
+              $lookup: {
+                from: "comments",
+                let: { commentId: "$_id" },
+                pipeline: [
+                  {
+                    $match: {
+                      $expr: { $eq: ["$parentCommentId", "$$commentId"] },
+                    },
                   },
-                  replies: "$$comment.replies",
-                  replyCount: { $size: "$$comment.replies" },
-                },
+                  {
+                    $sort: { createdAt: -1 },
+                  },
+                  {
+                    $limit: 2,
+                  },
+                  {
+                    $lookup: {
+                      from: "users",
+                      localField: "userId",
+                      foreignField: "_id",
+                      as: "user",
+                    },
+                  },
+                  {
+                    $unwind: "$user",
+                  },
+                ],
+                as: "replies",
               },
             },
-            commentCount: {
-              $size: "$comments",
+          ],
+          as: "comments",
+        },
+      },
+      {
+        $unwind: "$artist",
+      },
+      {
+        $unwind: "$community",
+      },
+      {
+        $project: {
+          _id: 1,
+          content: 1,
+          title: 1,
+          media: {
+            $filter: {
+              input: "$media",
+              as: "m",
+              cond: { $in: ["$$m.type", ["image", "video"]] },
             },
-            type: { $literal: "post" },
           },
+          createdAt: 1,
+          artistId: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            email: "$artist.email",
+            profileImage: "$artist.profileImage",
+            genre: "$artist.genre",
+            verified: "$artist.verified",
+            bio: "$artist.bio",
+            socialLinks: "$artist.socialLinks",
+            stats: "$artist.stats",
+          },
+          communityId: {
+            _id: "$community._id",
+            name: "$community.communityName",
+            description: "$community.description",
+            coverImage: "$community.coverImage",
+            tribePass: "$community.tribePass",
+          },
+          likes: {
+            $map: {
+              input: "$likeUsers",
+              as: "user",
+              in: {
+                userId: "$$user._id",
+                email: "$$user.email",
+                profileImage: "$$user.profileImage",
+                bio: "$$user.bio",
+                name: "$$user.name",
+                username: "$$user.username",
+              },
+            },
+          },
+          likeCount: { $size: "$likes" },
+          comments: {
+            $map: {
+              input: "$comments",
+              as: "comment",
+              in: {
+                _id: "$$comment._id",
+                content: "$$comment.content",
+                createdAt: "$$comment.createdAt",
+                user: {
+                  _id: "$$comment.user._id",
+                  email: "$$comment.user.email",
+                  profileImage: "$$comment.user.profileImage",
+                  bio: "$$comment.user.bio",
+                  name: "$$comment.user.name",
+                  username: "$$comment.user.username",
+                },
+                replies: "$$comment.replies",
+                replyCount: { $size: "$$comment.replies" },
+              },
+            },
+          },
+          commentCount: {
+            $size: "$comments",
+          },
+          type: { $literal: "post" },
         },
-        {
-          $sort: { createdAt: -1 },
-        },
-      ]);
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+    ]);
 
     // Search Artists
     const artists = await Artist.aggregate([
@@ -1410,7 +1441,7 @@ export const getFollowedArtistsCommunities = async (req, res) => {
         })
           .populate({
             path: "userId",
-            model: "users",
+            model: "user",
             select: "name email profileImage",
           })
           .lean();
@@ -1438,247 +1469,251 @@ export const getFollowedArtistsCommunities = async (req, res) => {
 };
 
 export const getUserCommunities = async (req, res) => {
-    try {
-      const { userId } = req.params;
-      const { page = 1, limit = 10 } = req.query;
+  try {
+    const { userId } = req.params;
+    const { page = 1, limit = 10 } = req.query;
 
-      // Get communities user has joined with members
-      const userCommunities = await CommunityMember.aggregate([
-        {
-          $match: { userId: new Types.ObjectId(userId) }
+    // Get communities user has joined with members
+    const userCommunities = await CommunityMember.aggregate([
+      {
+        $match: { userId: new Types.ObjectId(userId) },
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "communityId",
+          foreignField: "_id",
+          as: "community",
         },
-        {
-          $lookup: {
-            from: 'communities',
-            localField: 'communityId',
-            foreignField: '_id',
-            as: 'community'
-          }
+      },
+      {
+        $unwind: "$community",
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "community.createdBy",
+          foreignField: "_id",
+          as: "artist",
         },
-        {
-          $unwind: '$community'
+      },
+      {
+        $unwind: "$artist",
+      },
+      {
+        $lookup: {
+          from: "communitymembers",
+          localField: "community._id",
+          foreignField: "communityId",
+          as: "members",
         },
-        {
-          $lookup: {
-            from: 'artists',
-            localField: 'community.createdBy',
-            foreignField: '_id',
-            as: 'artist'
-          }
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "members.userId",
+          foreignField: "_id",
+          as: "memberDetails",
         },
-        {
-          $unwind: '$artist'
-        },
-        {
-          $lookup: {
-            from: 'communitymembers',
-            localField: 'community._id',
-            foreignField: 'communityId',
-            as: 'members'
-          }
-        },
-        {
-          $lookup: {
-            from: 'users',
-            localField: 'members.userId',
-            foreignField: '_id',
-            as: 'memberDetails'
-          }
-        },
-        {
-          $project: {
-            _id: '$community._id',
-            name: '$community.communityName',
-            description: '$community.description',
-            coverImage: '$community.coverImage',
-            memberCount: { $size: '$members' },
-            artist: {
-              _id: '$artist._id',
-              name: '$artist.name',
-              profileImage: '$artist.profileImage',
-              verified: '$artist.verified'
-            },
-            members: {
-              $slice: [{
+      },
+      {
+        $project: {
+          _id: "$community._id",
+          name: "$community.communityName",
+          description: "$community.description",
+          coverImage: "$community.coverImage",
+          memberCount: { $size: "$members" },
+          artist: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            profileImage: "$artist.profileImage",
+            verified: "$artist.verified",
+          },
+          members: {
+            $slice: [
+              {
                 $map: {
-                  input: '$memberDetails',
-                  as: 'member',
+                  input: "$memberDetails",
+                  as: "member",
                   in: {
-                    _id: '$$member._id',
-                    username: '$$member.username',
-                    profileImage: '$$member.profileImage'
-                  }
-                }
-              }, 3] // Get first 3 members for preview
-            },
-            joinedAt: '$joinDate'
-          }
-        },
-        {
-          $sort: { joinedAt: -1 }
-        },
-        {
-          $skip: (parseInt(page) - 1) * parseInt(limit)
-        },
-        {
-          $limit: parseInt(limit)
-        }
-      ]);
-
-      // Get recent posts from these communities
-      const communityIds = userCommunities.map(c => c._id);
-      const recentPosts = await Post.aggregate([
-        {
-          $match: {
-            communityId: { $in: communityIds.map(id => new Types.ObjectId(id)) }
-          }
-        },
-        {
-          $lookup: {
-            from: 'artists',
-            localField: 'artistId',
-            foreignField: '_id',
-            as: 'artist'
-          }
-        },
-        {
-          $unwind: '$artist'
-        },
-        {
-          $lookup: {
-            from: 'communities',
-            localField: 'communityId',
-            foreignField: '_id',
-            as: 'community'
-          }
-        },
-        {
-          $unwind: '$community'
-        },
-        {
-          $lookup: {
-            from: 'likes',
-            localField: '_id',
-            foreignField: 'postId',
-            as: 'likes'
-          }
-        },
-        {
-          $lookup: {
-            from: 'comments',
-            localField: '_id',
-            foreignField: 'postId',
-            as: 'comments'
-          }
-        },
-        {
-          $project: {
-            _id: 1,
-            content: 1,
-            title: 1,
-            postType: 1,
-            type: { $literal: "post" },
-            media: {
-              $map: {
-                input: "$media",
-                as: "m",
-                in: {
-                  _id: "$$m._id",
-                  type: "$$m.type",
-                  url: "$$m.url",
-                  mimeType: "$$m.mimeType",
-                  width: "$$m.width",
-                  height: "$$m.height"
-                }
-              }
-            },
-            artistId: {
-              _id: '$artist._id',
-              name: '$artist.name',
-              email: '$artist.email',
-              profileImage: '$artist.profileImage',
-              verified: '$artist.verified'
-            },
-            communityId: {
-              _id: '$community._id',
-              description: '$community.description',
-              coverImage: '$community.coverImage'
-            },
-            tags: 1,
-            category: 1,
-            visibility: 1,
-            likeCount: { $size: '$likes' },
-            commentCount: { $size: '$comments' },
-            shareCount: { $ifNull: ['$shareCount', 0] },
-            status: 1,
-            genre: 1,
-            createdAt: 1,
-            updatedAt: 1,
-            __v: 1,
-            id: '$_id',
-            comments: {
-              $slice: ['$comments', 5] // Get latest 5 comments
-            },
-            likes: {
-              $map: {
-                input: '$likes',
-                as: 'like',
-                in: {
-                  _id: '$$like._id',
-                  userId: {
-                    _id: '$$like.userId',
-                    email: '$$like.userEmail',
-                    username: '$$like.username',
-                    profileImage: '$$like.userProfileImage',
-                    bio: '$$like.userBio'
+                    _id: "$$member._id",
+                    username: "$$member.username",
+                    profileImage: "$$member.profileImage",
                   },
-                  postId: '$$like.postId',
-                  itemType: { $literal: 'post' },
-                  createdAt: '$$like.createdAt',
-                  __v: '$$like.__v'
-                }
-              }
+                },
+              },
+              3,
+            ], // Get first 3 members for preview
+          },
+          joinedAt: "$joinDate",
+        },
+      },
+      {
+        $sort: { joinedAt: -1 },
+      },
+      {
+        $skip: (parseInt(page) - 1) * parseInt(limit),
+      },
+      {
+        $limit: parseInt(limit),
+      },
+    ]);
+
+    // Get recent posts from these communities
+    const communityIds = userCommunities.map((c) => c._id);
+    const recentPosts = await Post.aggregate([
+      {
+        $match: {
+          communityId: {
+            $in: communityIds.map((id) => new Types.ObjectId(id)),
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: "artists",
+          localField: "artistId",
+          foreignField: "_id",
+          as: "artist",
+        },
+      },
+      {
+        $unwind: "$artist",
+      },
+      {
+        $lookup: {
+          from: "communities",
+          localField: "communityId",
+          foreignField: "_id",
+          as: "community",
+        },
+      },
+      {
+        $unwind: "$community",
+      },
+      {
+        $lookup: {
+          from: "likes",
+          localField: "_id",
+          foreignField: "postId",
+          as: "likes",
+        },
+      },
+      {
+        $lookup: {
+          from: "comments",
+          localField: "_id",
+          foreignField: "postId",
+          as: "comments",
+        },
+      },
+      {
+        $project: {
+          _id: 1,
+          content: 1,
+          title: 1,
+          postType: 1,
+          type: { $literal: "post" },
+          media: {
+            $map: {
+              input: "$media",
+              as: "m",
+              in: {
+                _id: "$$m._id",
+                type: "$$m.type",
+                url: "$$m.url",
+                mimeType: "$$m.mimeType",
+                width: "$$m.width",
+                height: "$$m.height",
+              },
             },
-            hasLiked: {
-              $in: [new Types.ObjectId(userId), '$likes.userId']
-            }
-          }
+          },
+          artistId: {
+            _id: "$artist._id",
+            name: "$artist.name",
+            email: "$artist.email",
+            profileImage: "$artist.profileImage",
+            verified: "$artist.verified",
+          },
+          communityId: {
+            _id: "$community._id",
+            description: "$community.description",
+            coverImage: "$community.coverImage",
+          },
+          tags: 1,
+          category: 1,
+          visibility: 1,
+          likeCount: { $size: "$likes" },
+          commentCount: { $size: "$comments" },
+          shareCount: { $ifNull: ["$shareCount", 0] },
+          status: 1,
+          genre: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          __v: 1,
+          id: "$_id",
+          comments: {
+            $slice: ["$comments", 5], // Get latest 5 comments
+          },
+          likes: {
+            $map: {
+              input: "$likes",
+              as: "like",
+              in: {
+                _id: "$$like._id",
+                userId: {
+                  _id: "$$like.userId",
+                  email: "$$like.userEmail",
+                  username: "$$like.username",
+                  profileImage: "$$like.userProfileImage",
+                  bio: "$$like.userBio",
+                },
+                postId: "$$like.postId",
+                itemType: { $literal: "post" },
+                createdAt: "$$like.createdAt",
+                __v: "$$like.__v",
+              },
+            },
+          },
+          hasLiked: {
+            $in: [new Types.ObjectId(userId), "$likes.userId"],
+          },
         },
-        {
-          $sort: { createdAt: -1 }
-        },
-        {
-          $limit: 20
-        }
-      ]);
+      },
+      {
+        $sort: { createdAt: -1 },
+      },
+      {
+        $limit: 20,
+      },
+    ]);
 
-      return res.status(200).json({
-        status: 'success',
-        message: 'Successfully fetched user feed',
-        data: {
-          communities: userCommunities.map(community => ({
-            id: community._id,
-            name: community.name,
-            description: community.description,
-            coverImage: community.coverImage,
-            artist: community.artist,
-            memberCount: community.memberCount,
-            members: community.members,
-            joinedAt: community.joinedAt
-          })),
-          posts: recentPosts,
-          currentPage: parseInt(page),
-          totalPages: Math.ceil(recentPosts.length / parseInt(limit)),
-          totalPosts: recentPosts.length
-        }
-      });
-
-    } catch (error) {
-      console.error('Error in getUserCommunities:', error);
-      return res.status(500).json({
-        status: 'error',
-        message: 'Error fetching user communities',
-        error: error.message
-      });
-    }
-  };
+    return res.status(200).json({
+      status: "success",
+      message: "Successfully fetched user feed",
+      data: {
+        communities: userCommunities.map((community) => ({
+          id: community._id,
+          name: community.name,
+          description: community.description,
+          coverImage: community.coverImage,
+          artist: community.artist,
+          memberCount: community.memberCount,
+          members: community.members,
+          joinedAt: community.joinedAt,
+        })),
+        posts: recentPosts,
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(recentPosts.length / parseInt(limit)),
+        totalPosts: recentPosts.length,
+      },
+    });
+  } catch (error) {
+    console.error("Error in getUserCommunities:", error);
+    return res.status(500).json({
+      status: "error",
+      message: "Error fetching user communities",
+      error: error.message,
+    });
+  }
+};

@@ -1,32 +1,32 @@
+import cors from "cors";
+import { config } from "dotenv";
+import express, { json, urlencoded } from "express";
 import { createServer } from "http";
 import mongoose from "mongoose";
-import cors from "cors";
-import express, { urlencoded, json } from "express";
-import { config } from "dotenv";
 import { websocketService } from "./utils/websocket/websocketServer.js";
 
-import userRouter from "./routes/user.route.js";
+import adminRouter from "./routes/admin-route/admin.route.js";
 import artistRouter from "./routes/artist.route.js";
 import artistClaimRouter from "./routes/artistClaim.route.js";
-import preferenceRouter from "./routes/preferences.route.js";
-import songRouter from "./routes/songs.route.js";
 import communityRouter from "./routes/community.route.js";
+import favoritesRouter from "./routes/favorites.route.js";
+import friendRouter from "./routes/friend.routes.js";
 import genreRoute from "./routes/genres.route.js";
+import nftRoutes from "./routes/nft.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
+import oauthrouter from "./routes/oauth.route.js";
+import passSubscriptionRoute from "./routes/passSubscription.routes.js";
 import playlistRouter from "./routes/playlist.route.js";
 import postRouter from "./routes/post.route.js";
-import searchRoutes from "./routes/search.routes.js";
-import adminRouter from "./routes/admin-route/admin.route.js";
+import preferenceRouter from "./routes/preferences.route.js";
 import referralRouter from "./routes/referral.route.js";
-import oauthrouter from "./routes/oauth.route.js";
-import nftRoutes from "./routes/nft.routes.js";
-import xionRoutes from './routes/xion.routes.js';
-import notificationRoutes from './routes/notification.routes.js';
-import AbstraxionAuth from './xion/AbstraxionAuth.js';
+import searchRoutes from "./routes/search.routes.js";
+import songRouter from "./routes/songs.route.js";
+import subscriptionRouter from "./routes/subscription.routes.js";
 import transactionrouter from "./routes/transaction.routes.js";
-import passSubscriptionRoute from "./routes/passSubscription.routes.js";
-import favoritesRouter from "./routes/favorites.route.js";
-import subscriptionRouter from './routes/subscription.routes.js';
-
+import userRouter from "./routes/user.route.js";
+import xionRoutes from "./routes/xion.routes.js";
+import AbstraxionAuth from "./xion/AbstraxionAuth.js";
 
 config();
 
@@ -61,13 +61,14 @@ app.use("/api/nfts", nftRoutes);
 app.use("/api/oauth", oauthrouter);
 app.use("/api/transactions", transactionrouter);
 app.use("/api/favorites", favoritesRouter);
+app.use("/api/friends", friendRouter);
 
 // Register Xion routes
 app.use("/api/xion", xionRoutes);
 app.use("/api/notifications", notificationRoutes);
 
 // Register pass subscription routes
-app.use('/api/pass-subscriptions', passSubscriptionRoute);
+app.use("/api/pass-subscriptions", passSubscriptionRoute);
 
 // Register subscription routes
 app.use("/api/subscriptions", subscriptionRouter);
@@ -98,10 +99,14 @@ const mongoURI =
       );
       console.log("Xion connection initialized successfully");
     } catch (xionError) {
-      console.warn("Warning: Failed to initialize Xion connection:", xionError.message);
-      console.warn("The server will continue running, but Xion features may be unavailable");
+      console.warn(
+        "Warning: Failed to initialize Xion connection:",
+        xionError.message
+      );
+      console.warn(
+        "The server will continue running, but Xion features may be unavailable"
+      );
     }
-
   } catch (error) {
     console.error("Failed to initialize server:", error);
     process.exit(1);
