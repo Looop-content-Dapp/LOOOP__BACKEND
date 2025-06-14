@@ -67,4 +67,14 @@ jobs:
               -e GRANTER_MNEMONIC="${{ secrets.GRANTER_MNEMONIC }}" \
               -e WALLET_API_BASE_URL="${{ secrets.WALLET_API_BASE_URL }}" \
               -e PIXABAY_API_KEY="${{ secrets.PIXABAY_API_KEY }}" \
+              -e PAYSTACK_SECRET_KEY="${{ secrets.PAYSTACK_SECRET_KEY }}" \
+              -e PAYSTACK_SECRET_KEY_TEST="${{ secrets.PAYSTACK_SECRET_KEY_TEST }}" \
+              -e PORT=3000 \
+              -e NODE_ENV=development \
+              -e ALCHEMY_API_KEY="${{ secrets.ALCHEMY_API_KEY }}" \
+              -e COLLECTION_CONTRACT_ADDRESS="${{ secrets.COLLECTION_CONTRACT_ADDRESS }}" \
+              -e STARKNET_FUNDER_ADDRESS="${{ secrets.STARKNET_FUNDER_ADDRESS }}" \
+              -e STARKNET_FUNDER_PRIVATE_KEY="${{ secrets.STARKNET_FUNDER_PRIVATE_KEY }}" \
+              -e AVNU_API_KEY="${{ secrets.AVNU_API_KEY }}" \
+              -e AVNU_BASE_URL="${{ secrets.AVNU_BASE_URL }}" \
               looop-backend
