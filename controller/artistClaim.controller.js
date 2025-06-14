@@ -1,10 +1,10 @@
-import { Artist } from "../models/artist.model.js";
-import { User } from "../models/user.model.js";
-import { ArtistClaim } from "../models/artistClaim.model.js";
 import mongoose from "mongoose";
-import { websocketService } from '../utils/websocket/websocketServer.js';
-import {sendEmail} from "../script.js";
-import { notificationService } from '../services/notification.service.js';
+import { Artist } from "../models/artist.model.js";
+import { ArtistClaim } from "../models/artistClaim.model.js";
+import { User } from "../models/user.model.js";
+import { sendEmail } from "../script.mjs";
+import { notificationService } from "../services/notification.service.js";
+import { websocketService } from "../utils/websocket/websocketServer.js";
 
 export const submitArtistClaim = async (req, res) => {
   try {
@@ -68,28 +68,29 @@ export const submitArtistClaim = async (req, res) => {
     // Create notification for user
     await notificationService.createNotification({
       userId,
-      type: 'artist_claim',
-      title: 'Artist Claim Submitted',
+      type: "artist_claim",
+      title: "Artist Claim Submitted",
       message: `Your claim request for ${artist.name} has been submitted and is under review.`,
       data: {
         claimId: claim._id,
         artistId: artist._id,
-        artistName: artist.name
-      }
+        artistName: artist.name,
+      },
     });
 
     // Send email notification for claim submission
     await sendEmail(user.email, "Artist Claim Submission", "artist", {
       artist_name: artist.name,
       support_email: "support@looop.com",
-      message: "Your artist claim request has been submitted and is under review. We'll notify you once it's processed."
+      message:
+        "Your artist claim request has been submitted and is under review. We'll notify you once it's processed.",
     });
 
     // Broadcast the new claim to all connected clients
-    websocketService.broadcast('newClaim', {
+    websocketService.broadcast("newClaim", {
       claimId: claim._id,
       artistId,
-      status: 'pending'
+      status: "pending",
     });
 
     return res.status(201).json({
@@ -106,63 +107,63 @@ export const submitArtistClaim = async (req, res) => {
 };
 
 export const submitClaim = async ({
-    userId,
-    artistId,
-    verificationDocuments,
-    socialMediaHandles,
-  }) => {
-    try {
-      if (!userId || !verificationDocuments) {
-        return {
-          message: "Missing required fields",
-          required: ["userId", "artistId", "verificationDocuments"],
-        };
-      }
+  userId,
+  artistId,
+  verificationDocuments,
+  socialMediaHandles,
+}) => {
+  try {
+    if (!userId || !verificationDocuments) {
+      return {
+        message: "Missing required fields",
+        required: ["userId", "artistId", "verificationDocuments"],
+      };
+    }
 
-      const existingClaim = await ArtistClaim.findOne({
+    const existingClaim = await ArtistClaim.findOne({
+      userId,
+      status: "pending",
+    });
+
+    if (existingClaim) {
+      return {
+        isPending: true,
+        message: "A claim request is already pending for this artist profile",
+        data: { status: "pending" },
+      };
+    } else {
+      const claim = new ArtistClaim({
         userId,
+        artistId,
+        verificationDocuments,
+        socialMediaHandles,
+        websiteUrl: verificationDocuments.websiteurl,
         status: "pending",
       });
 
-      if (existingClaim) {
+      await claim.save();
+
+      if (claim) {
         return {
-          isPending: true,
-          message: "A claim request is already pending for this artist profile",
-          data: { status: "pending" }
+          message: "Claim request submitted successfully",
+          data: {
+            id: claim.id,
+            status: claim.status,
+            artistId: claim.artistId,
+          },
+          isPending: false,
         };
-      } else {
-        const claim = new ArtistClaim({
-          userId,
-          artistId,
-          verificationDocuments,
-          socialMediaHandles,
-          websiteUrl: verificationDocuments.websiteurl,
-          status: "pending",
-        });
-
-        await claim.save();
-
-        if (claim) {
-          return {
-            message: "Claim request submitted successfully",
-            data: {
-              id: claim.id,
-              status: claim.status,
-              artistId: claim.artistId
-            },
-            isPending: false,
-          };
-        }
       }
-    } catch (error) {
-      console.error("Error in submitClaim:", error);
-      return {
-        message: "Error submitting claim",
-        error: error.message,
-        data: { status: "error" }
-      };
     }
-  };
+  } catch (error) {
+    console.error("Error in submitClaim:", error);
+    return {
+      message: "Error submitting claim",
+      error: error.message,
+      data: { status: "error" },
+    };
+  }
+};
 
 // Get claim status
 export const getClaimStatus = async (req, res) => {
@@ -226,7 +227,9 @@ export const updateClaimStatus = async (req, res) => {
     const { claimId } = req.params;
     const { status, rejectionReason, adminId } = req.body;
 
-    if (!["approved", "rejected", "pending", "not-submitted"].includes(status)) {
+    if (
+      !["approved", "rejected", "pending", "not-submitted"].includes(status)
+    ) {
       return res.status(400).json({
         status: "failed",
         message: "Invalid status. Must be 'approved', 'rejected' or 'pending'",
@@ -241,8 +244,8 @@ export const updateClaimStatus = async (req, res) => {
     }
 
     const claim = await ArtistClaim.findById(claimId)
-      .populate('artistId')
-      .populate('userId');
+      .populate("artistId")
+      .populate("userId");
 
     if (!claim) {
       return res.status(404).json({
@@ -264,11 +267,16 @@ export const updateClaimStatus = async (req, res) => {
       claim.rejectionReason = rejectionReason;
 
       // Send rejection email
-      await sendEmail(claim.userId.email, "Artist Profile Claim Update", "claim", {
-        artist_name: claim.userId.username,
-        message: `Your claim for artist profile "${claim.artistId.name}" has been rejected. Reason: ${rejectionReason}`,
-        support_email: "support@looop.com"
-      });
+      await sendEmail(
+        claim.userId.email,
+        "Artist Profile Claim Update",
+        "claim",
+        {
+          artist_name: claim.userId.username,
+          message: `Your claim for artist profile "${claim.artistId.name}" has been rejected. Reason: ${rejectionReason}`,
+          support_email: "support@looop.com",
+        }
+      );
     }
 
     if (status === "approved") {
@@ -282,23 +290,27 @@ export const updateClaimStatus = async (req, res) => {
         { session }
       );
 
-
-    // Send approval email using claim.hbs template
-    await sendEmail(claim.userId.email, "Artist Profile Claim Update", "claim", {
-        artist_name: claim.userId.username,
-        message: `Congratulations! Your claim for artist profile "${claim.artistId.name}" has been approved. You can now manage your artist profile.`,
-        support_email: "support@looop.com"
-      });
+      // Send approval email using claim.hbs template
+      await sendEmail(
+        claim.userId.email,
+        "Artist Profile Claim Update",
+        "claim",
+        {
+          artist_name: claim.userId.username,
+          message: `Congratulations! Your claim for artist profile "${claim.artistId.name}" has been approved. You can now manage your artist profile.`,
+          support_email: "support@looop.com",
+        }
+      );
     }
 
     await claim.save({ session });
     await session.commitTransaction();
 
     // Broadcast the status update
-    websocketService.broadcast('claimStatusUpdate', {
+    websocketService.broadcast("claimStatusUpdate", {
       claimId: claim._id,
       status: status,
-      updatedAt: new Date()
+      updatedAt: new Date(),
     });
 
     return res.status(200).json({
@@ -306,7 +318,6 @@ export const updateClaimStatus = async (req, res) => {
       message: `Claim ${status} successfully`,
       data: claim,
     });
-
   } catch (error) {
     await session.abortTransaction();
     console.error("Error in updateClaimStatus:", error);
@@ -325,8 +336,8 @@ export const getAllClaims = async (req, res) => {
       page = 1,
       limit = 10,
       status,
-      sortBy = 'createdAt',
-      sortOrder = 'desc'
+      sortBy = "createdAt",
+      sortOrder = "desc",
     } = req.query;
 
     const query = {};
@@ -337,17 +348,17 @@ export const getAllClaims = async (req, res) => {
     const options = {
       page: parseInt(page),
       limit: parseInt(limit),
-      sort: { [sortBy]: sortOrder === 'desc' ? -1 : 1 },
+      sort: { [sortBy]: sortOrder === "desc" ? -1 : 1 },
       populate: [
         {
-          path: 'artistId',
-          select: 'name email profileImage genre'
+          path: "artistId",
+          select: "name email profileImage genre",
         },
         {
-          path: 'userId',
-          select: 'username email profileImage'
-        }
-      ]
+          path: "userId",
+          select: "username email profileImage",
+        },
+      ],
     };
 
     const claims = await ArtistClaim.find(query)
@@ -368,16 +379,16 @@ export const getAllClaims = async (req, res) => {
           currentPage: options.page,
           totalPages: Math.ceil(totalClaims / options.limit),
           totalClaims,
-          hasMore: options.page * options.limit < totalClaims
-        }
-      }
+          hasMore: options.page * options.limit < totalClaims,
+        },
+      },
     });
   } catch (error) {
     console.error("Error in getAllClaims:", error);
     return res.status(500).json({
       status: "failed",
       message: "Error fetching claims",
-      error: error.message
+      error: error.message,
     });
   }
 };

@@ -1,8 +1,7 @@
 import nodemailer from "nodemailer";
-import path from "path";
 import hbs from "nodemailer-express-handlebars";
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
+import path, { dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

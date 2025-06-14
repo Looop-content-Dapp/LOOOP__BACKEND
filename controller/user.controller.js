@@ -18,7 +18,7 @@ import { validateGoogleToken } from "../middlewares/googleauth.js";
 import { ArtistClaim } from "../models/artistClaim.model.js";
 import { CommunityMember } from "../models/communitymembers.model.js";
 import { ReferralCode } from "../models/referralcode.model.js";
-import { sendEmail } from "../script.js";
+import { sendEmail } from "../script.mjs";
 import { generateOtp } from "../utils/helpers/generateotp.js";
 import { generateUniqueReferralCode } from "../utils/helpers/referralcode.js";
 import {
@@ -891,54 +891,44 @@ const signIn = async (req, res) => {
       },
     ]);
 
-    const xionLoggedInUser = await abstraxionAuth.login(email);
-
-    if (xionLoggedInUser) {
-      const userData = {
-        ...user[0]._doc,
-        wallets: {
-          ...user[0]._doc.wallets,
-          xion: {
-            address: user[0]._doc.wallets.xion.address,
-          },
+    const userData = {
+      ...user[0]._doc,
+      wallets: {
+        ...user[0]._doc.wallets,
+        xion: {
+          address: user[0]._doc.wallets.xion.address,
         },
-        artist: isArtist === null ? null : isArtist?.id,
-        artistClaim: hasClaim === null ? null : hasClaim?.id,
-        following: followingArtists.length,
-        followingArtists: followingArtists,
-      };
-      delete userData.password;
-      delete userData.referralCode;
-      delete userData.referralCount;
-      delete userData.referralCodeUsed;
+      },
+      artist: isArtist === null ? null : isArtist?.id,
+      artistClaim: hasClaim === null ? null : hasClaim?.id,
+      following: followingArtists.length,
+      followingArtists: followingArtists,
+    };
+    delete userData.password;
+    delete userData.referralCode;
+    delete userData.referralCount;
+    delete userData.referralCodeUsed;
 
-      const emailResult = await sendEmail(
-        user[0].email,
-        "New Login Detected",
-        "login",
-        {
-          username: user[0].username,
-          loginTime: new Date().toLocaleString(),
-          deviceInfo: req.headers["user-agent"],
-          ipAddress: req.ip,
-        }
-      );
-      console.log("email result", emailResult);
+    const emailResult = await sendEmail(
+      user[0].email,
+      "New Login Detected",
+      "login",
+      {
+        username: user[0].username,
+        loginTime: new Date().toLocaleString(),
+        deviceInfo: req.headers["user-agent"],
+        ipAddress: req.ip,
+      }
+    );
+    console.log("email result", emailResult);
 
-      return res.status(200).json({
-        status: "success",
-        message: "Sign in successful",
-        data: {
-          ...userData,
-        },
-      });
-    } else {
-      return res.status(400).json({
-        status: "failed",
-        message: "An Error Occired",
-        data: null,
-      });
-    }
+    return res.status(200).json({
+      status: "success",
+      message: "Sign in successful",
+      data: {
+        ...userData,
+      },
+    });
   } catch (error) {
     console.log(error);
     return res.status(500).json({

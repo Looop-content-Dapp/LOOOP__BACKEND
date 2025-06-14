@@ -12,7 +12,7 @@ import { Release } from "../models/releases.model.js";
 import { Social } from "../models/socials.model.js";
 import { Subscriber } from "../models/subcriber.model.js";
 import { User } from "../models/user.model.js";
-import { sendEmail } from "../script.js";
+import { sendEmail } from "../script.mjs";
 import { createArtistSchema } from "../validations_schemas/artist.validation.js";
 import AbstraxionAuth from "../xion/AbstraxionAuth.js";
 import { submitClaim } from "./artistClaim.controller.js";
