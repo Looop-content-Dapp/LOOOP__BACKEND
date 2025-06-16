@@ -27,6 +27,7 @@ import transactionrouter from "./routes/transaction.routes.js";
 import userRouter from "./routes/user.route.js";
 import xionRoutes from "./routes/xion.routes.js";
 import AbstraxionAuth from "./xion/AbstraxionAuth.js";
+import Giftrouter from "./routes/gift.routes.js";
 
 config();
 
@@ -62,6 +63,7 @@ app.use("/api/oauth", oauthrouter);
 app.use("/api/transactions", transactionrouter);
 app.use("/api/favorites", favoritesRouter);
 app.use("/api/friends", friendRouter);
+app.use("/api/gift", Giftrouter);
 
 // Register Xion routes
 app.use("/api/xion", xionRoutes);

@@ -289,15 +289,18 @@ const getUser = async (req, res) => {
       artistClaim: hasClaim === null ? null : hasClaim?.id,
       followingArtists: followingArtists,
       communities: getUserTribe,
-      friendsCount: user[0].friends.length,
+      friendsCount: user[0].friends && Array.isArray(user[0].friends) ? user[0].friends.length : 0,
     };
 
     delete userData.password;
-    delete userData.wallets.xion.mnemonic;
-    delete userData.wallets.xion._id;
+    if (userData.wallets && typeof userData.wallets.xion === 'object' && userData.wallets.xion !== null) {
+      delete userData.wallets.xion.mnemonic;
+      delete userData.wallets.xion._id;
+    }
     delete userData.referralCode;
     delete userData.referralCount;
     delete userData.referralCodeUsed;
+    console.log("userdata", userData)
 
     return res.status(200).json({
       status: "success",
@@ -305,6 +308,7 @@ const getUser = async (req, res) => {
       data: userData,
     });
   } catch (error) {
+    console.error("Error in getUser:", error); // Added console.error for detailed logging
     return res
       .status(500)
       .json({ message: "Error fetching user", error: error.message });
@@ -845,11 +849,12 @@ const signIn = async (req, res) => {
     });
 
     const isPasswordValid = await bcrypt.compare(password, user[0].password);
+    console.log(isPasswordValid)
 
     if (!isPasswordValid) {
       return res.status(401).json({
         status: "failed",
-        message: "Invalid password",
+        message: "Incorrect password",
       });
     }
 
