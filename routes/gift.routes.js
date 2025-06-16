@@ -3,18 +3,13 @@ import {
   getGiftTransactions,
   sendGift,
 } from "../controller/gift.controller.js";
-import { authMiddleware } from "../middlewares/auth.middleware.js";
-// import { validateGiftRequest } from "../validations_schemas/gift.validation.js";
 
-const router = express.Router();
-
-// Protected routes - require authentication
-router.use(authMiddleware);
+const Giftrouter = express.Router();
 
 // Send a gift to an artist
-router.post("/send", sendGift);
+Giftrouter.post("/send", sendGift);
 
 // Get gift transactions (sent or received)
-router.get("/transactions", getGiftTransactions);
+Giftrouter.get("/transactions", getGiftTransactions);
 
-export default router;
+export default Giftrouter;

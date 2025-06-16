@@ -1,13 +1,12 @@
 import { Artist } from "../models/artist.model.js";
 import Transaction from "../models/Transaction.model.js";
 import { User } from "../models/user.model.js";
-import NotificationService from "../services/notification.service.js";
+import { notificationService } from "../services/notification.service.js";
 import StarknetService from "../services/starknet.service.js";
 import { WS_EVENTS } from "../utils/websocket/eventTypes.js";
 import { websocketService } from "../utils/websocket/websocketServer.js";
 
 const starknetService = new StarknetService();
-const notificationService = new NotificationService();
 
 /**
  * Send a USDC gift to an artist
@@ -15,8 +14,8 @@ const notificationService = new NotificationService();
  * @param {Response} res - Express response object
  */
 export const sendGift = async (req, res) => {
-  const { artistId, amount, message } = req.body;
-  const userId = req.user.id;
+  const {userId, artistId, amount, message } = req.body;
+
 
   try {
     // Validate artist exists and is verified
@@ -26,7 +25,7 @@ export const sendGift = async (req, res) => {
     }
 
     // Get artist's community
-    const community = await Community.findOne({ 
+    const community = await Community.findOne({
       createdBy: artist._id,
       status: "active"
     });
