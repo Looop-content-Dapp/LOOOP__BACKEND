@@ -391,13 +391,6 @@ const createUser = async (req, res) => {
         .json({ status: "failed", message: "Username already in use" });
     }
 
-    // Only hash password if it's provided and not empty (for non-OAuth users)
-    let hashedPassword;
-    if (password && password.trim() !== "") {
-      const salt = await bcrypt.genSalt(10);
-      hashedPassword = await bcrypt.hash(password, salt);
-    }
-
     const refcode = await generateUniqueReferralCode(username);
 
     // Create user object with common properties
@@ -411,9 +404,10 @@ const createUser = async (req, res) => {
       referralCode: refcode,
     };
 
-    // Add password only if it exists (for non-OAuth users)
-    if (hashedPassword) {
-      userObj.password = hashedPassword;
+    // Add password only if it's provided (for non-OAuth users)
+    // The pre-save hook in the User model will handle hashing.
+    if (password && password.trim() !== "") {
+      userObj.password = password;
     }
 
     // Add oauthprovider if it exists
@@ -900,9 +894,9 @@ const signIn = async (req, res) => {
       ...user[0]._doc,
       wallets: {
         ...user[0]._doc.wallets,
-        xion: {
-          address: user[0]._doc.wallets.xion.address,
-        },
+        // xion: {
+        //   address: user[0]._doc.wallets.xion.address,
+        // },
       },
       artist: isArtist === null ? null : isArtist?.id,
       artistClaim: hasClaim === null ? null : hasClaim?.id,
